@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Plus, Sparkles, Menu } from "lucide-react";
+import { FileText, Plus, Sparkles, Menu, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TemplateSelector } from "@/components/template-selector";
 import { TemplateStructure } from "@/components/template-structure";
 import { ContentLibrary } from "@/components/content-library";
 import { TagMappingPanel } from "@/components/tag-mapping-panel";
 import { GenerateDocumentDialog } from "@/components/generate-document-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
-import type { ParsedTemplate, ContentSnippet, Category, TagMapping } from "@shared/schema";
+import type { ParsedTemplate, ContentSnippet, Category, TagMapping, User as UserType } from "@shared/schema";
+import { SiGoogle } from "react-icons/si";
 
 export default function Home() {
   const [selectedTemplate, setSelectedTemplate] = useState<ParsedTemplate | null>(null);
@@ -19,12 +21,19 @@ export default function Home() {
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState<'structure' | 'library' | 'mapping' | null>(null);
 
+  const { data: user, isLoading: isLoadingUser } = useQuery<UserType | null>({
+    queryKey: ['/auth/user'],
+    retry: false,
+  });
+
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['/api/categories'],
+    enabled: !!user,
   });
 
   const { data: snippets = [] } = useQuery<ContentSnippet[]>({
     queryKey: ['/api/content-snippets'],
+    enabled: !!user,
   });
 
   const handleTemplateSelect = (template: ParsedTemplate) => {
@@ -79,6 +88,62 @@ export default function Home() {
     setShowGenerateDialog(true);
   };
 
+  const handleLogin = () => {
+    window.location.href = '/auth/google';
+  };
+
+  const handleLogout = () => {
+    window.location.href = '/auth/logout';
+  };
+
+  // Show loading state while checking authentication
+  if (isLoadingUser) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-center">
+          <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground animate-pulse" data-testid="icon-loading" />
+          <p className="text-sm text-muted-foreground" data-testid="text-loading">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!user) {
+    return (
+      <div className="flex flex-col h-screen bg-background">
+        <header className="h-14 border-b flex items-center justify-between px-6 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <FileText className="w-5 h-5 text-primary" data-testid="icon-app-logo" />
+            <h1 className="text-lg font-semibold" data-testid="text-app-title">DocBuilder</h1>
+          </div>
+          <ThemeToggle />
+        </header>
+        
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-md px-6">
+            <FileText className="w-16 h-16 mx-auto mb-6 text-primary" data-testid="icon-login-logo" />
+            <h2 className="text-2xl font-semibold mb-3" data-testid="text-login-title">Welcome to DocBuilder</h2>
+            <p className="text-sm text-muted-foreground mb-8" data-testid="text-login-description">
+              Build Google Documents from customizable templates with ease. Sign in with your Google account 
+              to access your Drive files and start creating.
+            </p>
+            <Button
+              variant="default"
+              size="default"
+              onClick={handleLogin}
+              className="gap-2"
+              data-testid="button-google-login"
+            >
+              <SiGoogle className="w-4 h-4" />
+              Sign in with Google
+            </Button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-background">
       <header className="h-14 border-b flex items-center justify-between px-6 flex-shrink-0">
@@ -95,11 +160,12 @@ export default function Home() {
           )}
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Button
             variant="outline"
             size="default"
             onClick={() => setShowTemplateSelector(true)}
+            className="hidden sm:flex"
             data-testid="button-load-template"
           >
             <FileText className="w-4 h-4" />
@@ -111,11 +177,36 @@ export default function Home() {
             size="default"
             onClick={handleGenerate}
             disabled={!selectedTemplate || tagMappings.size === 0}
+            className="hidden sm:flex"
             data-testid="button-generate-document"
           >
             <Sparkles className="w-4 h-4" />
             Generate Document
           </Button>
+          
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted">
+              <Avatar className="h-6 w-6" data-testid="avatar-user">
+                <AvatarImage src={user.picture || undefined} alt={user.name || 'User'} />
+                <AvatarFallback>
+                  {user.name?.charAt(0).toUpperCase() || 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm hidden md:inline" data-testid="text-user-name">
+                {user.name || user.email}
+              </span>
+            </div>
+            
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              title="Sign out"
+              data-testid="button-logout"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
           
           <div className="md:hidden">
             <Button
