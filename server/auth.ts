@@ -31,7 +31,7 @@ passport.use(
         const googleId = profile.id;
         const email = profile.emails?.[0]?.value || "";
         const name = profile.displayName || "";
-        const picture = profile.photos?.[0]?.value;
+        const picture = profile.photos?.[0]?.value || null;
 
         let [user] = await db
           .select()

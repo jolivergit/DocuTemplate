@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import passport, { requireAuth } from "./auth";
 import { storage } from "./storage";
-import { getUncachableGoogleDriveClient } from "./google-drive-client";
-import { getUncachableGoogleDocsClient } from "./google-docs-client";
+import { getGoogleDriveClient } from "./google-drive-client";
+import { getGoogleDocsClient } from "./google-docs-client";
 import {
   insertCategorySchema,
   insertContentSnippetSchema,
@@ -10,34 +11,75 @@ import {
   type ParsedTemplate,
   type TemplateSection,
   type TemplateTag,
+  type User,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Authentication routes
+  app.get("/auth/google", passport.authenticate("google", { 
+    accessType: "offline",
+    prompt: "consent"
+  }));
+
+  app.get(
+    "/auth/google/callback",
+    passport.authenticate("google", { failureRedirect: "/" }),
+    (req, res) => {
+      res.redirect("/");
+    }
+  );
+
+  app.get("/auth/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Failed to logout" });
+      }
+      res.redirect("/");
+    });
+  });
+
+  app.get("/auth/user", (req, res) => {
+    if (req.isAuthenticated()) {
+      const user = req.user as User;
+      res.json({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+      });
+    } else {
+      res.status(401).json({ error: "Not authenticated" });
+    }
+  });
+
   // Categories
-  app.get("/api/categories", async (req, res) => {
+  app.get("/api/categories", requireAuth, async (req, res) => {
     try {
-      const categories = await storage.getCategories();
+      const userId = (req.user as User).id;
+      const categories = await storage.getCategories(userId);
       res.json(categories);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.post("/api/categories", async (req, res) => {
+  app.post("/api/categories", requireAuth, async (req, res) => {
     try {
+      const userId = (req.user as User).id;
       const validated = insertCategorySchema.parse(req.body);
-      const category = await storage.createCategory(validated);
+      const category = await storage.createCategory(userId, validated);
       res.json(category);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  app.patch("/api/categories/:id", async (req, res) => {
+  app.patch("/api/categories/:id", requireAuth, async (req, res) => {
     try {
+      const userId = (req.user as User).id;
       const { id } = req.params;
       const validated = insertCategorySchema.partial().parse(req.body);
-      const category = await storage.updateCategory(id, validated);
+      const category = await storage.updateCategory(userId, id, validated);
       if (!category) {
         return res.status(404).json({ error: "Category not found" });
       }
@@ -47,10 +89,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/categories/:id", async (req, res) => {
+  app.delete("/api/categories/:id", requireAuth, async (req, res) => {
     try {
+      const userId = (req.user as User).id;
       const { id } = req.params;
-      const success = await storage.deleteCategory(id);
+      const success = await storage.deleteCategory(userId, id);
       if (!success) {
         return res.status(404).json({ error: "Category not found" });
       }
@@ -61,30 +104,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Content Snippets
-  app.get("/api/content-snippets", async (req, res) => {
+  app.get("/api/content-snippets", requireAuth, async (req, res) => {
     try {
-      const snippets = await storage.getContentSnippets();
+      const userId = (req.user as User).id;
+      const snippets = await storage.getContentSnippets(userId);
       res.json(snippets);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.post("/api/content-snippets", async (req, res) => {
+  app.post("/api/content-snippets", requireAuth, async (req, res) => {
     try {
+      const userId = (req.user as User).id;
       const validated = insertContentSnippetSchema.parse(req.body);
-      const snippet = await storage.createContentSnippet(validated);
+      const snippet = await storage.createContentSnippet(userId, validated);
       res.json(snippet);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  app.patch("/api/content-snippets/:id", async (req, res) => {
+  app.patch("/api/content-snippets/:id", requireAuth, async (req, res) => {
     try {
+      const userId = (req.user as User).id;
       const { id } = req.params;
       const validated = insertContentSnippetSchema.partial().parse(req.body);
-      const snippet = await storage.updateContentSnippet(id, validated);
+      const snippet = await storage.updateContentSnippet(userId, id, validated);
       if (!snippet) {
         return res.status(404).json({ error: "Content snippet not found" });
       }
@@ -94,10 +140,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/content-snippets/:id", async (req, res) => {
+  app.delete("/api/content-snippets/:id", requireAuth, async (req, res) => {
     try {
+      const userId = (req.user as User).id;
       const { id } = req.params;
-      const success = await storage.deleteContentSnippet(id);
+      const success = await storage.deleteContentSnippet(userId, id);
       if (!success) {
         return res.status(404).json({ error: "Content snippet not found" });
       }
@@ -108,9 +155,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Google Drive Files
-  app.get("/api/google-drive/files", async (req, res) => {
+  app.get("/api/google-drive/files", requireAuth, async (req, res) => {
     try {
-      const drive = await getUncachableGoogleDriveClient();
+      const userId = (req.user as User).id;
+      const drive = await getGoogleDriveClient(userId);
       
       const response = await drive.files.list({
         pageSize: 100,
@@ -128,15 +176,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Parse template
-  app.post("/api/templates/parse", async (req, res) => {
+  app.post("/api/templates/parse", requireAuth, async (req, res) => {
     try {
+      const userId = (req.user as User).id;
       const { fileId } = req.body;
       
       if (!fileId) {
         return res.status(400).json({ error: "fileId is required" });
       }
 
-      const docs = await getUncachableGoogleDocsClient();
+      const docs = await getGoogleDocsClient(userId);
       
       const doc = await docs.documents.get({
         documentId: fileId,
@@ -285,13 +334,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate document
-  app.post("/api/documents/generate", async (req, res) => {
+  app.post("/api/documents/generate", requireAuth, async (req, res) => {
     try {
+      const userId = (req.user as User).id;
       const validated = generateDocumentRequestSchema.parse(req.body);
       const { templateId, outputName, tagMappings } = validated;
 
-      const docs = await getUncachableGoogleDocsClient();
-      const drive = await getUncachableGoogleDriveClient();
+      const docs = await getGoogleDocsClient(userId);
+      const drive = await getGoogleDriveClient(userId);
       
       // Get the original document
       const originalDoc = await docs.documents.get({
@@ -323,10 +373,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (mapping.customContent) {
           replacementContent = mapping.customContent;
         } else if (mapping.snippetId) {
-          const snippet = await storage.getContentSnippetById(mapping.snippetId);
+          const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
           if (snippet) {
             replacementContent = snippet.content;
-            await storage.incrementSnippetUsage(mapping.snippetId);
+            await storage.incrementSnippetUsage(userId, mapping.snippetId);
           }
         }
 
