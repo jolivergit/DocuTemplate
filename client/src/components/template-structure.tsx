@@ -31,10 +31,128 @@ interface TemplateStructureProps {
   tagMappings: Map<string, TagMapping>;
 }
 
+// Non-sortable section component (used for child sections)
+interface SectionNodeProps {
+  section: TemplateSection;
+  level: number;
+  isExpanded: boolean;
+  expandedSections: Set<string>;
+  hasTags: boolean;
+  selectedTag: string | null;
+  tagMappings: Map<string, TagMapping>;
+  onToggle: (id: string) => void;
+  onTagClick: (tagName: string) => void;
+}
+
+function SectionNode({
+  section,
+  level,
+  isExpanded,
+  expandedSections,
+  hasTags,
+  selectedTag,
+  tagMappings,
+  onToggle,
+  onTagClick,
+}: SectionNodeProps) {
+  const hasChildren = section.children && section.children.length > 0;
+  const hasContent = hasTags || hasChildren;
+
+  return (
+    <div className="select-none" data-testid={`section-${section.id}`}>
+      <div
+        className={`flex items-center gap-2 py-2 px-3 rounded-md hover-elevate active-elevate-2 cursor-pointer transition-colors ${
+          level > 0 ? 'ml-4' : ''
+        }`}
+        style={{ paddingLeft: `${level * 16 + 12}px` }}
+      >
+        <button
+          onClick={() => onToggle(section.id)}
+          className="flex-shrink-0 w-4 h-4 flex items-center justify-center"
+          data-testid={`button-toggle-section-${section.id}`}
+        >
+          {hasContent && (
+            isExpanded ? (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            )
+          )}
+        </button>
+        
+        <span className="text-sm flex-1 min-w-0 truncate" data-testid={`text-section-title-${section.id}`}>
+          {section.title || 'Untitled Section'}
+        </span>
+        
+        {hasTags && (
+          <Badge variant="secondary" className="text-xs" data-testid={`badge-tag-count-${section.id}`}>
+            {section.tags.length}
+          </Badge>
+        )}
+      </div>
+      
+      {isExpanded && (
+        <div className="space-y-1 mt-1">
+          {/* Render tags */}
+          {hasTags && (
+            <div className="space-y-1" style={{ paddingLeft: `${(level + 1) * 16 + 12}px` }}>
+              {section.tags.map((tag, idx) => {
+                const isMapped = tagMappings.has(tag.name);
+                const isSelected = selectedTag === tag.name;
+                
+                return (
+                  <button
+                    key={`${tag.name}-${idx}`}
+                    onClick={() => onTagClick(tag.name)}
+                    className={`w-full flex items-center gap-2 py-1.5 px-3 rounded-md text-left transition-colors hover-elevate active-elevate-2 ${
+                      isSelected ? 'bg-accent' : ''
+                    }`}
+                    data-testid={`button-tag-${tag.name}`}
+                  >
+                    <Hash className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                    <code className="text-xs font-mono flex-1 min-w-0 truncate" data-testid={`text-tag-name-${tag.name}`}>
+                      &lt;&lt;{tag.name}&gt;&gt;
+                    </code>
+                    {isMapped && (
+                      <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" data-testid={`indicator-mapped-${tag.name}`} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          
+          {/* Render child sections recursively */}
+          {hasChildren && (
+            <div className="space-y-1">
+              {section.children.map(childSection => (
+                <SectionNode
+                  key={childSection.id}
+                  section={childSection}
+                  level={level + 1}
+                  isExpanded={expandedSections.has(childSection.id)}
+                  expandedSections={expandedSections}
+                  hasTags={childSection.tags.length > 0}
+                  selectedTag={selectedTag}
+                  tagMappings={tagMappings}
+                  onToggle={onToggle}
+                  onTagClick={onTagClick}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Sortable wrapper for top-level sections
 interface SortableSectionProps {
   section: TemplateSection;
   level: number;
   isExpanded: boolean;
+  expandedSections: Set<string>;
   hasTags: boolean;
   selectedTag: string | null;
   tagMappings: Map<string, TagMapping>;
@@ -46,6 +164,7 @@ function SortableSection({
   section,
   level,
   isExpanded,
+  expandedSections,
   hasTags,
   selectedTag,
   tagMappings,
@@ -65,6 +184,9 @@ function SortableSection({
     transition,
   };
 
+  const hasChildren = section.children && section.children.length > 0;
+  const hasContent = hasTags || hasChildren;
+
   return (
     <div ref={setNodeRef} style={style} className="select-none" data-testid={`section-${section.id}`}>
       <div
@@ -78,7 +200,7 @@ function SortableSection({
           className="flex-shrink-0 w-4 h-4 flex items-center justify-center"
           data-testid={`button-toggle-section-${section.id}`}
         >
-          {hasTags && (
+          {hasContent && (
             isExpanded ? (
               <ChevronDown className="w-4 h-4 text-muted-foreground" />
             ) : (
@@ -102,31 +224,56 @@ function SortableSection({
         )}
       </div>
       
-      {isExpanded && hasTags && (
-        <div className="space-y-1 mt-1" style={{ paddingLeft: `${(level + 1) * 16 + 12}px` }}>
-          {section.tags.map((tag, idx) => {
-            const isMapped = tagMappings.has(tag.name);
-            const isSelected = selectedTag === tag.name;
-            
-            return (
-              <button
-                key={`${tag.name}-${idx}`}
-                onClick={() => onTagClick(tag.name)}
-                className={`w-full flex items-center gap-2 py-1.5 px-3 rounded-md text-left transition-colors hover-elevate active-elevate-2 ${
-                  isSelected ? 'bg-accent' : ''
-                }`}
-                data-testid={`button-tag-${tag.name}`}
-              >
-                <Hash className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                <code className="text-xs font-mono flex-1 min-w-0 truncate" data-testid={`text-tag-name-${tag.name}`}>
-                  &lt;&lt;{tag.name}&gt;&gt;
-                </code>
-                {isMapped && (
-                  <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" data-testid={`indicator-mapped-${tag.name}`} />
-                )}
-              </button>
-            );
-          })}
+      {isExpanded && (
+        <div className="space-y-1 mt-1">
+          {/* Render tags */}
+          {hasTags && (
+            <div className="space-y-1" style={{ paddingLeft: `${(level + 1) * 16 + 12}px` }}>
+              {section.tags.map((tag, idx) => {
+                const isMapped = tagMappings.has(tag.name);
+                const isSelected = selectedTag === tag.name;
+                
+                return (
+                  <button
+                    key={`${tag.name}-${idx}`}
+                    onClick={() => onTagClick(tag.name)}
+                    className={`w-full flex items-center gap-2 py-1.5 px-3 rounded-md text-left transition-colors hover-elevate active-elevate-2 ${
+                      isSelected ? 'bg-accent' : ''
+                    }`}
+                    data-testid={`button-tag-${tag.name}`}
+                  >
+                    <Hash className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                    <code className="text-xs font-mono flex-1 min-w-0 truncate" data-testid={`text-tag-name-${tag.name}`}>
+                      &lt;&lt;{tag.name}&gt;&gt;
+                    </code>
+                    {isMapped && (
+                      <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" data-testid={`indicator-mapped-${tag.name}`} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          
+          {/* Render child sections using non-sortable SectionNode */}
+          {hasChildren && (
+            <div className="space-y-1">
+              {section.children.map(childSection => (
+                <SectionNode
+                  key={childSection.id}
+                  section={childSection}
+                  level={level + 1}
+                  isExpanded={expandedSections.has(childSection.id)}
+                  expandedSections={expandedSections}
+                  hasTags={childSection.tags.length > 0}
+                  selectedTag={selectedTag}
+                  tagMappings={tagMappings}
+                  onToggle={onToggle}
+                  onTagClick={onTagClick}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -220,6 +367,7 @@ export function TemplateStructure({
                     section={section}
                     level={0}
                     isExpanded={expandedSections.has(section.id)}
+                    expandedSections={expandedSections}
                     hasTags={section.tags.length > 0}
                     selectedTag={selectedTag}
                     tagMappings={tagMappings}
