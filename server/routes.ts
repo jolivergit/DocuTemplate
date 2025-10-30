@@ -175,35 +175,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Create simple sections based on headings or paragraphs
+      // Build hierarchical sections based on heading levels
       const sections: TemplateSection[] = [];
-      let currentSection: TemplateSection | null = null;
+      const sectionStack: { section: TemplateSection, level: number }[] = [];
       let textOffset = 0;
+      let sectionCounter = 0;
+      let currentSection: TemplateSection | null = null;
+
+      // Helper to extract heading level from style
+      const getHeadingLevel = (style: string | undefined): number | null => {
+        if (!style) return null;
+        const match = style.match(/HEADING_(\d+)/);
+        return match ? parseInt(match[1]) : null;
+      };
 
       for (const element of content) {
         if (element.paragraph) {
-          const paragraphStyle = element.paragraph.paragraphStyle?.namedStyleType;
-          const isHeading = paragraphStyle && paragraphStyle.includes('HEADING');
+          const paragraphStyle = element.paragraph.paragraphStyle?.namedStyleType || undefined;
+          const headingLevel = getHeadingLevel(paragraphStyle);
           
           let paragraphText = "";
           for (const textElement of element.paragraph.elements || []) {
             paragraphText += textElement.textRun?.content || "";
           }
 
-          if (isHeading && paragraphText.trim()) {
-            // Create new section for heading
-            if (currentSection) {
-              sections.push(currentSection);
-            }
-            
-            currentSection = {
-              id: `section-${sections.length}`,
+          if (headingLevel && paragraphText.trim()) {
+            // Create new section for this heading
+            const newSection: TemplateSection = {
+              id: `section-${sectionCounter++}`,
               title: paragraphText.trim(),
               tags: [],
               startIndex: textOffset,
               endIndex: textOffset + paragraphText.length,
               children: [],
             };
+
+            // Find the correct parent based on heading level
+            // Pop sections from stack that are at same or deeper level
+            while (sectionStack.length > 0 && sectionStack[sectionStack.length - 1].level >= headingLevel) {
+              sectionStack.pop();
+            }
+
+            if (sectionStack.length === 0) {
+              // Top-level section (Heading 1 or first heading)
+              sections.push(newSection);
+            } else {
+              // Child section - add to parent's children
+              const parent = sectionStack[sectionStack.length - 1].section;
+              parent.children.push(newSection);
+            }
+
+            // Push this section onto the stack
+            sectionStack.push({ section: newSection, level: headingLevel });
+            currentSection = newSection;
           }
 
           // Find tags in this paragraph
@@ -211,26 +235,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             tag => tag.startIndex >= textOffset && tag.endIndex <= textOffset + paragraphText.length
           );
 
+          // Add tags to the current section
           if (currentSection && paragraphTags.length > 0) {
             currentSection.tags.push(...paragraphTags);
           } else if (!currentSection && paragraphTags.length > 0) {
             // Create a default section if we have tags but no section yet
-            currentSection = {
-              id: `section-${sections.length}`,
+            // Don't push to stack so it doesn't interfere with subsequent headings
+            const defaultSection: TemplateSection = {
+              id: `section-${sectionCounter++}`,
               title: "Content",
               tags: paragraphTags,
               startIndex: textOffset,
               endIndex: textOffset + paragraphText.length,
               children: [],
             };
+            sections.push(defaultSection);
+            currentSection = defaultSection;
+            // Note: Not pushing to stack so subsequent headings remain top-level
           }
 
           textOffset += paragraphText.length;
         }
-      }
-
-      if (currentSection) {
-        sections.push(currentSection);
       }
 
       // If no sections were created, create a default one with all tags
