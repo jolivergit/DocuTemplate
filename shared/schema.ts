@@ -3,16 +3,33 @@ import { pgTable, text, varchar, timestamp, integer } from "drizzle-orm/pg-core"
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Users table for Google OAuth authentication
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  googleId: text("google_id").notNull().unique(),
+  email: text("email").notNull(),
+  name: text("name").notNull(),
+  picture: text("picture"),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type User = typeof users.$inferSelect;
+
 // Content categories for organizing reusable snippets
 export const categories = pgTable("categories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   color: text("color").notNull().default("#3b82f6"),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const insertCategorySchema = createInsertSchema(categories).omit({
   id: true,
+  userId: true,
   createdAt: true,
 });
 
@@ -25,6 +42,7 @@ export const contentSnippets = pgTable("content_snippets", {
   title: text("title").notNull(),
   content: text("content").notNull(),
   categoryId: varchar("category_id").references(() => categories.id, { onDelete: "set null" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   usageCount: integer("usage_count").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -32,6 +50,7 @@ export const contentSnippets = pgTable("content_snippets", {
 
 export const insertContentSnippetSchema = createInsertSchema(contentSnippets).omit({
   id: true,
+  userId: true,
   usageCount: true,
   createdAt: true,
   updatedAt: true,

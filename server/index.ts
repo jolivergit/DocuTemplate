@@ -1,8 +1,38 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import ConnectPgSimple from "connect-pg-simple";
+import { Pool } from "@neondatabase/serverless";
+import passport from "./auth";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+const SESSION_SECRET = process.env.SESSION_SECRET || "dev-secret-change-in-production";
+
+const PgSession = ConnectPgSimple(session);
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+app.use(
+  session({
+    store: new PgSession({
+      pool,
+      tableName: "session",
+      createTableIfMissing: true,
+    }),
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+    },
+  })
+);
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 declare module 'http' {
   interface IncomingMessage {
