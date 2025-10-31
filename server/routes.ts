@@ -343,31 +343,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const docs = await getGoogleDocsClient(userId);
       const drive = await getGoogleDriveClient(userId);
       
-      // Get the original document
-      const originalDoc = await docs.documents.get({
-        documentId: templateId,
+      // Copy the template document to preserve all formatting
+      const copiedFile = await drive.files.copy({
+        fileId: templateId,
+        requestBody: {
+          name: outputName,
+        },
       });
 
-      if (!originalDoc.data || !originalDoc.data.body) {
-        return res.status(400).json({ error: "Invalid template document" });
+      const newDocId = copiedFile.data.id;
+      if (!newDocId) {
+        return res.status(500).json({ error: "Failed to copy template document" });
       }
 
-      // Extract full text content
-      let fullText = "";
-      const content = originalDoc.data.body.content || [];
-      
-      for (const element of content) {
-        if (element.paragraph?.elements) {
-          for (const textElement of element.paragraph.elements) {
-            fullText += textElement.textRun?.content || "";
-          }
-        }
-      }
+      // Build batch update requests to replace all tags with content
+      const requests: any[] = [];
 
-      // Replace tags with mapped content
-      let processedText = fullText;
       for (const mapping of tagMappings) {
-        const tagPattern = new RegExp(`<<${mapping.tagName}>>`, 'g');
         let replacementContent = "";
 
         if (mapping.customContent) {
@@ -380,37 +372,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        processedText = processedText.replace(tagPattern, replacementContent);
-      }
-
-      // Create new document
-      const newDoc = await docs.documents.create({
-        requestBody: {
-          title: outputName,
-        },
-      });
-
-      const newDocId = newDoc.data.documentId;
-      if (!newDocId) {
-        return res.status(500).json({ error: "Failed to create document" });
-      }
-
-      // Insert content into the new document
-      await docs.documents.batchUpdate({
-        documentId: newDocId,
-        requestBody: {
-          requests: [
-            {
-              insertText: {
-                location: {
-                  index: 1,
-                },
-                text: processedText,
-              },
+        // Use replaceAllText to preserve formatting
+        requests.push({
+          replaceAllText: {
+            containsText: {
+              text: `<<${mapping.tagName}>>`,
+              matchCase: true,
             },
-          ],
-        },
-      });
+            replaceText: replacementContent,
+          },
+        });
+      }
+
+      // Apply all replacements in a single batch update
+      if (requests.length > 0) {
+        await docs.documents.batchUpdate({
+          documentId: newDocId,
+          requestBody: {
+            requests,
+          },
+        });
+      }
 
       const documentUrl = `https://docs.google.com/document/d/${newDocId}/edit`;
 
