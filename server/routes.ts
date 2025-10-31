@@ -341,23 +341,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { templateId, outputName, tagMappings } = validated;
 
       const docs = await getGoogleDocsClient(userId);
-      const drive = await getGoogleDriveClient(userId);
       
-      // Copy the template document to preserve all formatting
-      const copiedFile = await drive.files.copy({
-        fileId: templateId,
+      // Step 1: Read the template document with all its content and formatting
+      const templateDoc = await docs.documents.get({
+        documentId: templateId,
+      });
+
+      if (!templateDoc.data.body) {
+        return res.status(500).json({ error: "Failed to read template document" });
+      }
+
+      // Step 2: Create a new blank document
+      const newDoc = await docs.documents.create({
         requestBody: {
-          name: outputName,
+          title: outputName,
         },
       });
 
-      const newDocId = copiedFile.data.id;
+      const newDocId = newDoc.data.documentId;
       if (!newDocId) {
-        return res.status(500).json({ error: "Failed to copy template document" });
+        return res.status(500).json({ error: "Failed to create new document" });
       }
 
-      // Build batch update requests to replace all tags with content
-      const requests: any[] = [];
+      // Step 3: Copy content from template to new document
+      const copyRequests: any[] = [];
+      let insertIndex = 1; // Start after the initial newline in new doc
+
+      // Process all content from the template
+      const templateBody = templateDoc.data.body;
+      if (templateBody.content) {
+        for (const element of templateBody.content) {
+          if (element.paragraph) {
+            const paragraph = element.paragraph;
+            
+            // Process each text run in the paragraph
+            if (paragraph.elements) {
+              for (const elem of paragraph.elements) {
+                if (elem.textRun && elem.textRun.content) {
+                  const textContent = elem.textRun.content;
+                  const textStyle = elem.textRun.textStyle || {};
+
+                  // Insert text with its formatting
+                  copyRequests.push({
+                    insertText: {
+                      location: {
+                        index: insertIndex,
+                      },
+                      text: textContent,
+                    },
+                  });
+
+                  // Apply text styling if present
+                  if (Object.keys(textStyle).length > 0) {
+                    copyRequests.push({
+                      updateTextStyle: {
+                        range: {
+                          startIndex: insertIndex,
+                          endIndex: insertIndex + textContent.length,
+                        },
+                        textStyle: textStyle,
+                        fields: Object.keys(textStyle).join(','),
+                      },
+                    });
+                  }
+
+                  insertIndex += textContent.length;
+                }
+              }
+            }
+
+            // Apply paragraph style if present
+            if (paragraph.paragraphStyle) {
+              const paragraphStartIndex = insertIndex - (paragraph.elements?.reduce((sum, e) => sum + (e.textRun?.content?.length || 0), 0) || 0);
+              copyRequests.push({
+                updateParagraphStyle: {
+                  range: {
+                    startIndex: paragraphStartIndex,
+                    endIndex: insertIndex,
+                  },
+                  paragraphStyle: paragraph.paragraphStyle,
+                  fields: Object.keys(paragraph.paragraphStyle).join(','),
+                },
+              });
+            }
+          }
+        }
+      }
+
+      // Apply all copy operations
+      if (copyRequests.length > 0) {
+        await docs.documents.batchUpdate({
+          documentId: newDocId,
+          requestBody: {
+            requests: copyRequests,
+          },
+        });
+      }
+
+      // Step 4: Replace all tags with mapped content
+      const replaceRequests: any[] = [];
 
       for (const mapping of tagMappings) {
         let replacementContent = "";
@@ -373,7 +455,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Use replaceAllText to preserve formatting
-        requests.push({
+        replaceRequests.push({
           replaceAllText: {
             containsText: {
               text: `<<${mapping.tagName}>>`,
@@ -384,12 +466,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Apply all replacements in a single batch update
-      if (requests.length > 0) {
+      // Apply all replacements
+      if (replaceRequests.length > 0) {
         await docs.documents.batchUpdate({
           documentId: newDocId,
           requestBody: {
-            requests,
+            requests: replaceRequests,
           },
         });
       }
