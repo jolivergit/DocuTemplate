@@ -39,9 +39,9 @@ export function TemplateSelector({ open, onOpenChange, onTemplateSelect }: Templ
 
   const parseMutation = useMutation({
     mutationFn: async (fileId: string) => {
-      return await apiRequest<ParsedTemplate>('POST', '/api/templates/parse', { fileId });
+      return await apiRequest('POST', '/api/templates/parse', { fileId });
     },
-    onSuccess: (data) => {
+    onSuccess: (data: ParsedTemplate) => {
       onTemplateSelect(data);
       toast({
         title: "Template loaded",
