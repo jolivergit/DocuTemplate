@@ -6,13 +6,15 @@ DocBuilder is a web application that enables users to build Google Documents fro
 ## Project Status
 **MVP Complete** - All core features implemented and tested
 
-## Recent Changes
+## Recent Changes (October 31, 2025)
+- **Fixed document generation to preserve template formatting**: Now uses Drive API `files.copy()` to duplicate the template, then applies `replaceAllText` via Docs API to replace tags while maintaining all original fonts, colors, heading styles, bold/italic, and formatting
+- Fixed template loading error: Updated `apiRequest` to return parsed JSON instead of raw Response object
 - Complete implementation of Google Docs Template Builder MVP
 - Full CRUD operations for categories and content snippets
-- Drag-and-drop functionality for reordering template sections
-- Google Drive and Google Docs API integration
+- Drag-and-drop UI for section reordering (backend implementation pending)
+- Google Drive and Google Docs API integration with OAuth token refresh handling
 - Beautiful, professional UI with dark mode support
-- Database schema with PostgreSQL
+- Multi-tenant PostgreSQL database with userId-based data isolation
 
 ## Features
 
@@ -21,8 +23,8 @@ DocBuilder is a web application that enables users to build Google Documents fro
 2. **Template Parsing**: Automatically extract tagged sections from documents
 3. **Content Library**: Store and categorize reusable content snippets
 4. **Tag Mapping**: Map content snippets to template tags
-5. **Section Reordering**: Drag-and-drop to rearrange sections
-6. **Document Generation**: Create new Google Docs with mapped content
+5. **Section Reordering**: Drag-and-drop UI for rearranging sections (visual only - backend reordering pending)
+6. **Document Generation**: Create new Google Docs with mapped content while preserving all formatting
 
 ### User Interface
 - Three-panel workspace layout (desktop)
@@ -136,6 +138,7 @@ The app uses Replit's Google Drive and Google Docs integrations for authenticati
 6. **Generate Document**: Click "Generate Document" to create final output in Google Drive
 
 ## Future Enhancements
+- **Section reordering in generated documents**: Implement named ranges/bookmarks to physically reorder sections while preserving formatting (complex Google Docs API operation)
 - Template versioning and history
 - Advanced content search and filtering
 - Template preview before generation
