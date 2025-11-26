@@ -191,23 +191,19 @@ export function ContentLibrary({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSnippetToDelete(snippet);
-                    }}
+                    className="absolute top-3 right-3 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    onClick={() => setSnippetToDelete(snippet)}
                     data-testid={`button-delete-snippet-${snippet.id}`}
                   >
-                    <Trash2 className="w-4 h-4 text-destructive" />
+                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
                   </Button>
 
-                  <button
-                    onClick={() => onSnippetSelect(snippet)}
+                  <div
+                    onClick={() => selectedTag && onSnippetSelect(snippet)}
                     className={`w-full text-left ${selectedTag ? 'cursor-pointer' : 'cursor-default'}`}
-                    disabled={!selectedTag}
                     data-testid={`button-snippet-${snippet.id}`}
                   >
-                    <div className="flex items-start justify-between gap-2 mb-2 pr-8">
+                    <div className="flex items-start gap-2 mb-2 pr-6">
                       {category && (
                         <Badge
                           variant="secondary"
@@ -240,7 +236,7 @@ export function ContentLibrary({
                         {new Date(snippet.createdAt).toLocaleDateString()}
                       </span>
                     </div>
-                  </button>
+                  </div>
                 </div>
               );
             })}
