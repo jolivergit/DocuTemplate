@@ -27,7 +27,7 @@ export function CollapsiblePanel({
   if (isCollapsed) {
     return (
       <div 
-        className={`w-10 flex-shrink-0 ${borderClass} bg-card flex flex-col items-center py-4`}
+        className={`w-10 flex-none ${borderClass} bg-card flex flex-col items-center py-4`}
         data-testid={`panel-${panelId}-collapsed`}
       >
         <Button
