@@ -86,39 +86,34 @@ export function ContentLibrary({
   return (
     <div className="flex flex-col h-full">
       <div className="p-4 border-b flex-shrink-0 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground" data-testid="text-library-title">
-            Content Library
-          </h2>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowManageCategories(true)}
-              data-testid="button-manage-categories"
-              title="Manage Categories"
-            >
-              <Settings className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAddCategory(true)}
-              data-testid="button-add-category"
-            >
-              <Plus className="w-3 h-3" />
-              Category
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setShowAddContent(true)}
-              data-testid="button-add-content"
-            >
-              <Plus className="w-3 h-3" />
-              Content
-            </Button>
-          </div>
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowManageCategories(true)}
+            data-testid="button-manage-categories"
+            title="Manage Categories"
+          >
+            <Settings className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAddCategory(true)}
+            data-testid="button-add-category"
+          >
+            <Plus className="w-3 h-3" />
+            Category
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setShowAddContent(true)}
+            data-testid="button-add-content"
+          >
+            <Plus className="w-3 h-3" />
+            Content
+          </Button>
         </div>
 
         <div className="relative">

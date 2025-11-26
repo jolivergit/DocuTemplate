@@ -238,7 +238,7 @@ export default function Home() {
               <CollapsiblePanel
                 title="Template Tags"
                 side="left"
-                expandedClassName="w-[400px]"
+                expandedClassName="flex-1 min-w-[350px]"
                 collapsedTitle="Tags"
               >
                 <TagsPanel
@@ -257,7 +257,7 @@ export default function Home() {
               <CollapsiblePanel
                 title="Content Library"
                 side="right"
-                expandedClassName="flex-1"
+                expandedClassName="flex-1 min-w-[350px]"
                 collapsedTitle="Content"
               >
                 <ContentLibrary
