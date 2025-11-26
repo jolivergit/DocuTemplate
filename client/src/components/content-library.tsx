@@ -185,15 +185,11 @@ export function ContentLibrary({
               return (
                 <div
                   key={snippet.id}
-                  className="group relative w-full rounded-lg border text-left transition-all hover-elevate"
+                  className="w-full rounded-lg border text-left transition-all hover-elevate p-4"
                   data-testid={`card-snippet-${snippet.id}`}
                 >
-                  <div
-                    onClick={() => selectedTag && onSnippetSelect(snippet)}
-                    className={`w-full text-left p-4 ${selectedTag ? 'cursor-pointer' : 'cursor-default'}`}
-                    data-testid={`button-snippet-${snippet.id}`}
-                  >
-                    <div className="flex items-start gap-2 mb-2">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-start gap-2">
                       {category && (
                         <Badge
                           variant="secondary"
@@ -209,8 +205,26 @@ export function ContentLibrary({
                         </Badge>
                       )}
                     </div>
-                    
-                    <h3 className="text-base font-medium mb-2 line-clamp-1 pr-8" data-testid={`text-snippet-title-${snippet.id}`}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 flex-shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSnippetToDelete(snippet);
+                      }}
+                      data-testid={`button-delete-snippet-${snippet.id}`}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                  
+                  <div
+                    onClick={() => selectedTag && onSnippetSelect(snippet)}
+                    className={`w-full text-left ${selectedTag ? 'cursor-pointer' : 'cursor-default'}`}
+                    data-testid={`button-snippet-${snippet.id}`}
+                  >
+                    <h3 className="text-base font-medium mb-2 line-clamp-1" data-testid={`text-snippet-title-${snippet.id}`}>
                       {snippet.title}
                     </h3>
                     
@@ -218,7 +232,7 @@ export function ContentLibrary({
                       {snippet.content}
                     </p>
                     
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                       <span data-testid={`text-snippet-usage-${snippet.id}`}>
                         Used {snippet.usageCount} times
                       </span>
@@ -227,16 +241,6 @@ export function ContentLibrary({
                       </span>
                     </div>
                   </div>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-2 right-2 h-7 w-7 invisible group-hover:visible"
-                    onClick={() => setSnippetToDelete(snippet)}
-                    data-testid={`button-delete-snippet-${snippet.id}`}
-                  >
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
                 </div>
               );
             })}
