@@ -185,25 +185,15 @@ export function ContentLibrary({
               return (
                 <div
                   key={snippet.id}
-                  className="group relative w-full p-4 rounded-lg border text-left transition-all hover-elevate"
+                  className="group relative w-full rounded-lg border text-left transition-all hover-elevate"
                   data-testid={`card-snippet-${snippet.id}`}
                 >
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-3 right-3 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    onClick={() => setSnippetToDelete(snippet)}
-                    data-testid={`button-delete-snippet-${snippet.id}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                  </Button>
-
                   <div
                     onClick={() => selectedTag && onSnippetSelect(snippet)}
-                    className={`w-full text-left ${selectedTag ? 'cursor-pointer' : 'cursor-default'}`}
+                    className={`w-full text-left p-4 ${selectedTag ? 'cursor-pointer' : 'cursor-default'}`}
                     data-testid={`button-snippet-${snippet.id}`}
                   >
-                    <div className="flex items-start gap-2 mb-2 pr-6">
+                    <div className="flex items-start gap-2 mb-2">
                       {category && (
                         <Badge
                           variant="secondary"
@@ -220,7 +210,7 @@ export function ContentLibrary({
                       )}
                     </div>
                     
-                    <h3 className="text-base font-medium mb-2 line-clamp-1" data-testid={`text-snippet-title-${snippet.id}`}>
+                    <h3 className="text-base font-medium mb-2 line-clamp-1 pr-8" data-testid={`text-snippet-title-${snippet.id}`}>
                       {snippet.title}
                     </h3>
                     
@@ -237,6 +227,16 @@ export function ContentLibrary({
                       </span>
                     </div>
                   </div>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 h-7 w-7 invisible group-hover:visible"
+                    onClick={() => setSnippetToDelete(snippet)}
+                    data-testid={`button-delete-snippet-${snippet.id}`}
+                  >
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
                 </div>
               );
             })}
