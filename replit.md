@@ -7,6 +7,9 @@ DocBuilder is a web application that enables users to build Google Documents fro
 **MVP Complete** - All core features implemented and tested
 
 ## Recent Changes (November 26, 2025)
+- **Simplified UI to two-panel layout**: Replaced overwhelming 3-panel design with intuitive 2-panel collapsible layout (Template Tags + Content Library)
+- **Added collapsible panels**: Both panels can collapse to a thin rail (40px) to maximize workspace, with proper space reclamation via `flex-none`
+- **Added recursive tag search**: Search filters sections and tags, preserving ancestor sections when descendants match
 - **Updated color palette**: Warm neutral grays with terracotta accent — designed to complement a black and white logo
 - **Updated font**: Switched to Outfit for a rounded, approachable feel
 
@@ -31,12 +34,14 @@ DocBuilder is a web application that enables users to build Google Documents fro
 6. **Document Generation**: Create new Google Docs with mapped content while preserving all formatting
 
 ### User Interface
-- Three-panel workspace layout (desktop)
-  - Left: Template structure tree with drag-and-drop
-  - Center: Content library with search and filtering
-  - Right: Tag mapping panel
-- Responsive design with mobile support
+- Two-panel collapsible workspace layout (desktop)
+  - Left: Template Tags panel with drag-and-drop section reordering and tag mapping indicators
+  - Right: Content Library panel with search, categories, and snippet management
+  - Both panels collapse to thin rails (40px) for maximum workspace flexibility
+- Recursive tag search that preserves ancestor sections when filtering
+- Responsive design with mobile support (bottom navigation for panel switching)
 - Dark mode with theme toggle
+- Warm neutral color palette with terracotta accent, Outfit font
 - Professional productivity-focused design
 - Loading, empty, and error states throughout
 
@@ -118,10 +123,11 @@ The app uses Replit's Google Drive and Google Docs integrations for authenticati
 ## Key Files
 
 ### Frontend
-- `client/src/pages/home.tsx` - Main application page
-- `client/src/components/template-structure.tsx` - Draggable section tree
-- `client/src/components/content-library.tsx` - Content snippet manager
-- `client/src/components/tag-mapping-panel.tsx` - Tag to content mapper
+- `client/src/pages/home.tsx` - Main application page with two-panel layout
+- `client/src/components/collapsible-panel.tsx` - Collapsible panel wrapper component
+- `client/src/components/tags-panel.tsx` - Template tags with drag-and-drop and search
+- `client/src/components/content-library.tsx` - Content snippet manager with categories
+- `client/src/components/template-structure.tsx` - Legacy draggable section tree
 
 ### Backend
 - `server/routes.ts` - API endpoint definitions
