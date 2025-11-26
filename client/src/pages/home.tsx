@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Plus, Sparkles, Menu, LogOut, User } from "lucide-react";
+import { FileText, Sparkles, LogOut, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TemplateSelector } from "@/components/template-selector";
-import { TemplateStructure } from "@/components/template-structure";
+import { TagsPanel } from "@/components/tags-panel";
 import { ContentLibrary } from "@/components/content-library";
-import { TagMappingPanel } from "@/components/tag-mapping-panel";
+import { CollapsiblePanel } from "@/components/collapsible-panel";
 import { GenerateDocumentDialog } from "@/components/generate-document-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { ParsedTemplate, ContentSnippet, Category, TagMapping, User as UserType } from "@shared/schema";
@@ -19,7 +19,7 @@ export default function Home() {
   const [sectionOrder, setSectionOrder] = useState<string[]>([]);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
-  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState<'structure' | 'library' | 'mapping' | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<'tags' | 'content' | null>(null);
 
   const { data: user, isLoading: isLoadingUser } = useQuery<UserType | null>({
     queryKey: ['/auth/user'],
@@ -39,10 +39,7 @@ export default function Home() {
   const handleTemplateSelect = (template: ParsedTemplate) => {
     setSelectedTemplate(template);
     setShowTemplateSelector(false);
-    
-    const order = template.sections.map(s => s.id);
-    setSectionOrder(order);
-    
+    setSectionOrder(template.sections.map(s => s.id));
     setTagMappings(new Map());
     setSelectedTag(null);
   };
@@ -65,6 +62,7 @@ export default function Home() {
       customContent: null,
     });
     setTagMappings(newMappings);
+    setSelectedTag(null);
   };
 
   const handleCustomContentSet = (tagName: string, content: string) => {
@@ -96,7 +94,9 @@ export default function Home() {
     window.location.href = '/auth/logout';
   };
 
-  // Show loading state while checking authentication
+  const mappedCount = selectedTemplate ? selectedTemplate.allTags.filter(t => tagMappings.has(t.name)).length : 0;
+  const canGenerate = selectedTemplate && mappedCount > 0;
+
   if (isLoadingUser) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
@@ -108,7 +108,6 @@ export default function Home() {
     );
   }
 
-  // Show login screen if not authenticated
   if (!user) {
     return (
       <div className="flex flex-col h-screen bg-background">
@@ -146,78 +145,65 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <header className="h-14 border-b flex items-center justify-between px-6 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <FileText className="w-5 h-5 text-primary" data-testid="icon-app-logo" />
-          <h1 className="text-lg font-semibold" data-testid="text-app-title">DocBuilder</h1>
+      <header className="h-14 border-b flex items-center justify-between px-4 sm:px-6 flex-shrink-0 gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <FileText className="w-5 h-5 text-primary flex-shrink-0" data-testid="icon-app-logo" />
+          <h1 className="text-lg font-semibold hidden sm:block" data-testid="text-app-title">DocBuilder</h1>
           {selectedTemplate && (
             <>
-              <span className="text-muted-foreground">/</span>
-              <span className="text-sm text-muted-foreground" data-testid="text-template-name">
+              <span className="text-muted-foreground hidden sm:block">/</span>
+              <span className="text-sm text-muted-foreground truncate max-w-[150px] sm:max-w-[250px]" data-testid="text-template-name">
                 {selectedTemplate.documentName}
               </span>
             </>
           )}
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           <Button
             variant="outline"
-            size="default"
+            size="sm"
             onClick={() => setShowTemplateSelector(true)}
             className="hidden sm:flex"
             data-testid="button-load-template"
           >
             <FileText className="w-4 h-4" />
-            Load Template
+            <span className="hidden md:inline">Load Template</span>
           </Button>
           
           <Button
             variant="default"
-            size="default"
+            size="sm"
             onClick={handleGenerate}
-            disabled={!selectedTemplate || tagMappings.size === 0}
+            disabled={!canGenerate}
             className="hidden sm:flex"
             data-testid="button-generate-document"
           >
             <Sparkles className="w-4 h-4" />
-            Generate Document
+            <span className="hidden md:inline">Generate</span>
           </Button>
           
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted">
-              <Avatar className="h-6 w-6" data-testid="avatar-user">
-                <AvatarImage src={user.picture || undefined} alt={user.name || 'User'} />
-                <AvatarFallback>
-                  {user.name?.charAt(0).toUpperCase() || 'U'}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-sm hidden md:inline" data-testid="text-user-name">
-                {user.name || user.email}
-              </span>
-            </div>
-            
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-              title="Sign out"
-              data-testid="button-logout"
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
+          <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-muted">
+            <Avatar className="h-6 w-6" data-testid="avatar-user">
+              <AvatarImage src={user.picture || undefined} alt={user.name || 'User'} />
+              <AvatarFallback>
+                {user.name?.charAt(0).toUpperCase() || 'U'}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-sm hidden lg:inline" data-testid="text-user-name">
+              {user.name || user.email}
+            </span>
           </div>
           
-          <div className="md:hidden">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsMobilePanelOpen(isMobilePanelOpen ? null : 'structure')}
-              data-testid="button-mobile-menu"
-            >
-              <Menu className="w-4 h-4" />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleLogout}
+            title="Sign out"
+            data-testid="button-logout"
+          >
+            <LogOut className="w-4 h-4" />
+          </Button>
           
           <ThemeToggle />
         </div>
@@ -246,73 +232,140 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <div className="h-full hidden md:grid md:grid-cols-[320px,1fr,384px] gap-0">
-            <div className="border-r overflow-hidden flex flex-col">
-              <TemplateStructure
-                template={selectedTemplate}
-                sectionOrder={sectionOrder}
-                onSectionReorder={handleSectionReorder}
-                onTagClick={handleTagClick}
-                selectedTag={selectedTag}
-                tagMappings={tagMappings}
-              />
-            </div>
-            
-            <div className="overflow-hidden flex flex-col">
-              <ContentLibrary
-                snippets={snippets}
-                categories={categories}
-                onSnippetSelect={handleSnippetSelect}
-                selectedTag={selectedTag}
-              />
-            </div>
-            
-            <div className="border-l overflow-hidden flex flex-col">
-              <TagMappingPanel
-                template={selectedTemplate}
-                tagMappings={tagMappings}
-                snippets={snippets}
-                onTagClick={handleTagClick}
-                onMappingRemove={handleMappingRemove}
-                onCustomContentSet={handleCustomContentSet}
-                selectedTag={selectedTag}
-              />
-            </div>
-          </div>
-        )}
+          <>
+            {/* Desktop: Two-panel layout */}
+            <div className="h-full hidden md:flex">
+              <CollapsiblePanel
+                title="Template Tags"
+                side="left"
+                expandedClassName="w-[400px]"
+                collapsedTitle="Tags"
+              >
+                <TagsPanel
+                  template={selectedTemplate}
+                  sectionOrder={sectionOrder}
+                  onSectionReorder={handleSectionReorder}
+                  onTagClick={handleTagClick}
+                  selectedTag={selectedTag}
+                  tagMappings={tagMappings}
+                  snippets={snippets}
+                  onMappingRemove={handleMappingRemove}
+                  onCustomContentSet={handleCustomContentSet}
+                />
+              </CollapsiblePanel>
 
-        {selectedTemplate && isMobilePanelOpen && (
-          <div className="md:hidden h-full overflow-auto">
-            {isMobilePanelOpen === 'structure' && (
-              <TemplateStructure
-                template={selectedTemplate}
-                sectionOrder={sectionOrder}
-                onSectionReorder={handleSectionReorder}
-                onTagClick={handleTagClick}
-                selectedTag={selectedTag}
-                tagMappings={tagMappings}
-              />
-            )}
-            {isMobilePanelOpen === 'library' && (
-              <ContentLibrary
-                snippets={snippets}
-                categories={categories}
-                onSnippetSelect={handleSnippetSelect}
-                selectedTag={selectedTag}
-              />
-            )}
-            {isMobilePanelOpen === 'mapping' && (
-              <TagMappingPanel
-                template={selectedTemplate}
-                tagMappings={tagMappings}
-                snippets={snippets}
-                onTagClick={handleTagClick}
-                onMappingRemove={handleMappingRemove}
-                onCustomContentSet={handleCustomContentSet}
-                selectedTag={selectedTag}
-              />
-            )}
-          </div>
+              <CollapsiblePanel
+                title="Content Library"
+                side="right"
+                expandedClassName="flex-1"
+                collapsedTitle="Content"
+              >
+                <ContentLibrary
+                  snippets={snippets}
+                  categories={categories}
+                  onSnippetSelect={handleSnippetSelect}
+                  selectedTag={selectedTag}
+                />
+              </CollapsiblePanel>
+            </div>
+
+            {/* Mobile: Bottom navigation with panels */}
+            <div className="md:hidden h-full flex flex-col">
+              <div className="flex-1 overflow-hidden">
+                {mobilePanel === 'tags' && (
+                  <TagsPanel
+                    template={selectedTemplate}
+                    sectionOrder={sectionOrder}
+                    onSectionReorder={handleSectionReorder}
+                    onTagClick={handleTagClick}
+                    selectedTag={selectedTag}
+                    tagMappings={tagMappings}
+                    snippets={snippets}
+                    onMappingRemove={handleMappingRemove}
+                    onCustomContentSet={handleCustomContentSet}
+                  />
+                )}
+                {mobilePanel === 'content' && (
+                  <ContentLibrary
+                    snippets={snippets}
+                    categories={categories}
+                    onSnippetSelect={handleSnippetSelect}
+                    selectedTag={selectedTag}
+                  />
+                )}
+                {!mobilePanel && (
+                  <div className="h-full flex items-center justify-center p-6">
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground mb-4" data-testid="text-mobile-hint">
+                        Use the buttons below to view template tags or your content library
+                      </p>
+                      <div className="flex items-center justify-center gap-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setMobilePanel('tags')}
+                          data-testid="button-mobile-tags"
+                        >
+                          View Tags
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setMobilePanel('content')}
+                          data-testid="button-mobile-content"
+                        >
+                          View Content
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile bottom bar */}
+              <div className="border-t p-3 flex items-center justify-between gap-2 flex-shrink-0 bg-card">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={mobilePanel === 'tags' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setMobilePanel(mobilePanel === 'tags' ? null : 'tags')}
+                    data-testid="button-toggle-tags"
+                  >
+                    Tags
+                  </Button>
+                  <Button
+                    variant={mobilePanel === 'content' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setMobilePanel(mobilePanel === 'content' ? null : 'content')}
+                    data-testid="button-toggle-content"
+                  >
+                    Content
+                  </Button>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTemplateSelector(true)}
+                    data-testid="button-load-template-mobile"
+                  >
+                    <FileText className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleGenerate}
+                    disabled={!canGenerate}
+                    data-testid="button-generate-mobile"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Generate
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </main>
 
