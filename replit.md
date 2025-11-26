@@ -7,6 +7,7 @@ DocBuilder is a web application that enables users to build Google Documents fro
 **MVP Complete** - All core features implemented and tested
 
 ## Recent Changes (November 26, 2025)
+- **Added delete functionality**: Delete content snippets (trash icon on hover) and categories (via Settings > Manage Categories) with confirmation dialogs
 - **Simplified UI to two-panel layout**: Replaced overwhelming 3-panel design with intuitive 2-panel collapsible layout (Template Tags + Content Library)
 - **Added collapsible panels**: Both panels can collapse to a thin rail (40px) to maximize workspace, with proper space reclamation via `flex-none`
 - **Added recursive tag search**: Search filters sections and tags, preserving ancestor sections when descendants match
