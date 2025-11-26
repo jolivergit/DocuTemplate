@@ -6,7 +6,11 @@ DocBuilder is a web application that enables users to build Google Documents fro
 ## Project Status
 **MVP Complete** - All core features implemented and tested
 
-## Recent Changes (October 31, 2025)
+## Recent Changes (November 26, 2025)
+- **Updated color palette**: Warm neutral grays with terracotta accent — designed to complement a black and white logo
+- **Updated font**: Switched to Outfit for a rounded, approachable feel
+
+## Previous Changes (October 31, 2025)
 - **Fixed document generation to preserve template formatting**: Now uses Drive API `files.copy()` to duplicate the template, then applies `replaceAllText` via Docs API to replace tags while maintaining all original fonts, colors, heading styles, bold/italic, and formatting
 - Fixed template loading error: Updated `apiRequest` to return parsed JSON instead of raw Response object
 - Complete implementation of Google Docs Template Builder MVP
