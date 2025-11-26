@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, Archive, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Archive, Trash2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,8 +11,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AddContentDialog } from "@/components/add-content-dialog";
 import { AddCategoryDialog } from "@/components/add-category-dialog";
+import { ManageCategoriesDialog } from "@/components/manage-categories-dialog";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { ContentSnippet, Category } from "@shared/schema";
 
 interface ContentLibraryProps {
@@ -28,10 +42,34 @@ export function ContentLibrary({
   onSnippetSelect,
   selectedTag,
 }: ContentLibraryProps) {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [showAddContent, setShowAddContent] = useState(false);
   const [showAddCategory, setShowAddCategory] = useState(false);
+  const [showManageCategories, setShowManageCategories] = useState(false);
+  const [snippetToDelete, setSnippetToDelete] = useState<ContentSnippet | null>(null);
+
+  const deleteSnippetMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest('DELETE', `/api/content-snippets/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/content-snippets'] });
+      toast({
+        title: "Content deleted",
+        description: "The content snippet has been removed.",
+      });
+      setSnippetToDelete(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to delete content",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const filteredSnippets = snippets.filter(snippet => {
     const matchesSearch = snippet.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -53,6 +91,15 @@ export function ContentLibrary({
             Content Library
           </h2>
           <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowManageCategories(true)}
+              data-testid="button-manage-categories"
+              title="Manage Categories"
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -136,49 +183,65 @@ export function ContentLibrary({
               const category = getCategoryById(snippet.categoryId);
               
               return (
-                <button
+                <div
                   key={snippet.id}
-                  onClick={() => onSnippetSelect(snippet)}
-                  className={`w-full p-4 rounded-lg border text-left transition-all hover-elevate active-elevate-2 ${
-                    selectedTag ? 'cursor-pointer' : 'cursor-default'
-                  }`}
-                  disabled={!selectedTag}
-                  data-testid={`button-snippet-${snippet.id}`}
+                  className="group relative w-full p-4 rounded-lg border text-left transition-all hover-elevate"
+                  data-testid={`card-snippet-${snippet.id}`}
                 >
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    {category && (
-                      <Badge
-                        variant="secondary"
-                        className="text-xs flex-shrink-0"
-                        style={{
-                          backgroundColor: `${category.color}20`,
-                          color: category.color,
-                          borderColor: `${category.color}40`,
-                        }}
-                        data-testid={`badge-category-${snippet.id}`}
-                      >
-                        {category.name}
-                      </Badge>
-                    )}
-                  </div>
-                  
-                  <h3 className="text-base font-medium mb-2 line-clamp-1" data-testid={`text-snippet-title-${snippet.id}`}>
-                    {snippet.title}
-                  </h3>
-                  
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-3" data-testid={`text-snippet-content-${snippet.id}`}>
-                    {snippet.content}
-                  </p>
-                  
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span data-testid={`text-snippet-usage-${snippet.id}`}>
-                      Used {snippet.usageCount} times
-                    </span>
-                    <span data-testid={`text-snippet-date-${snippet.id}`}>
-                      {new Date(snippet.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSnippetToDelete(snippet);
+                    }}
+                    data-testid={`button-delete-snippet-${snippet.id}`}
+                  >
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+
+                  <button
+                    onClick={() => onSnippetSelect(snippet)}
+                    className={`w-full text-left ${selectedTag ? 'cursor-pointer' : 'cursor-default'}`}
+                    disabled={!selectedTag}
+                    data-testid={`button-snippet-${snippet.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2 pr-8">
+                      {category && (
+                        <Badge
+                          variant="secondary"
+                          className="text-xs flex-shrink-0"
+                          style={{
+                            backgroundColor: `${category.color}20`,
+                            color: category.color,
+                            borderColor: `${category.color}40`,
+                          }}
+                          data-testid={`badge-category-${snippet.id}`}
+                        >
+                          {category.name}
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    <h3 className="text-base font-medium mb-2 line-clamp-1" data-testid={`text-snippet-title-${snippet.id}`}>
+                      {snippet.title}
+                    </h3>
+                    
+                    <p className="text-sm text-muted-foreground line-clamp-2 mb-3" data-testid={`text-snippet-content-${snippet.id}`}>
+                      {snippet.content}
+                    </p>
+                    
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span data-testid={`text-snippet-usage-${snippet.id}`}>
+                        Used {snippet.usageCount} times
+                      </span>
+                      <span data-testid={`text-snippet-date-${snippet.id}`}>
+                        {new Date(snippet.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -201,6 +264,33 @@ export function ContentLibrary({
         open={showAddCategory}
         onOpenChange={setShowAddCategory}
       />
+
+      <ManageCategoriesDialog
+        open={showManageCategories}
+        onOpenChange={setShowManageCategories}
+        categories={categories}
+      />
+
+      <AlertDialog open={!!snippetToDelete} onOpenChange={(open) => !open && setSnippetToDelete(null)}>
+        <AlertDialogContent data-testid="dialog-delete-snippet">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Content Snippet</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{snippetToDelete?.title}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-snippet">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => snippetToDelete && deleteSnippetMutation.mutate(snippetToDelete.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-snippet"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
