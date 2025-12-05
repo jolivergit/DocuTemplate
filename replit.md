@@ -1,12 +1,22 @@
 # DocBuilder - Google Docs Template Manager
 
 ## Overview
-DocBuilder is a web application that enables users to build Google Documents from customizable templates. Templates use tagged sections (e.g., `<<section_scope>>`, `<<content_scope>>`) to mark replaceable content. Users can manage reusable content snippets, map them to template tags, reorder sections, and generate final documents in Google Drive.
+DocBuilder is a web application that enables users to build Google Documents from customizable templates. Templates support two types of reusable content:
+- **Field Tags** `{{field_name}}` - For structured profile data (company name, contact info, address)
+- **Content Tags** `<<content_name>>` - For rich text snippets (introductions, sections, descriptions)
+
+Users can manage reusable content snippets and profile fields, map them to template tags, reorder sections, and generate final documents in Google Drive.
 
 ## Project Status
 **MVP Complete** - All core features implemented and tested
 
-## Recent Changes (November 26, 2025)
+## Recent Changes (December 05, 2025)
+- **Implemented dual tag syntax**: Field tags use `{{...}}` and content tags use `<<...>>` to distinguish profile data from content snippets
+- **Added tag type detection**: Template parsing automatically identifies field vs content tags based on their syntax
+- **Context-aware Content Library**: Automatically switches to Profiles tab when a field tag is selected, Snippets tab for content tags
+- **Visual tag type indicators**: TagsPanel shows different icons and badges for field tags (User icon) vs content tags (FileText icon)
+
+## Previous Changes (November 26, 2025)
 - **Added delete functionality**: Delete content snippets (trash icon on hover) and categories (via Settings > Manage Categories) with confirmation dialogs
 - **Simplified UI to two-panel layout**: Replaced overwhelming 3-panel design with intuitive 2-panel collapsible layout (Template Tags + Content Library)
 - **Added collapsible panels**: Both panels can collapse to a thin rail (40px) to maximize workspace, with proper space reclamation via `flex-none`
