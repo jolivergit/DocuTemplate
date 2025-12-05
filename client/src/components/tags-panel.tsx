@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, ChevronDown, Hash, Check, Circle, Edit2, X, GripVertical, Building2 } from "lucide-react";
+import { ChevronRight, ChevronDown, Hash, Check, Circle, Edit2, X, GripVertical, Variable } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,8 +23,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { ParsedTemplate, TemplateSection, TagMapping, ContentSnippet, Profile, TagType } from "@shared/schema";
-import { PROFILE_FIELDS } from "@shared/schema";
+import type { ParsedTemplate, TemplateSection, TagMapping, ContentSnippet, FieldValue, TagType } from "@shared/schema";
 import { FileText } from "lucide-react";
 
 interface TagsPanelProps {
@@ -35,7 +34,7 @@ interface TagsPanelProps {
   selectedTag: string | null;
   tagMappings: Map<string, TagMapping>;
   snippets: ContentSnippet[];
-  profiles: Profile[];
+  fieldValues: FieldValue[];
   onMappingRemove: (tagName: string) => void;
   onCustomContentSet: (tagName: string, content: string) => void;
 }
@@ -47,7 +46,7 @@ interface TagItemProps {
   isMapped: boolean;
   mappedContent: string | null;
   snippetTitle: string | null;
-  profileInfo: { profileName: string; fieldLabel: string } | null;
+  fieldValueInfo: { fieldName: string } | null;
   onTagClick: (tagName: string) => void;
   onRemove: (tagName: string) => void;
   onCustomContentSet: (tagName: string, content: string) => void;
@@ -60,7 +59,7 @@ function TagItem({
   isMapped,
   mappedContent,
   snippetTitle,
-  profileInfo,
+  fieldValueInfo,
   onTagClick,
   onRemove,
   onCustomContentSet,
@@ -80,7 +79,7 @@ function TagItem({
   };
 
   const tagSyntax = tagType === 'field' ? `{{${tagName}}}` : `<<${tagName}>>`;
-  const TagIcon = tagType === 'field' ? Building2 : FileText;
+  const TagIcon = tagType === 'field' ? Variable : FileText;
 
   if (isEditing) {
     return (
@@ -151,14 +150,14 @@ function TagItem({
                   {snippetTitle}
                 </Badge>
               )}
-              {profileInfo && (
-                <Badge variant="outline" className="text-xs" data-testid={`badge-profile-${tagName}`}>
-                  <Building2 className="w-2.5 h-2.5 mr-1" />
-                  {profileInfo.profileName}: {profileInfo.fieldLabel}
+              {fieldValueInfo && (
+                <Badge variant="outline" className="text-xs" data-testid={`badge-field-${tagName}`}>
+                  <Variable className="w-2.5 h-2.5 mr-1" />
+                  {`{{${fieldValueInfo.fieldName}}}`}
                 </Badge>
               )}
               <div className="text-xs text-muted-foreground line-clamp-2" data-testid={`text-content-preview-${tagName}`}>
-                {profileInfo ? (
+                {fieldValueInfo ? (
                   <span>{mappedContent}</span>
                 ) : (
                   <RichTextDisplay content={mappedContent || ""} />
@@ -172,7 +171,7 @@ function TagItem({
           )}
         </div>
 
-        {isMapped && !profileInfo && (
+        {isMapped && !fieldValueInfo && (
           <div className="flex items-center gap-1 flex-shrink-0">
             <Button
               variant="ghost"
@@ -198,7 +197,7 @@ function TagItem({
           </div>
         )}
 
-        {isMapped && profileInfo && (
+        {isMapped && fieldValueInfo && (
           <div className="flex items-center gap-1 flex-shrink-0">
             <Button
               variant="ghost"
@@ -227,7 +226,7 @@ interface SectionGroupProps {
   selectedTag: string | null;
   tagMappings: Map<string, TagMapping>;
   snippets: ContentSnippet[];
-  profiles: Profile[];
+  fieldValues: FieldValue[];
   onToggle: (id: string) => void;
   onTagClick: (tagName: string) => void;
   onMappingRemove: (tagName: string) => void;
@@ -242,7 +241,7 @@ function SectionGroup({
   selectedTag,
   tagMappings,
   snippets,
-  profiles,
+  fieldValues,
   onToggle,
   onTagClick,
   onMappingRemove,
@@ -259,40 +258,7 @@ function SectionGroup({
   const totalTags = section.tags.length;
 
   const getSnippetById = (id: string) => snippets.find(s => s.id === id);
-  const getProfileById = (id: string) => profiles.find(p => p.id === id);
-
-  const getProfileFieldValue = (profile: Profile, fieldKey: string): string | null => {
-    switch (fieldKey) {
-      case 'name': return profile.name;
-      case 'contactName': return profile.contactName;
-      case 'contactTitle': return profile.contactTitle;
-      case 'addressLine1': return profile.addressLine1;
-      case 'addressLine2': return profile.addressLine2;
-      case 'city': return profile.city;
-      case 'state': return profile.state;
-      case 'zip': return profile.zip;
-      case 'phone': return profile.phone;
-      case 'email': return profile.email;
-      case 'fullAddress': {
-        const parts = [];
-        if (profile.addressLine1) parts.push(profile.addressLine1);
-        if (profile.addressLine2) parts.push(profile.addressLine2);
-        const cityStateZip = [profile.city, profile.state, profile.zip].filter(Boolean).join(', ');
-        if (cityStateZip) parts.push(cityStateZip);
-        return parts.join(', ') || null;
-      }
-      case 'cityStateZip': {
-        const parts = [profile.city, profile.state, profile.zip].filter(Boolean);
-        return parts.length > 0 ? parts.join(', ') : null;
-      }
-      default: return null;
-    }
-  };
-
-  const getProfileFieldLabel = (fieldKey: string): string => {
-    const field = PROFILE_FIELDS.find(f => f.key === fieldKey);
-    return field?.label || fieldKey;
-  };
+  const getFieldValueById = (id: string) => fieldValues.find(f => f.id === id);
 
   const {
     attributes,
@@ -356,17 +322,14 @@ function SectionGroup({
           {section.tags.map((tag, idx) => {
             const mapping = tagMappings.get(tag.name);
             const snippet = mapping?.snippetId ? getSnippetById(mapping.snippetId) : null;
-            const profile = mapping?.profileId ? getProfileById(mapping.profileId) : null;
+            const fieldValue = mapping?.fieldValueId ? getFieldValueById(mapping.fieldValueId) : null;
             
             let mappedContent: string | null = null;
-            let profileInfo: { profileName: string; fieldLabel: string } | null = null;
+            let fieldValueInfo: { fieldName: string } | null = null;
             
-            if (profile && mapping?.profileField) {
-              mappedContent = getProfileFieldValue(profile, mapping.profileField);
-              profileInfo = {
-                profileName: profile.name,
-                fieldLabel: getProfileFieldLabel(mapping.profileField),
-              };
+            if (fieldValue) {
+              mappedContent = fieldValue.value;
+              fieldValueInfo = { fieldName: fieldValue.name };
             } else if (snippet) {
               mappedContent = snippet.content;
             } else if (mapping?.customContent) {
@@ -382,7 +345,7 @@ function SectionGroup({
                 isMapped={!!mapping}
                 mappedContent={mappedContent}
                 snippetTitle={snippet?.title || null}
-                profileInfo={profileInfo}
+                fieldValueInfo={fieldValueInfo}
                 onTagClick={onTagClick}
                 onRemove={onMappingRemove}
                 onCustomContentSet={onCustomContentSet}
@@ -400,7 +363,7 @@ function SectionGroup({
               selectedTag={selectedTag}
               tagMappings={tagMappings}
               snippets={snippets}
-              profiles={profiles}
+              fieldValues={fieldValues}
               onToggle={onToggle}
               onTagClick={onTagClick}
               onMappingRemove={onMappingRemove}
@@ -422,7 +385,7 @@ export function TagsPanel({
   selectedTag,
   tagMappings,
   snippets,
-  profiles,
+  fieldValues,
   onMappingRemove,
   onCustomContentSet,
 }: TagsPanelProps) {
@@ -505,40 +468,7 @@ export function TagsPanel({
   };
 
   const getSnippetById = (id: string) => snippets.find(s => s.id === id);
-  const getProfileById = (id: string) => profiles.find(p => p.id === id);
-
-  const getProfileFieldValue = (profile: Profile, fieldKey: string): string | null => {
-    switch (fieldKey) {
-      case 'name': return profile.name;
-      case 'contactName': return profile.contactName;
-      case 'contactTitle': return profile.contactTitle;
-      case 'addressLine1': return profile.addressLine1;
-      case 'addressLine2': return profile.addressLine2;
-      case 'city': return profile.city;
-      case 'state': return profile.state;
-      case 'zip': return profile.zip;
-      case 'phone': return profile.phone;
-      case 'email': return profile.email;
-      case 'fullAddress': {
-        const parts = [];
-        if (profile.addressLine1) parts.push(profile.addressLine1);
-        if (profile.addressLine2) parts.push(profile.addressLine2);
-        const cityStateZip = [profile.city, profile.state, profile.zip].filter(Boolean).join(', ');
-        if (cityStateZip) parts.push(cityStateZip);
-        return parts.join(', ') || null;
-      }
-      case 'cityStateZip': {
-        const parts = [profile.city, profile.state, profile.zip].filter(Boolean);
-        return parts.length > 0 ? parts.join(', ') : null;
-      }
-      default: return null;
-    }
-  };
-
-  const getProfileFieldLabel = (fieldKey: string): string => {
-    const field = PROFILE_FIELDS.find(f => f.key === fieldKey);
-    return field?.label || fieldKey;
-  };
+  const getFieldValueById = (id: string) => fieldValues.find(f => f.id === id);
 
   // For Document tab: filter to content tags only, preserving full section structure
   const contentOnlySections = filterToContentTags(getOrderedSections());
@@ -586,7 +516,7 @@ export function TagsPanel({
               Document
             </TabsTrigger>
             <TabsTrigger value="fields" data-testid="tab-fields">
-              <Building2 className="w-3 h-3" />
+              <Variable className="w-3 h-3" />
               Fields
               {fieldTags.length > 0 && (
                 <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">
@@ -627,7 +557,7 @@ export function TagsPanel({
                       selectedTag={selectedTag}
                       tagMappings={tagMappings}
                       snippets={snippets}
-                      profiles={profiles}
+                      fieldValues={fieldValues}
                       onToggle={toggleSection}
                       onTagClick={onTagClick}
                       onMappingRemove={onMappingRemove}
@@ -646,7 +576,7 @@ export function TagsPanel({
           <div className="p-2 space-y-2">
             {filteredFieldTags.length === 0 ? (
               <div className="text-center py-8 px-4">
-                <Building2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                <Variable className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground" data-testid="text-no-fields">
                   {searchQuery ? "No field tags match your search" : "No field tags in template"}
                 </p>
@@ -658,17 +588,14 @@ export function TagsPanel({
               filteredFieldTags.map((tag, idx) => {
                 const mapping = tagMappings.get(tag.name);
                 const snippet = mapping?.snippetId ? getSnippetById(mapping.snippetId) : null;
-                const profile = mapping?.profileId ? getProfileById(mapping.profileId) : null;
+                const fieldValue = mapping?.fieldValueId ? getFieldValueById(mapping.fieldValueId) : null;
                 
                 let mappedContent: string | null = null;
-                let profileInfo: { profileName: string; fieldLabel: string } | null = null;
+                let fieldValueInfo: { fieldName: string } | null = null;
                 
-                if (profile && mapping?.profileField) {
-                  mappedContent = getProfileFieldValue(profile, mapping.profileField);
-                  profileInfo = {
-                    profileName: profile.name,
-                    fieldLabel: getProfileFieldLabel(mapping.profileField),
-                  };
+                if (fieldValue) {
+                  mappedContent = fieldValue.value;
+                  fieldValueInfo = { fieldName: fieldValue.name };
                 } else if (snippet) {
                   mappedContent = snippet.content;
                 } else if (mapping?.customContent) {
@@ -684,7 +611,7 @@ export function TagsPanel({
                     isMapped={!!mapping}
                     mappedContent={mappedContent}
                     snippetTitle={snippet?.title || null}
-                    profileInfo={profileInfo}
+                    fieldValueInfo={fieldValueInfo}
                     onTagClick={onTagClick}
                     onRemove={onMappingRemove}
                     onCustomContentSet={onCustomContentSet}

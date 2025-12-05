@@ -2,22 +2,25 @@
 
 ## Overview
 DocBuilder is a web application that enables users to build Google Documents from customizable templates. Templates support two types of reusable content:
-- **Field Tags** `{{field_name}}` - For structured profile data (company name, contact info, address)
+- **Field Tags** `{{field_name}}` - For simple key-value data (company_name → "Acme Corp")
 - **Content Tags** `<<content_name>>` - For rich text snippets (introductions, sections, descriptions)
 
-Users can manage reusable content snippets and profile fields, map them to template tags, reorder sections, and generate final documents in Google Drive.
+Users can manage reusable content snippets and field values, map them to template tags, reorder sections, and generate final documents in Google Drive.
 
 ## Project Status
 **MVP Complete** - All core features implemented and tested
 
 ## Recent Changes (December 05, 2025)
+- **Simplified field model**: Replaced complex Profile objects with simple FieldValue key-value pairs - each field tag `{{name}}` maps to one value
+- **New field management dialogs**: Added FieldValueDialog for creating/editing field values, ManageFieldValuesDialog for managing all values
+- **Updated Tags Panel**: Replaced profile-related logic with fieldValue handling, using Variable icon for field tags
 - **Document/Fields tab split**: TagsPanel now has two tabs - Document tab shows content tags only (`<<...>>`), Fields tab shows field tags only (`{{...}}`)
 - **Resizable panels**: Template Tags and Content Library panels have a draggable divider for custom sizing
 - **Embedded field detection**: Content snippets automatically detect `{{field}}` tags within their content
 - **Visual indicator for embedded fields**: Content Library shows a badge when snippets contain embedded field tags
 - **Nested field resolution**: Document generation now resolves field tags embedded within content snippets
-- **Implemented dual tag syntax**: Field tags use `{{...}}` and content tags use `<<...>>` to distinguish profile data from content snippets
-- **Context-aware Content Library**: Automatically switches to Profiles tab when a field tag is selected, Snippets tab for content tags
+- **Implemented dual tag syntax**: Field tags use `{{...}}` and content tags use `<<...>>` to distinguish field values from content snippets
+- **Context-aware Content Library**: Automatically switches to Field Values tab when a field tag is selected, Snippets tab for content tags
 
 ## Previous Changes (November 26, 2025)
 - **Added delete functionality**: Delete content snippets (trash icon on hover) and categories (via Settings > Manage Categories) with confirmation dialogs
@@ -140,7 +143,9 @@ The app uses Replit's Google Drive and Google Docs integrations for authenticati
 - `client/src/pages/home.tsx` - Main application page with two-panel layout
 - `client/src/components/collapsible-panel.tsx` - Collapsible panel wrapper component
 - `client/src/components/tags-panel.tsx` - Template tags with drag-and-drop and search
-- `client/src/components/content-library.tsx` - Content snippet manager with categories
+- `client/src/components/content-library.tsx` - Content snippet manager with categories and field values
+- `client/src/components/field-value-dialog.tsx` - Dialog for creating/editing field values
+- `client/src/components/manage-field-values-dialog.tsx` - Dialog for managing all field values
 - `client/src/components/template-structure.tsx` - Legacy draggable section tree
 
 ### Backend

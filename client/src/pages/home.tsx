@@ -9,7 +9,7 @@ import { TagsPanel } from "@/components/tags-panel";
 import { ContentLibrary } from "@/components/content-library";
 import { GenerateDocumentDialog } from "@/components/generate-document-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
-import type { ParsedTemplate, ContentSnippet, Category, TagMapping, User as UserType, Profile, ProfileFieldKey, TagType } from "@shared/schema";
+import type { ParsedTemplate, ContentSnippet, Category, TagMapping, User as UserType, FieldValue, TagType } from "@shared/schema";
 import { SiGoogle } from "react-icons/si";
 
 export default function Home() {
@@ -37,8 +37,8 @@ export default function Home() {
     enabled: !!user,
   });
 
-  const { data: profiles = [] } = useQuery<Profile[]>({
-    queryKey: ['/api/profiles'],
+  const { data: fieldValues = [] } = useQuery<FieldValue[]>({
+    queryKey: ['/api/field-values'],
     enabled: !!user,
   });
 
@@ -70,15 +70,14 @@ export default function Home() {
       tagType: selectedTagType,
       snippetId: snippet.id,
       customContent: null,
-      profileId: null,
-      profileField: null,
+      fieldValueId: null,
     });
     setTagMappings(newMappings);
     setSelectedTag(null);
     setSelectedTagType(null);
   };
 
-  const handleProfileFieldSelect = (profileId: string, fieldKey: ProfileFieldKey) => {
+  const handleFieldValueSelect = (fieldValue: FieldValue) => {
     if (!selectedTag || !selectedTagType) return;
     
     const newMappings = new Map(tagMappings);
@@ -87,8 +86,7 @@ export default function Home() {
       tagType: selectedTagType,
       snippetId: null,
       customContent: null,
-      profileId,
-      profileField: fieldKey,
+      fieldValueId: fieldValue.id,
     });
     setTagMappings(newMappings);
     setSelectedTag(null);
@@ -96,7 +94,6 @@ export default function Home() {
   };
 
   const handleCustomContentSet = (tagName: string, content: string) => {
-    // Look up the tag type from the template
     const tag = selectedTemplate?.allTags.find(t => t.name === tagName);
     const tagType = tag?.tagType || 'content';
     
@@ -106,8 +103,7 @@ export default function Home() {
       tagType,
       snippetId: null,
       customContent: content,
-      profileId: null,
-      profileField: null,
+      fieldValueId: null,
     });
     setTagMappings(newMappings);
   };
@@ -310,9 +306,9 @@ export default function Home() {
                       <ContentLibrary
                         snippets={snippets}
                         categories={categories}
-                        profiles={profiles}
+                        fieldValues={fieldValues}
                         onSnippetSelect={handleSnippetSelect}
-                        onProfileFieldSelect={handleProfileFieldSelect}
+                        onFieldValueSelect={handleFieldValueSelect}
                         selectedTag={selectedTag}
                         selectedTagType={selectedTagType}
                       />
@@ -343,9 +339,9 @@ export default function Home() {
                   <ContentLibrary
                     snippets={snippets}
                     categories={categories}
-                    profiles={profiles}
+                    fieldValues={fieldValues}
                     onSnippetSelect={handleSnippetSelect}
-                    onProfileFieldSelect={handleProfileFieldSelect}
+                    onFieldValueSelect={handleFieldValueSelect}
                     selectedTag={selectedTag}
                     selectedTagType={selectedTagType}
                   />
