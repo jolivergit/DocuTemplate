@@ -455,6 +455,19 @@ export function TagsPanel({
       .filter(Boolean) as TemplateSection[];
   };
 
+  // Filter sections to only include content tags (for Document tab)
+  // Preserves full section hierarchy but removes field tags from display
+  const filterToContentTags = (sections: TemplateSection[]): TemplateSection[] => {
+    const filterRecursive = (secs: TemplateSection[]): TemplateSection[] => {
+      return secs.map(section => ({
+        ...section,
+        tags: section.tags.filter(tag => tag.tagType === 'content'),
+        children: section.children ? filterRecursive(section.children) : [],
+      }));
+    };
+    return filterRecursive(sections);
+  };
+
   const filterSections = (sections: TemplateSection[], query: string): TemplateSection[] => {
     if (!query.trim()) return sections;
     
@@ -527,7 +540,10 @@ export function TagsPanel({
     return field?.label || fieldKey;
   };
 
-  const orderedSections = filterSections(getOrderedSections(), searchQuery);
+  // For Document tab: filter to content tags only, preserving full section structure
+  const contentOnlySections = filterToContentTags(getOrderedSections());
+  const orderedSections = filterSections(contentOnlySections, searchQuery);
+  
   const mappedCount = template.allTags.filter(t => tagMappings.has(t.name)).length;
   const totalTags = template.allTags.length;
   const progress = totalTags > 0 ? Math.round((mappedCount / totalTags) * 100) : 0;

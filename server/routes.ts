@@ -16,6 +16,20 @@ import {
   type Profile,
 } from "@shared/schema";
 
+// Extract field tags ({{...}}) from content
+function extractEmbeddedFields(content: string): string[] {
+  const fieldTagPattern = /\{\{([^}]+)\}\}/g;
+  const fields: string[] = [];
+  let match;
+  while ((match = fieldTagPattern.exec(content)) !== null) {
+    const fieldName = match[1].trim();
+    if (fieldName && !fields.includes(fieldName)) {
+      fields.push(fieldName);
+    }
+  }
+  return fields;
+}
+
 function getProfileFieldValue(profile: Profile, fieldKey: string): string | null {
   switch (fieldKey) {
     case 'name': return profile.name;
@@ -148,7 +162,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = (req.user as User).id;
       const validated = insertContentSnippetSchema.parse(req.body);
-      const snippet = await storage.createContentSnippet(userId, validated);
+      // Parse embedded field tags from content
+      const embeddedFields = extractEmbeddedFields(validated.content);
+      const snippet = await storage.createContentSnippet(userId, validated, embeddedFields);
       res.json(snippet);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -160,7 +176,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as User).id;
       const { id } = req.params;
       const validated = insertContentSnippetSchema.partial().parse(req.body);
-      const snippet = await storage.updateContentSnippet(userId, id, validated);
+      // If content is being updated, re-parse embedded fields
+      const embeddedFields = validated.content ? extractEmbeddedFields(validated.content) : undefined;
+      const snippet = await storage.updateContentSnippet(userId, id, validated, embeddedFields);
       if (!snippet) {
         return res.status(404).json({ error: "Content snippet not found" });
       }
@@ -469,6 +487,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ error: "Failed to copy template document" });
       }
 
+      // Build a lookup map for ALL field tag values (profile, custom content, or snippet)
+      // First pass: collect raw values
+      const fieldValueLookup = new Map<string, string>();
+      for (const mapping of tagMappings) {
+        if (mapping.tagType === 'field') {
+          let value = "";
+          if (mapping.profileId && mapping.profileField) {
+            const profile = await storage.getProfileById(userId, mapping.profileId);
+            if (profile) {
+              value = getProfileFieldValue(profile, mapping.profileField) || "";
+            }
+          } else if (mapping.customContent) {
+            value = mapping.customContent;
+          } else if (mapping.snippetId) {
+            const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
+            if (snippet) {
+              value = snippet.content;
+            }
+          }
+          fieldValueLookup.set(mapping.tagName, value);
+        }
+      }
+
+      // Helper function to resolve nested field tags in content
+      const resolveNestedFields = (content: string): string => {
+        return content.replace(/\{\{([^}]+)\}\}/g, (match, fieldName) => {
+          const trimmedName = fieldName.trim();
+          return fieldValueLookup.get(trimmedName) ?? match; // Keep original if not found
+        });
+      };
+
+      // Second pass: resolve any nested field tags within the lookup values themselves
+      // This handles cases where a field's value contains other field tags
+      // Use a convergence loop to handle multi-level nesting
+      let hasChanges = true;
+      let iterations = 0;
+      const maxIterations = 10; // Prevent infinite loops
+      while (hasChanges && iterations < maxIterations) {
+        hasChanges = false;
+        Array.from(fieldValueLookup.entries()).forEach(([key, value]) => {
+          const resolvedValue = resolveNestedFields(value);
+          if (resolvedValue !== value) {
+            fieldValueLookup.set(key, resolvedValue);
+            hasChanges = true;
+          }
+        });
+        iterations++;
+      }
+
       // Build batch update requests to replace all tags with content
       const requests: any[] = [];
 
@@ -481,11 +548,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             replacementContent = getProfileFieldValue(profile, mapping.profileField) || "";
           }
         } else if (mapping.customContent) {
-          replacementContent = mapping.customContent;
+          // Resolve nested field tags in custom content
+          replacementContent = resolveNestedFields(mapping.customContent);
         } else if (mapping.snippetId) {
           const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
           if (snippet) {
-            replacementContent = snippet.content;
+            // Resolve nested field tags in snippet content
+            replacementContent = resolveNestedFields(snippet.content);
             await storage.incrementSnippetUsage(userId, mapping.snippetId);
           }
         }

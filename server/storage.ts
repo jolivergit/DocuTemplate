@@ -22,8 +22,8 @@ export interface IStorage {
   // Content Snippets
   getContentSnippets(userId: string): Promise<ContentSnippet[]>;
   getContentSnippetById(userId: string, id: string): Promise<ContentSnippet | undefined>;
-  createContentSnippet(userId: string, snippet: InsertContentSnippet): Promise<ContentSnippet>;
-  updateContentSnippet(userId: string, id: string, snippet: Partial<InsertContentSnippet>): Promise<ContentSnippet | undefined>;
+  createContentSnippet(userId: string, snippet: InsertContentSnippet, embeddedFields?: string[]): Promise<ContentSnippet>;
+  updateContentSnippet(userId: string, id: string, snippet: Partial<InsertContentSnippet>, embeddedFields?: string[]): Promise<ContentSnippet | undefined>;
   deleteContentSnippet(userId: string, id: string): Promise<boolean>;
   incrementSnippetUsage(userId: string, id: string): Promise<void>;
   
@@ -76,10 +76,10 @@ export class DatabaseStorage implements IStorage {
     return snippet || undefined;
   }
 
-  async createContentSnippet(userId: string, insertSnippet: InsertContentSnippet): Promise<ContentSnippet> {
+  async createContentSnippet(userId: string, insertSnippet: InsertContentSnippet, embeddedFields?: string[]): Promise<ContentSnippet> {
     const [snippet] = await db
       .insert(contentSnippets)
-      .values({ ...insertSnippet, userId })
+      .values({ ...insertSnippet, userId, embeddedFields: embeddedFields || [] })
       .returning();
     return snippet;
   }
@@ -87,11 +87,16 @@ export class DatabaseStorage implements IStorage {
   async updateContentSnippet(
     userId: string,
     id: string,
-    updates: Partial<InsertContentSnippet>
+    updates: Partial<InsertContentSnippet>,
+    embeddedFields?: string[]
   ): Promise<ContentSnippet | undefined> {
+    const updateData: any = { ...updates, updatedAt: sql`CURRENT_TIMESTAMP` };
+    if (embeddedFields !== undefined) {
+      updateData.embeddedFields = embeddedFields;
+    }
     const [snippet] = await db
       .update(contentSnippets)
-      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .set(updateData)
       .where(and(eq(contentSnippets.id, id), eq(contentSnippets.userId, userId)))
       .returning();
     return snippet || undefined;

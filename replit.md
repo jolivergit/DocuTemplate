@@ -11,10 +11,13 @@ Users can manage reusable content snippets and profile fields, map them to templ
 **MVP Complete** - All core features implemented and tested
 
 ## Recent Changes (December 05, 2025)
+- **Document/Fields tab split**: TagsPanel now has two tabs - Document tab shows content tags only (`<<...>>`), Fields tab shows field tags only (`{{...}}`)
+- **Resizable panels**: Template Tags and Content Library panels have a draggable divider for custom sizing
+- **Embedded field detection**: Content snippets automatically detect `{{field}}` tags within their content
+- **Visual indicator for embedded fields**: Content Library shows a badge when snippets contain embedded field tags
+- **Nested field resolution**: Document generation now resolves field tags embedded within content snippets
 - **Implemented dual tag syntax**: Field tags use `{{...}}` and content tags use `<<...>>` to distinguish profile data from content snippets
-- **Added tag type detection**: Template parsing automatically identifies field vs content tags based on their syntax
 - **Context-aware Content Library**: Automatically switches to Profiles tab when a field tag is selected, Snippets tab for content tags
-- **Visual tag type indicators**: TagsPanel shows different icons and badges for field tags (User icon) vs content tags (FileText icon)
 
 ## Previous Changes (November 26, 2025)
 - **Added delete functionality**: Delete content snippets (trash icon on hover) and categories (via Settings > Manage Categories) with confirmation dialogs

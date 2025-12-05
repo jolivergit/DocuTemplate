@@ -284,6 +284,7 @@ export function ContentLibrary({
               <div className="p-2 space-y-2">
                 {filteredSnippets.map(snippet => {
                   const category = getCategoryById(snippet.categoryId);
+                  const hasEmbeddedFields = snippet.embeddedFields && snippet.embeddedFields.length > 0;
                   
                   return (
                     <div
@@ -292,7 +293,7 @@ export function ContentLibrary({
                       data-testid={`card-snippet-${snippet.id}`}
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex items-start gap-2">
+                        <div className="flex items-start gap-2 flex-wrap">
                           {category && (
                             <Badge
                               variant="secondary"
@@ -305,6 +306,17 @@ export function ContentLibrary({
                               data-testid={`badge-category-${snippet.id}`}
                             >
                               {category.name}
+                            </Badge>
+                          )}
+                          {hasEmbeddedFields && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs flex-shrink-0"
+                              title={`Contains field tags: ${snippet.embeddedFields!.map(f => `{{${f}}}`).join(', ')}`}
+                              data-testid={`badge-embedded-fields-${snippet.id}`}
+                            >
+                              <Building2 className="w-3 h-3 mr-1" />
+                              {snippet.embeddedFields!.length} field{snippet.embeddedFields!.length > 1 ? 's' : ''}
                             </Badge>
                           )}
                         </div>

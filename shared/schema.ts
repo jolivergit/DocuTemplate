@@ -72,6 +72,7 @@ export const contentSnippets = pgTable("content_snippets", {
   categoryId: varchar("category_id").references(() => categories.id, { onDelete: "set null" }),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   usageCount: integer("usage_count").notNull().default(0),
+  embeddedFields: text("embedded_fields").array().default([]), // Field tags found in content (e.g., {{customer_name}})
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -80,6 +81,7 @@ export const insertContentSnippetSchema = createInsertSchema(contentSnippets).om
   id: true,
   userId: true,
   usageCount: true,
+  embeddedFields: true, // Auto-computed from content
   createdAt: true,
   updatedAt: true,
 });
