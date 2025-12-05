@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Archive, Trash2, Settings, Variable, FileText } from "lucide-react";
+import { Plus, Search, Archive, Trash2, Settings, Variable, FileText, Edit2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -60,6 +60,7 @@ export function ContentLibrary({
   const [showManageCategories, setShowManageCategories] = useState(false);
   const [showManageFieldValues, setShowManageFieldValues] = useState(false);
   const [showAddFieldValue, setShowAddFieldValue] = useState(false);
+  const [fieldValueToEdit, setFieldValueToEdit] = useState<FieldValue | null>(null);
   const [snippetToDelete, setSnippetToDelete] = useState<ContentSnippet | null>(null);
   const [activeTab, setActiveTab] = useState<string>("snippets");
 
@@ -345,17 +346,18 @@ export function ContentLibrary({
             ) : (
               <div className="p-2 space-y-2">
                 {filteredFieldValues.map(fieldValue => (
-                  <button
+                  <div
                     key={fieldValue.id}
-                    onClick={() => selectedTag && selectedTagType === 'field' && onFieldValueSelect(fieldValue)}
-                    className={`w-full rounded-lg border text-left transition-all hover-elevate p-3 ${
-                      selectedTag && selectedTagType === 'field' ? 'cursor-pointer' : 'cursor-default'
-                    }`}
-                    disabled={!selectedTag || selectedTagType !== 'field'}
+                    className="w-full rounded-lg border text-left transition-all hover-elevate p-3"
                     data-testid={`card-field-value-${fieldValue.id}`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
+                      <div
+                        className={`flex-1 min-w-0 ${
+                          selectedTag && selectedTagType === 'field' ? 'cursor-pointer' : 'cursor-default'
+                        }`}
+                        onClick={() => selectedTag && selectedTagType === 'field' && onFieldValueSelect(fieldValue)}
+                      >
                         <code
                           className="text-sm font-mono bg-muted px-2 py-0.5 rounded mb-1 inline-block"
                           data-testid={`text-field-value-name-${fieldValue.id}`}
@@ -369,8 +371,20 @@ export function ContentLibrary({
                           {fieldValue.value}
                         </p>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 flex-shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFieldValueToEdit(fieldValue);
+                        }}
+                        data-testid={`button-edit-field-value-${fieldValue.id}`}
+                      >
+                        <Edit2 className="w-4 h-4 text-muted-foreground" />
+                      </Button>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -411,6 +425,12 @@ export function ContentLibrary({
         onOpenChange={setShowAddFieldValue}
         fieldValue={null}
         prefilledName={selectedTag && selectedTagType === 'field' ? selectedTag : undefined}
+      />
+
+      <FieldValueDialog
+        open={!!fieldValueToEdit}
+        onOpenChange={(open) => !open && setFieldValueToEdit(null)}
+        fieldValue={fieldValueToEdit}
       />
 
       <AlertDialog open={!!snippetToDelete} onOpenChange={(open) => !open && setSnippetToDelete(null)}>
