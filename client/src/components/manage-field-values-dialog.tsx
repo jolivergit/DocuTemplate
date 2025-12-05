@@ -135,7 +135,7 @@ export function ManageFieldValuesDialog({
                             className="text-sm font-mono bg-muted px-2 py-0.5 rounded"
                             data-testid={`text-field-value-name-${fieldValue.id}`}
                           >
-                            {`{{${fieldValue.name}}}`}
+                            {fieldValue.name}
                           </code>
                         </div>
                         <p
@@ -198,7 +198,7 @@ export function ManageFieldValuesDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Field Value</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{`{{${fieldValueToDelete?.name}}}`}"? This
+              Are you sure you want to delete "{fieldValueToDelete?.name}"? This
               action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

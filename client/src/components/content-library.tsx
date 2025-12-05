@@ -360,7 +360,7 @@ export function ContentLibrary({
                           className="text-sm font-mono bg-muted px-2 py-0.5 rounded mb-1 inline-block"
                           data-testid={`text-field-value-name-${fieldValue.id}`}
                         >
-                          {`{{${fieldValue.name}}}`}
+                          {fieldValue.name}
                         </code>
                         <p
                           className="text-sm text-muted-foreground line-clamp-2 mt-1"
