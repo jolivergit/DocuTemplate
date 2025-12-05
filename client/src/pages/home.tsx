@@ -50,24 +50,26 @@ export default function Home() {
     setSectionOrder(template.sections.map(s => s.id));
     setTagMappings(new Map());
     setSelectedTag(null);
+    setSelectedTagType(null);
   };
 
   const handleSectionReorder = (newOrder: string[]) => {
     setSectionOrder(newOrder);
   };
 
-  const handleTagClick = (tagName: string) => {
+  // Helper to create composite key for tagMappings (name:type)
+  const makeTagKey = (name: string, type: string) => `${name}:${type}`;
+  
+  const handleTagClick = (tagName: string, tagType: TagType) => {
     setSelectedTag(tagName);
-    // Find the tag type from the template
-    const tag = selectedTemplate?.allTags.find(t => t.name === tagName);
-    setSelectedTagType(tag?.tagType || null);
+    setSelectedTagType(tagType);
   };
 
   const handleSnippetSelect = (snippet: ContentSnippet) => {
     if (!selectedTag || !selectedTagType) return;
     
     const newMappings = new Map(tagMappings);
-    newMappings.set(selectedTag, {
+    newMappings.set(makeTagKey(selectedTag, selectedTagType), {
       tagName: selectedTag,
       tagType: selectedTagType,
       snippetId: snippet.id,
@@ -83,7 +85,7 @@ export default function Home() {
     if (!selectedTag || !selectedTagType) return;
     
     const newMappings = new Map(tagMappings);
-    newMappings.set(selectedTag, {
+    newMappings.set(makeTagKey(selectedTag, selectedTagType), {
       tagName: selectedTag,
       tagType: selectedTagType,
       snippetId: null,
@@ -95,12 +97,9 @@ export default function Home() {
     setSelectedTagType(null);
   };
 
-  const handleCustomContentSet = (tagName: string, content: string) => {
-    const tag = selectedTemplate?.allTags.find(t => t.name === tagName);
-    const tagType = tag?.tagType || 'content';
-    
+  const handleCustomContentSet = (tagName: string, tagType: TagType, content: string) => {
     const newMappings = new Map(tagMappings);
-    newMappings.set(tagName, {
+    newMappings.set(makeTagKey(tagName, tagType), {
       tagName,
       tagType,
       snippetId: null,
@@ -110,9 +109,9 @@ export default function Home() {
     setTagMappings(newMappings);
   };
 
-  const handleMappingRemove = (tagName: string) => {
+  const handleMappingRemove = (tagName: string, tagType: TagType) => {
     const newMappings = new Map(tagMappings);
-    newMappings.delete(tagName);
+    newMappings.delete(makeTagKey(tagName, tagType));
     setTagMappings(newMappings);
   };
 
@@ -136,7 +135,10 @@ export default function Home() {
     window.location.href = '/auth/logout';
   };
 
-  const mappedCount = selectedTemplate ? selectedTemplate.allTags.filter(t => tagMappings.has(t.name)).length : 0;
+  const mappedCount = selectedTemplate ? selectedTemplate.allTags.filter(t => {
+    const key = makeTagKey(t.name, t.tagType);
+    return tagMappings.has(key);
+  }).length : 0;
   const canGenerate = selectedTemplate && mappedCount > 0;
 
   if (isLoadingUser) {
@@ -270,6 +272,7 @@ export default function Home() {
                       onSectionReorder={handleSectionReorder}
                       onTagClick={handleTagClick}
                       selectedTag={selectedTag}
+                      selectedTagType={selectedTagType}
                       tagMappings={tagMappings}
                       snippets={snippets}
                       fieldValues={fieldValues}
@@ -337,6 +340,7 @@ export default function Home() {
                   onSectionReorder={handleSectionReorder}
                   onTagClick={handleTagClick}
                   selectedTag={selectedTag}
+                  selectedTagType={selectedTagType}
                   tagMappings={tagMappings}
                   snippets={snippets}
                   fieldValues={fieldValues}

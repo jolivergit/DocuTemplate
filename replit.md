@@ -11,6 +11,12 @@ Users can manage reusable content snippets and field values, map them to templat
 **MVP Complete** - All core features implemented and tested
 
 ## Recent Changes (December 05, 2025)
+- **Tag deduplication with composite keys**: Tags are now uniquely identified by both name AND type (field/content), enabling independent handling of field and content tags that share the same name
+- **Composite key mapping**: tagMappings now uses `${name}:${type}` as key, allowing field tag `{{name}}` and content tag `<<name>>` to be mapped separately
+- **Unique React keys and test IDs**: All TagItem keys and data-testid attributes include tagType to prevent DOM collisions when same name used for both field and content tags
+- **Type-aware selection**: Tag click passes both tagName and tagType, and selection check uses both values for accurate highlighting
+- **Independent progress tracking**: Progress bar and counts track each tag type separately using composite key lookups
+- **Template switch cleanup**: Both selectedTag and selectedTagType are reset when loading a new template
 - **Content Library always accessible**: Users can now manage content snippets and field values without loading a template first - build your content library, then load templates when ready
 - **Improved no-template state**: Tags Panel shows helpful guidance with "Load Template" button when no template is loaded, while Content Library remains fully functional
 - **Simplified field model**: Replaced complex Profile objects with simple FieldValue key-value pairs - each field tag `{{name}}` maps to one value

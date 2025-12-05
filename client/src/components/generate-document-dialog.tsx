@@ -82,8 +82,8 @@ export function GenerateDocumentDialog({
     },
   });
 
-  // Calculate unique tag count (template.allTags may have duplicates for same tag name)
-  const uniqueTagCount = new Set(template.allTags.map(tag => tag.name)).size;
+  // Calculate unique tag count by composite key (name:type) since template.allTags may have duplicates
+  const uniqueTagCount = new Set(template.allTags.map(tag => `${tag.name}:${tag.tagType}`)).size;
 
   const handleSubmit = (data: FormData) => {
     setGeneratedDocUrl(null);
