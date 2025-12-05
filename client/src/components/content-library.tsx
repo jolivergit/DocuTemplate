@@ -62,6 +62,7 @@ export function ContentLibrary({
   const [showAddFieldValue, setShowAddFieldValue] = useState(false);
   const [fieldValueToEdit, setFieldValueToEdit] = useState<FieldValue | null>(null);
   const [snippetToDelete, setSnippetToDelete] = useState<ContentSnippet | null>(null);
+  const [snippetToEdit, setSnippetToEdit] = useState<ContentSnippet | null>(null);
   const [activeTab, setActiveTab] = useState<string>("snippets");
 
   useEffect(() => {
@@ -285,8 +286,14 @@ export function ContentLibrary({
                       </div>
                       
                       <div
-                        onClick={() => selectedTag && selectedTagType === 'content' && onSnippetSelect(snippet)}
-                        className={`w-full text-left ${selectedTag && selectedTagType === 'content' ? 'cursor-pointer' : 'cursor-default'}`}
+                        onClick={() => {
+                          if (selectedTag && selectedTagType === 'content') {
+                            onSnippetSelect(snippet);
+                            return;
+                          }
+                          setSnippetToEdit(snippet);
+                        }}
+                        className="w-full text-left cursor-pointer"
                         data-testid={`button-snippet-${snippet.id}`}
                       >
                         <h3 className="text-base font-medium mb-2 line-clamp-1" data-testid={`text-snippet-title-${snippet.id}`}>
@@ -399,9 +406,15 @@ export function ContentLibrary({
       )}
 
       <AddContentDialog
-        open={showAddContent}
-        onOpenChange={setShowAddContent}
+        open={showAddContent || !!snippetToEdit}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowAddContent(false);
+            setSnippetToEdit(null);
+          }
+        }}
         categories={categories}
+        snippet={snippetToEdit}
       />
 
       <AddCategoryDialog
