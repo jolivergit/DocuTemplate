@@ -51,14 +51,14 @@ export function ManageProfilesDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/profiles"] });
       toast({
-        title: "Profile deleted",
-        description: "The profile has been removed.",
+        title: "Field set deleted",
+        description: "The field set has been removed.",
       });
       setProfileToDelete(null);
     },
     onError: (error: Error) => {
       toast({
-        title: "Failed to delete profile",
+        title: "Failed to delete field set",
         description: error.message,
         variant: "destructive",
       });
@@ -86,20 +86,20 @@ export function ManageProfilesDialog({
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
-                <DialogTitle data-testid="text-manage-profiles-title">
-                  Manage Profiles
+                <DialogTitle data-testid="text-manage-fields-title">
+                  Manage Fields
                 </DialogTitle>
-                <DialogDescription data-testid="text-manage-profiles-description">
-                  Create and manage reusable company and client profiles for your
+                <DialogDescription data-testid="text-manage-fields-description">
+                  Create and manage reusable company and client field sets for your
                   documents.
                 </DialogDescription>
               </div>
               <Button
                 onClick={() => setShowAddProfile(true)}
-                data-testid="button-add-profile"
+                data-testid="button-add-field"
               >
                 <Plus className="w-4 h-4" />
-                Add Profile
+                Add Field Set
               </Button>
             </div>
           </DialogHeader>
@@ -109,28 +109,28 @@ export function ManageProfilesDialog({
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Building2
                   className="w-12 h-12 mb-4 text-muted-foreground"
-                  data-testid="icon-no-profiles"
+                  data-testid="icon-no-fields"
                 />
                 <p
                   className="text-sm font-medium mb-1"
-                  data-testid="text-no-profiles-title"
+                  data-testid="text-no-fields-title"
                 >
-                  No profiles yet
+                  No field sets yet
                 </p>
                 <p
                   className="text-xs text-muted-foreground mb-4"
-                  data-testid="text-no-profiles-description"
+                  data-testid="text-no-fields-description"
                 >
-                  Create profiles to store company and client information for your
+                  Create field sets to store company and client information for your
                   templates
                 </p>
                 <Button
                   variant="outline"
                   onClick={() => setShowAddProfile(true)}
-                  data-testid="button-add-profile-empty"
+                  data-testid="button-add-field-empty"
                 >
                   <Plus className="w-4 h-4" />
-                  Add Your First Profile
+                  Add Your First Field Set
                 </Button>
               </div>
             ) : (
@@ -240,16 +240,16 @@ export function ManageProfilesDialog({
         open={!!profileToDelete}
         onOpenChange={(open) => !open && setProfileToDelete(null)}
       >
-        <AlertDialogContent data-testid="dialog-delete-profile">
+        <AlertDialogContent data-testid="dialog-delete-field">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Profile</AlertDialogTitle>
+            <AlertDialogTitle>Delete Field Set</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{profileToDelete?.name}"? This
               action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete-profile">
+            <AlertDialogCancel data-testid="button-cancel-delete-field">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
@@ -257,7 +257,7 @@ export function ManageProfilesDialog({
                 profileToDelete && deleteProfileMutation.mutate(profileToDelete.id)
               }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="button-confirm-delete-profile"
+              data-testid="button-confirm-delete-field"
             >
               Delete
             </AlertDialogAction>

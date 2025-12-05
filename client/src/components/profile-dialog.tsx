@@ -90,15 +90,15 @@ export function ProfileDialog({ open, onOpenChange, profile }: ProfileDialogProp
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/profiles"] });
       toast({
-        title: "Profile created",
-        description: "Your profile has been saved.",
+        title: "Field set created",
+        description: "Your field set has been saved.",
       });
       form.reset();
       onOpenChange(false);
     },
     onError: (error: Error) => {
       toast({
-        title: "Failed to create profile",
+        title: "Failed to create field set",
         description: error.message,
         variant: "destructive",
       });
@@ -112,14 +112,14 @@ export function ProfileDialog({ open, onOpenChange, profile }: ProfileDialogProp
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/profiles"] });
       toast({
-        title: "Profile updated",
-        description: "Your profile has been saved.",
+        title: "Field set updated",
+        description: "Your field set has been saved.",
       });
       onOpenChange(false);
     },
     onError: (error: Error) => {
       toast({
-        title: "Failed to update profile",
+        title: "Failed to update field set",
         description: error.message,
         variant: "destructive",
       });
@@ -140,13 +140,13 @@ export function ProfileDialog({ open, onOpenChange, profile }: ProfileDialogProp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" data-testid="dialog-profile">
         <DialogHeader>
-          <DialogTitle data-testid="text-profile-dialog-title">
-            {isEditing ? "Edit Profile" : "Add Profile"}
+          <DialogTitle data-testid="text-field-dialog-title">
+            {isEditing ? "Edit Field Set" : "Add Field Set"}
           </DialogTitle>
-          <DialogDescription data-testid="text-profile-dialog-description">
+          <DialogDescription data-testid="text-field-dialog-description">
             {isEditing
               ? "Update company or client information."
-              : "Create a reusable profile for company or client information."}
+              : "Create a reusable field set for company or client information."}
           </DialogDescription>
         </DialogHeader>
 

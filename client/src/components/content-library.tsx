@@ -173,8 +173,8 @@ export function ContentLibrary({
             variant="ghost"
             size="icon"
             onClick={() => setShowManageProfiles(true)}
-            data-testid="button-manage-profiles"
-            title="Manage Profiles"
+            data-testid="button-manage-fields"
+            title="Manage Fields"
           >
             <Building2 className="w-4 h-4" />
           </Button>
@@ -224,7 +224,7 @@ export function ContentLibrary({
               <FileText className="w-3 h-3" />
               Content
             </TabsTrigger>
-            <TabsTrigger value="profiles" data-testid="tab-profiles">
+            <TabsTrigger value="profiles" data-testid="tab-fields">
               <Building2 className="w-3 h-3" />
               Fields
             </TabsTrigger>
@@ -374,22 +374,22 @@ export function ContentLibrary({
           <ScrollArea className="flex-1">
             {filteredProfiles.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-6 py-12">
-                <Building2 className="w-12 h-12 mb-3 text-muted-foreground" data-testid="icon-empty-profiles" />
-                <p className="text-sm font-medium mb-1" data-testid="text-no-profiles-title">No profiles</p>
-                <p className="text-xs text-muted-foreground mb-4" data-testid="text-no-profiles-description">
+                <Building2 className="w-12 h-12 mb-3 text-muted-foreground" data-testid="icon-empty-fields" />
+                <p className="text-sm font-medium mb-1" data-testid="text-no-fields-title">No fields</p>
+                <p className="text-xs text-muted-foreground mb-4" data-testid="text-no-fields-description">
                   {searchQuery 
                     ? "Try adjusting your search" 
-                    : "Create profiles to store company and client information"}
+                    : "Create fields to store company and client information"}
                 </p>
                 {!searchQuery && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setShowManageProfiles(true)}
-                    data-testid="button-add-profile-empty"
+                    data-testid="button-add-field-empty"
                   >
                     <Plus className="w-3 h-3" />
-                    Add Profile
+                    Add Field
                   </Button>
                 )}
               </div>
@@ -489,8 +489,8 @@ export function ContentLibrary({
           </ScrollArea>
 
           <div className="p-3 border-t flex-shrink-0">
-            <p className="text-xs text-muted-foreground" data-testid="text-total-profiles">
-              {filteredProfiles.length} of {profiles.length} profiles
+            <p className="text-xs text-muted-foreground" data-testid="text-total-fields">
+              {filteredProfiles.length} of {profiles.length} fields
             </p>
           </div>
         </>
