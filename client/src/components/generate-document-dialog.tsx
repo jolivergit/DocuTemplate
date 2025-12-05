@@ -82,6 +82,9 @@ export function GenerateDocumentDialog({
     },
   });
 
+  // Calculate unique tag count (template.allTags may have duplicates for same tag name)
+  const uniqueTagCount = new Set(template.allTags.map(tag => tag.name)).size;
+
   const handleSubmit = (data: FormData) => {
     setGeneratedDocUrl(null);
     generateMutation.mutate(data);
@@ -116,7 +119,7 @@ export function GenerateDocumentDialog({
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Mapped tags:</span>
                   <span className="font-medium" data-testid="text-mapped-tags-count">
-                    {tagMappings.length} of {template.allTags.length}
+                    {tagMappings.length} of {uniqueTagCount}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
