@@ -88,9 +88,12 @@ export type InsertContentSnippet = z.infer<typeof insertContentSnippetSchema>;
 export type ContentSnippet = typeof contentSnippets.$inferSelect;
 
 // Template structure types (not stored in DB, parsed from Google Docs)
+export type TagType = 'field' | 'content';
+
 export interface TemplateTag {
   type: string;
   name: string;
+  tagType: TagType; // 'field' for {{...}}, 'content' for <<...>>
   startIndex: number;
   endIndex: number;
 }
@@ -132,6 +135,7 @@ export type ProfileFieldKey = typeof PROFILE_FIELDS[number]['key'];
 // Tag mapping for document generation
 export interface TagMapping {
   tagName: string;
+  tagType: TagType; // 'field' for {{...}}, 'content' for <<...>>
   snippetId: string | null;
   customContent: string | null;
   profileId: string | null;
@@ -152,6 +156,7 @@ export const generateDocumentRequestSchema = z.object({
   outputName: z.string(),
   tagMappings: z.array(z.object({
     tagName: z.string(),
+    tagType: z.enum(['field', 'content']),
     snippetId: z.string().nullable(),
     customContent: z.string().nullable(),
     profileId: z.string().nullable(),

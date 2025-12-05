@@ -9,12 +9,13 @@ import { ContentLibrary } from "@/components/content-library";
 import { CollapsiblePanel } from "@/components/collapsible-panel";
 import { GenerateDocumentDialog } from "@/components/generate-document-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
-import type { ParsedTemplate, ContentSnippet, Category, TagMapping, User as UserType, Profile, ProfileFieldKey } from "@shared/schema";
+import type { ParsedTemplate, ContentSnippet, Category, TagMapping, User as UserType, Profile, ProfileFieldKey, TagType } from "@shared/schema";
 import { SiGoogle } from "react-icons/si";
 
 export default function Home() {
   const [selectedTemplate, setSelectedTemplate] = useState<ParsedTemplate | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedTagType, setSelectedTagType] = useState<TagType | null>(null);
   const [tagMappings, setTagMappings] = useState<Map<string, TagMapping>>(new Map());
   const [sectionOrder, setSectionOrder] = useState<string[]>([]);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
@@ -55,14 +56,18 @@ export default function Home() {
 
   const handleTagClick = (tagName: string) => {
     setSelectedTag(tagName);
+    // Find the tag type from the template
+    const tag = selectedTemplate?.allTags.find(t => t.name === tagName);
+    setSelectedTagType(tag?.tagType || null);
   };
 
   const handleSnippetSelect = (snippet: ContentSnippet) => {
-    if (!selectedTag) return;
+    if (!selectedTag || !selectedTagType) return;
     
     const newMappings = new Map(tagMappings);
     newMappings.set(selectedTag, {
       tagName: selectedTag,
+      tagType: selectedTagType,
       snippetId: snippet.id,
       customContent: null,
       profileId: null,
@@ -70,14 +75,16 @@ export default function Home() {
     });
     setTagMappings(newMappings);
     setSelectedTag(null);
+    setSelectedTagType(null);
   };
 
   const handleProfileFieldSelect = (profileId: string, fieldKey: ProfileFieldKey) => {
-    if (!selectedTag) return;
+    if (!selectedTag || !selectedTagType) return;
     
     const newMappings = new Map(tagMappings);
     newMappings.set(selectedTag, {
       tagName: selectedTag,
+      tagType: selectedTagType,
       snippetId: null,
       customContent: null,
       profileId,
@@ -85,12 +92,18 @@ export default function Home() {
     });
     setTagMappings(newMappings);
     setSelectedTag(null);
+    setSelectedTagType(null);
   };
 
   const handleCustomContentSet = (tagName: string, content: string) => {
+    // Look up the tag type from the template
+    const tag = selectedTemplate?.allTags.find(t => t.name === tagName);
+    const tagType = tag?.tagType || 'content';
+    
     const newMappings = new Map(tagMappings);
     newMappings.set(tagName, {
       tagName,
+      tagType,
       snippetId: null,
       customContent: content,
       profileId: null,
@@ -292,6 +305,7 @@ export default function Home() {
                   onSnippetSelect={handleSnippetSelect}
                   onProfileFieldSelect={handleProfileFieldSelect}
                   selectedTag={selectedTag}
+                  selectedTagType={selectedTagType}
                 />
               </CollapsiblePanel>
             </div>
@@ -321,6 +335,7 @@ export default function Home() {
                     onSnippetSelect={handleSnippetSelect}
                     onProfileFieldSelect={handleProfileFieldSelect}
                     selectedTag={selectedTag}
+                    selectedTagType={selectedTagType}
                   />
                 )}
                 {!mobilePanel && (

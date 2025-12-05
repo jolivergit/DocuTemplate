@@ -295,7 +295,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Extract text content and find tags
       let fullText = "";
-      const tagRegex = /<<([^>]+)>>/g;
+      // Field tags use {{...}}, content tags use <<...>>
+      const fieldTagRegex = /\{\{([^}]+)\}\}/g;
+      const contentTagRegex = /<<([^>]+)>>/g;
       const allTags: TemplateTag[] = [];
       
       for (const element of content) {
@@ -307,17 +309,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Find all tags in the document
+      // Find all field tags ({{...}}) in the document
       let match;
-      while ((match = tagRegex.exec(fullText)) !== null) {
+      while ((match = fieldTagRegex.exec(fullText)) !== null) {
         const tagName = match[1].trim();
         allTags.push({
           type: "tag",
           name: tagName,
+          tagType: "field",
           startIndex: match.index,
           endIndex: match.index + match[0].length,
         });
       }
+
+      // Find all content tags (<<...>>) in the document
+      while ((match = contentTagRegex.exec(fullText)) !== null) {
+        const tagName = match[1].trim();
+        allTags.push({
+          type: "tag",
+          name: tagName,
+          tagType: "content",
+          startIndex: match.index,
+          endIndex: match.index + match[0].length,
+        });
+      }
+
+      // Sort tags by their position in the document
+      allTags.sort((a, b) => a.startIndex - b.startIndex);
 
       // Build hierarchical sections based on heading levels
       const sections: TemplateSection[] = [];
@@ -473,10 +491,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Use replaceAllText to preserve formatting
+        // Use appropriate syntax based on tag type
+        const tagSyntax = mapping.tagType === 'field' 
+          ? `{{${mapping.tagName}}}` 
+          : `<<${mapping.tagName}>>`;
+
         requests.push({
           replaceAllText: {
             containsText: {
-              text: `<<${mapping.tagName}>>`,
+              text: tagSyntax,
               matchCase: true,
             },
             replaceText: replacementContent,

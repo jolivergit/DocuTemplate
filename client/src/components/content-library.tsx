@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Search, Archive, Trash2, Settings, Building2, FileText, MapPin, Phone, Mail, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,7 @@ import { ManageProfilesDialog } from "@/components/manage-profiles-dialog";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { ContentSnippet, Category, Profile, ProfileFieldKey } from "@shared/schema";
+import type { ContentSnippet, Category, Profile, ProfileFieldKey, TagType } from "@shared/schema";
 import { PROFILE_FIELDS } from "@shared/schema";
 
 interface ContentLibraryProps {
@@ -45,6 +45,7 @@ interface ContentLibraryProps {
   onSnippetSelect: (snippet: ContentSnippet) => void;
   onProfileFieldSelect: (profileId: string, fieldKey: ProfileFieldKey) => void;
   selectedTag: string | null;
+  selectedTagType: TagType | null;
 }
 
 export function ContentLibrary({
@@ -54,6 +55,7 @@ export function ContentLibrary({
   onSnippetSelect,
   onProfileFieldSelect,
   selectedTag,
+  selectedTagType,
 }: ContentLibraryProps) {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -65,6 +67,15 @@ export function ContentLibrary({
   const [snippetToDelete, setSnippetToDelete] = useState<ContentSnippet | null>(null);
   const [expandedProfiles, setExpandedProfiles] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<string>("snippets");
+
+  // Auto-switch tab based on selected tag type
+  useEffect(() => {
+    if (selectedTagType === 'field') {
+      setActiveTab('profiles');
+    } else if (selectedTagType === 'content') {
+      setActiveTab('snippets');
+    }
+  }, [selectedTagType]);
 
   const deleteSnippetMutation = useMutation({
     mutationFn: async (id: string) => {
