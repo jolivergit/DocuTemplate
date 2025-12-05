@@ -4,6 +4,7 @@ import passport, { requireAuth } from "./auth";
 import { storage } from "./storage";
 import { getGoogleDriveClient } from "./google-drive-client";
 import { getGoogleDocsClient } from "./google-docs-client";
+import { htmlToPlainText } from "./html-to-text";
 import {
   insertCategorySchema,
   insertContentSnippetSchema,
@@ -465,7 +466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Build a lookup map for ALL field tag values (field value, custom content, or snippet)
-      // First pass: collect raw values
+      // First pass: collect raw values and convert HTML to plain text
       const fieldValueLookup = new Map<string, string>();
       for (const mapping of tagMappings) {
         if (mapping.tagType === 'field') {
@@ -476,11 +477,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               value = fieldValue.value;
             }
           } else if (mapping.customContent) {
-            value = mapping.customContent;
+            // Convert HTML to plain text for custom content
+            value = htmlToPlainText(mapping.customContent);
           } else if (mapping.snippetId) {
             const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
             if (snippet) {
-              value = snippet.content;
+              // Convert HTML content to plain text for Google Docs
+              value = htmlToPlainText(snippet.content);
             }
           }
           fieldValueLookup.set(mapping.tagName, value);
@@ -526,12 +529,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } else if (mapping.customContent) {
           // Resolve nested field tags in custom content
-          replacementContent = resolveNestedFields(mapping.customContent);
+          // Convert HTML to plain text if present
+          replacementContent = resolveNestedFields(htmlToPlainText(mapping.customContent));
         } else if (mapping.snippetId) {
           const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
           if (snippet) {
-            // Resolve nested field tags in snippet content
-            replacementContent = resolveNestedFields(snippet.content);
+            // Convert HTML to plain text and resolve nested field tags
+            replacementContent = resolveNestedFields(htmlToPlainText(snippet.content));
             await storage.incrementSnippetUsage(userId, mapping.snippetId);
           }
         }
