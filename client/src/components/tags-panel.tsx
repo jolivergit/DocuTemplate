@@ -37,6 +37,7 @@ interface TagsPanelProps {
   fieldValues: FieldValue[];
   onMappingRemove: (tagName: string) => void;
   onCustomContentSet: (tagName: string, content: string) => void;
+  onFieldValueEdit?: (fieldValueId: string) => void;
 }
 
 interface TagItemProps {
@@ -46,10 +47,11 @@ interface TagItemProps {
   isMapped: boolean;
   mappedContent: string | null;
   snippetTitle: string | null;
-  fieldValueInfo: { fieldName: string } | null;
+  fieldValueInfo: { fieldName: string; fieldValueId: string } | null;
   onTagClick: (tagName: string) => void;
   onRemove: (tagName: string) => void;
   onCustomContentSet: (tagName: string, content: string) => void;
+  onFieldValueEdit?: (fieldValueId: string) => void;
 }
 
 function TagItem({
@@ -63,6 +65,7 @@ function TagItem({
   onTagClick,
   onRemove,
   onCustomContentSet,
+  onFieldValueEdit,
 }: TagItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(mappedContent || "");
@@ -199,6 +202,20 @@ function TagItem({
 
         {isMapped && fieldValueInfo && (
           <div className="flex items-center gap-1 flex-shrink-0">
+            {onFieldValueEdit && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFieldValueEdit(fieldValueInfo.fieldValueId);
+                }}
+                data-testid={`button-edit-field-${tagName}`}
+              >
+                <Edit2 className="w-3 h-3" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -231,6 +248,7 @@ interface SectionGroupProps {
   onTagClick: (tagName: string) => void;
   onMappingRemove: (tagName: string) => void;
   onCustomContentSet: (tagName: string, content: string) => void;
+  onFieldValueEdit?: (fieldValueId: string) => void;
   level?: number;
   isDraggable?: boolean;
 }
@@ -246,6 +264,7 @@ function SectionGroup({
   onTagClick,
   onMappingRemove,
   onCustomContentSet,
+  onFieldValueEdit,
   level = 0,
   isDraggable = false,
 }: SectionGroupProps) {
@@ -325,11 +344,11 @@ function SectionGroup({
             const fieldValue = mapping?.fieldValueId ? getFieldValueById(mapping.fieldValueId) : null;
             
             let mappedContent: string | null = null;
-            let fieldValueInfo: { fieldName: string } | null = null;
+            let fieldValueInfo: { fieldName: string; fieldValueId: string } | null = null;
             
             if (fieldValue) {
               mappedContent = fieldValue.value;
-              fieldValueInfo = { fieldName: fieldValue.name };
+              fieldValueInfo = { fieldName: fieldValue.name, fieldValueId: fieldValue.id };
             } else if (snippet) {
               mappedContent = snippet.content;
             } else if (mapping?.customContent) {
@@ -349,6 +368,7 @@ function SectionGroup({
                 onTagClick={onTagClick}
                 onRemove={onMappingRemove}
                 onCustomContentSet={onCustomContentSet}
+                onFieldValueEdit={onFieldValueEdit}
               />
             );
           })}
@@ -368,6 +388,7 @@ function SectionGroup({
               onTagClick={onTagClick}
               onMappingRemove={onMappingRemove}
               onCustomContentSet={onCustomContentSet}
+              onFieldValueEdit={onFieldValueEdit}
               level={level + 1}
             />
           ))}
@@ -388,6 +409,7 @@ export function TagsPanel({
   fieldValues,
   onMappingRemove,
   onCustomContentSet,
+  onFieldValueEdit,
 }: TagsPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"document" | "fields">("document");
@@ -562,6 +584,7 @@ export function TagsPanel({
                       onTagClick={onTagClick}
                       onMappingRemove={onMappingRemove}
                       onCustomContentSet={onCustomContentSet}
+                      onFieldValueEdit={onFieldValueEdit}
                       level={0}
                       isDraggable={true}
                     />
@@ -591,11 +614,11 @@ export function TagsPanel({
                 const fieldValue = mapping?.fieldValueId ? getFieldValueById(mapping.fieldValueId) : null;
                 
                 let mappedContent: string | null = null;
-                let fieldValueInfo: { fieldName: string } | null = null;
+                let fieldValueInfo: { fieldName: string; fieldValueId: string } | null = null;
                 
                 if (fieldValue) {
                   mappedContent = fieldValue.value;
-                  fieldValueInfo = { fieldName: fieldValue.name };
+                  fieldValueInfo = { fieldName: fieldValue.name, fieldValueId: fieldValue.id };
                 } else if (snippet) {
                   mappedContent = snippet.content;
                 } else if (mapping?.customContent) {
@@ -615,6 +638,7 @@ export function TagsPanel({
                     onTagClick={onTagClick}
                     onRemove={onMappingRemove}
                     onCustomContentSet={onCustomContentSet}
+                    onFieldValueEdit={onFieldValueEdit}
                   />
                 );
               })

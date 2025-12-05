@@ -8,6 +8,7 @@ import { TemplateSelector } from "@/components/template-selector";
 import { TagsPanel } from "@/components/tags-panel";
 import { ContentLibrary } from "@/components/content-library";
 import { GenerateDocumentDialog } from "@/components/generate-document-dialog";
+import { FieldValueDialog } from "@/components/field-value-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { ParsedTemplate, ContentSnippet, Category, TagMapping, User as UserType, FieldValue, TagType } from "@shared/schema";
 import { SiGoogle } from "react-icons/si";
@@ -21,6 +22,7 @@ export default function Home() {
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'tags' | 'content' | null>(null);
+  const [fieldValueToEdit, setFieldValueToEdit] = useState<FieldValue | null>(null);
 
   const { data: user, isLoading: isLoadingUser } = useQuery<UserType | null>({
     queryKey: ['/auth/user'],
@@ -112,6 +114,13 @@ export default function Home() {
     const newMappings = new Map(tagMappings);
     newMappings.delete(tagName);
     setTagMappings(newMappings);
+  };
+
+  const handleFieldValueEdit = (fieldValueId: string) => {
+    const fieldValue = fieldValues.find(fv => fv.id === fieldValueId);
+    if (fieldValue) {
+      setFieldValueToEdit(fieldValue);
+    }
   };
 
   const handleGenerate = () => {
@@ -288,6 +297,7 @@ export default function Home() {
                         fieldValues={fieldValues}
                         onMappingRemove={handleMappingRemove}
                         onCustomContentSet={handleCustomContentSet}
+                        onFieldValueEdit={handleFieldValueEdit}
                       />
                     </div>
                   </div>
@@ -333,6 +343,7 @@ export default function Home() {
                     fieldValues={fieldValues}
                     onMappingRemove={handleMappingRemove}
                     onCustomContentSet={handleCustomContentSet}
+                    onFieldValueEdit={handleFieldValueEdit}
                   />
                 )}
                 {mobilePanel === 'content' && (
@@ -437,6 +448,12 @@ export default function Home() {
           sectionOrder={sectionOrder}
         />
       )}
+
+      <FieldValueDialog
+        open={!!fieldValueToEdit}
+        onOpenChange={(open) => !open && setFieldValueToEdit(null)}
+        fieldValue={fieldValueToEdit}
+      />
     </div>
   );
 }
