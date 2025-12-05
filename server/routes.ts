@@ -586,6 +586,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Append timestamp ticks at the end of the document
+      const timestamp = Date.now();
+      await docs.documents.batchUpdate({
+        documentId: newDocId,
+        requestBody: {
+          requests: [
+            {
+              insertText: {
+                text: `\n_${timestamp}`,
+                endOfSegmentLocation: {
+                  segmentId: '',
+                },
+              },
+            },
+          ],
+        },
+      });
+
       const documentUrl = `https://docs.google.com/document/d/${newDocId}/edit`;
 
       res.json({
