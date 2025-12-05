@@ -222,11 +222,11 @@ export function ContentLibrary({
           <TabsList className="w-full grid grid-cols-2">
             <TabsTrigger value="snippets" data-testid="tab-snippets">
               <FileText className="w-3 h-3" />
-              Snippets
+              Content
             </TabsTrigger>
             <TabsTrigger value="profiles" data-testid="tab-profiles">
               <Building2 className="w-3 h-3" />
-              Profiles
+              Fields
             </TabsTrigger>
           </TabsList>
         </Tabs>
