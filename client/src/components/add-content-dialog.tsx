@@ -84,8 +84,8 @@ export function AddContentDialog({ open, onOpenChange, categories }: AddContentD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg" data-testid="dialog-add-content">
-        <DialogHeader>
+      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col" data-testid="dialog-add-content">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle data-testid="text-add-content-title">Add Content Snippet</DialogTitle>
           <DialogDescription data-testid="text-add-content-description">
             Create a reusable content snippet that can be mapped to template tags.
@@ -93,78 +93,80 @@ export function AddContentDialog({ open, onOpenChange, categories }: AddContentD
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Title</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., Company Introduction"
-                      {...field}
-                      data-testid="input-content-title"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="categoryId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Category (optional)</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value || undefined}
-                  >
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
                     <FormControl>
-                      <SelectTrigger data-testid="select-content-category">
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
+                      <Input
+                        placeholder="e.g., Company Introduction"
+                        {...field}
+                        data-testid="input-content-title"
+                      />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="none">No category</SelectItem>
-                      {categories.map(category => (
-                        <SelectItem
-                          key={category.id}
-                          value={category.id}
-                          data-testid={`select-item-${category.id}`}
-                        >
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="content"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Content</FormLabel>
-                  <FormControl>
-                    <RichTextEditor
-                      content={field.value}
-                      onChange={field.onChange}
-                      placeholder="Enter the content text..."
-                      data-testid="editor-content"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={form.control}
+                name="categoryId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category (optional)</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || undefined}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-content-category">
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">No category</SelectItem>
+                        {categories.map(category => (
+                          <SelectItem
+                            key={category.id}
+                            value={category.id}
+                            data-testid={`select-item-${category.id}`}
+                          >
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <div className="flex items-center justify-end gap-3 pt-4">
+              <FormField
+                control={form.control}
+                name="content"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Content</FormLabel>
+                    <FormControl>
+                      <RichTextEditor
+                        content={field.value}
+                        onChange={field.onChange}
+                        placeholder="Enter the content text..."
+                        data-testid="editor-content"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 flex-shrink-0 border-t mt-4">
               <Button
                 type="button"
                 variant="ghost"
