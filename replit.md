@@ -11,6 +11,8 @@ Users can manage reusable content snippets and field values, map them to templat
 **MVP Complete** - All core features implemented and tested
 
 ## Recent Changes (December 05, 2025)
+- **Content Library always accessible**: Users can now manage content snippets and field values without loading a template first - build your content library, then load templates when ready
+- **Improved no-template state**: Tags Panel shows helpful guidance with "Load Template" button when no template is loaded, while Content Library remains fully functional
 - **Simplified field model**: Replaced complex Profile objects with simple FieldValue key-value pairs - each field tag `{{name}}` maps to one value
 - **New field management dialogs**: Added FieldValueDialog for creating/editing field values, ManageFieldValuesDialog for managing all values
 - **Updated Tags Panel**: Replaced profile-related logic with fieldValue handling, using Variable icon for field tags
