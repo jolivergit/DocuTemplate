@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Hash, X, Edit2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor, RichTextDisplay, stripHtmlToPlainText } from "@/components/ui/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
 import type { ParsedTemplate, TagMapping, ContentSnippet } from "@shared/schema";
 
@@ -124,12 +124,11 @@ export function TagMappingPanel({
 
                     {isEditing ? (
                       <div className="space-y-2">
-                        <Textarea
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.target.value)}
-                          className="min-h-24 text-sm resize-y"
+                        <RichTextEditor
+                          content={editContent}
+                          onChange={setEditContent}
                           placeholder="Enter custom content..."
-                          data-testid={`textarea-edit-${mapping.tagName}`}
+                          data-testid={`editor-edit-${mapping.tagName}`}
                         />
                         <div className="flex items-center gap-2">
                           <Button
@@ -158,9 +157,9 @@ export function TagMappingPanel({
                             {snippet.title}
                           </Badge>
                         )}
-                        <p className="text-sm text-muted-foreground line-clamp-3" data-testid={`text-mapping-content-${mapping.tagName}`}>
-                          {mapping.customContent || snippet?.content || "No content"}
-                        </p>
+                        <div className="text-sm text-muted-foreground line-clamp-3" data-testid={`text-mapping-content-${mapping.tagName}`}>
+                          <RichTextDisplay content={mapping.customContent || snippet?.content || "No content"} />
+                        </div>
                       </>
                     )}
                   </div>

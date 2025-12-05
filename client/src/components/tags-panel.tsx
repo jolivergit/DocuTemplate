@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { ChevronRight, ChevronDown, Hash, Check, Circle, Edit2, X, GripVertical } from "lucide-react";
+import { ChevronRight, ChevronDown, Hash, Check, Circle, Edit2, X, GripVertical, Building2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor, RichTextDisplay } from "@/components/ui/rich-text-editor";
 import {
   DndContext,
   closestCenter,
@@ -22,7 +22,8 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { ParsedTemplate, TemplateSection, TagMapping, ContentSnippet } from "@shared/schema";
+import type { ParsedTemplate, TemplateSection, TagMapping, ContentSnippet, Profile } from "@shared/schema";
+import { PROFILE_FIELDS } from "@shared/schema";
 
 interface TagsPanelProps {
   template: ParsedTemplate;
@@ -32,6 +33,7 @@ interface TagsPanelProps {
   selectedTag: string | null;
   tagMappings: Map<string, TagMapping>;
   snippets: ContentSnippet[];
+  profiles: Profile[];
   onMappingRemove: (tagName: string) => void;
   onCustomContentSet: (tagName: string, content: string) => void;
 }
@@ -42,6 +44,7 @@ interface TagItemProps {
   isMapped: boolean;
   mappedContent: string | null;
   snippetTitle: string | null;
+  profileInfo: { profileName: string; fieldLabel: string } | null;
   onTagClick: (tagName: string) => void;
   onRemove: (tagName: string) => void;
   onCustomContentSet: (tagName: string, content: string) => void;
@@ -53,6 +56,7 @@ function TagItem({
   isMapped,
   mappedContent,
   snippetTitle,
+  profileInfo,
   onTagClick,
   onRemove,
   onCustomContentSet,
@@ -80,13 +84,11 @@ function TagItem({
             &lt;&lt;{tagName}&gt;&gt;
           </code>
         </div>
-        <Textarea
-          value={editContent}
-          onChange={(e) => setEditContent(e.target.value)}
-          className="min-h-20 text-sm resize-y"
+        <RichTextEditor
+          content={editContent}
+          onChange={setEditContent}
           placeholder="Enter custom content..."
-          autoFocus
-          data-testid={`textarea-custom-content-${tagName}`}
+          data-testid={`editor-custom-content-${tagName}`}
         />
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={handleSave} data-testid={`button-save-${tagName}`}>
@@ -137,9 +139,19 @@ function TagItem({
                   {snippetTitle}
                 </Badge>
               )}
-              <p className="text-xs text-muted-foreground line-clamp-2" data-testid={`text-content-preview-${tagName}`}>
-                {mappedContent}
-              </p>
+              {profileInfo && (
+                <Badge variant="outline" className="text-xs" data-testid={`badge-profile-${tagName}`}>
+                  <Building2 className="w-2.5 h-2.5 mr-1" />
+                  {profileInfo.profileName}: {profileInfo.fieldLabel}
+                </Badge>
+              )}
+              <div className="text-xs text-muted-foreground line-clamp-2" data-testid={`text-content-preview-${tagName}`}>
+                {profileInfo ? (
+                  <span>{mappedContent}</span>
+                ) : (
+                  <RichTextDisplay content={mappedContent || ""} />
+                )}
+              </div>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground" data-testid={`text-empty-hint-${tagName}`}>
@@ -148,7 +160,7 @@ function TagItem({
           )}
         </div>
 
-        {isMapped && (
+        {isMapped && !profileInfo && (
           <div className="flex items-center gap-1 flex-shrink-0">
             <Button
               variant="ghost"
@@ -159,6 +171,23 @@ function TagItem({
             >
               <Edit2 className="w-3 h-3" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(tagName);
+              }}
+              data-testid={`button-remove-${tagName}`}
+            >
+              <X className="w-3 h-3" />
+            </Button>
+          </div>
+        )}
+
+        {isMapped && profileInfo && (
+          <div className="flex items-center gap-1 flex-shrink-0">
             <Button
               variant="ghost"
               size="icon"
@@ -186,6 +215,7 @@ interface SectionGroupProps {
   selectedTag: string | null;
   tagMappings: Map<string, TagMapping>;
   snippets: ContentSnippet[];
+  profiles: Profile[];
   onToggle: (id: string) => void;
   onTagClick: (tagName: string) => void;
   onMappingRemove: (tagName: string) => void;
@@ -200,6 +230,7 @@ function SectionGroup({
   selectedTag,
   tagMappings,
   snippets,
+  profiles,
   onToggle,
   onTagClick,
   onMappingRemove,
@@ -216,6 +247,40 @@ function SectionGroup({
   const totalTags = section.tags.length;
 
   const getSnippetById = (id: string) => snippets.find(s => s.id === id);
+  const getProfileById = (id: string) => profiles.find(p => p.id === id);
+
+  const getProfileFieldValue = (profile: Profile, fieldKey: string): string | null => {
+    switch (fieldKey) {
+      case 'name': return profile.name;
+      case 'contactName': return profile.contactName;
+      case 'contactTitle': return profile.contactTitle;
+      case 'addressLine1': return profile.addressLine1;
+      case 'addressLine2': return profile.addressLine2;
+      case 'city': return profile.city;
+      case 'state': return profile.state;
+      case 'zip': return profile.zip;
+      case 'phone': return profile.phone;
+      case 'email': return profile.email;
+      case 'fullAddress': {
+        const parts = [];
+        if (profile.addressLine1) parts.push(profile.addressLine1);
+        if (profile.addressLine2) parts.push(profile.addressLine2);
+        const cityStateZip = [profile.city, profile.state, profile.zip].filter(Boolean).join(', ');
+        if (cityStateZip) parts.push(cityStateZip);
+        return parts.join(', ') || null;
+      }
+      case 'cityStateZip': {
+        const parts = [profile.city, profile.state, profile.zip].filter(Boolean);
+        return parts.length > 0 ? parts.join(', ') : null;
+      }
+      default: return null;
+    }
+  };
+
+  const getProfileFieldLabel = (fieldKey: string): string => {
+    const field = PROFILE_FIELDS.find(f => f.key === fieldKey);
+    return field?.label || fieldKey;
+  };
 
   const {
     attributes,
@@ -279,6 +344,22 @@ function SectionGroup({
           {section.tags.map((tag, idx) => {
             const mapping = tagMappings.get(tag.name);
             const snippet = mapping?.snippetId ? getSnippetById(mapping.snippetId) : null;
+            const profile = mapping?.profileId ? getProfileById(mapping.profileId) : null;
+            
+            let mappedContent: string | null = null;
+            let profileInfo: { profileName: string; fieldLabel: string } | null = null;
+            
+            if (profile && mapping?.profileField) {
+              mappedContent = getProfileFieldValue(profile, mapping.profileField);
+              profileInfo = {
+                profileName: profile.name,
+                fieldLabel: getProfileFieldLabel(mapping.profileField),
+              };
+            } else if (snippet) {
+              mappedContent = snippet.content;
+            } else if (mapping?.customContent) {
+              mappedContent = mapping.customContent;
+            }
             
             return (
               <TagItem
@@ -286,8 +367,9 @@ function SectionGroup({
                 tagName={tag.name}
                 isSelected={selectedTag === tag.name}
                 isMapped={!!mapping}
-                mappedContent={mapping?.customContent || snippet?.content || null}
+                mappedContent={mappedContent}
                 snippetTitle={snippet?.title || null}
+                profileInfo={profileInfo}
                 onTagClick={onTagClick}
                 onRemove={onMappingRemove}
                 onCustomContentSet={onCustomContentSet}
@@ -305,6 +387,7 @@ function SectionGroup({
               selectedTag={selectedTag}
               tagMappings={tagMappings}
               snippets={snippets}
+              profiles={profiles}
               onToggle={onToggle}
               onTagClick={onTagClick}
               onMappingRemove={onMappingRemove}
@@ -326,6 +409,7 @@ export function TagsPanel({
   selectedTag,
   tagMappings,
   snippets,
+  profiles,
   onMappingRemove,
   onCustomContentSet,
 }: TagsPanelProps) {
@@ -451,6 +535,7 @@ export function TagsPanel({
                     selectedTag={selectedTag}
                     tagMappings={tagMappings}
                     snippets={snippets}
+                    profiles={profiles}
                     onToggle={toggleSection}
                     onTagClick={onTagClick}
                     onMappingRemove={onMappingRemove}

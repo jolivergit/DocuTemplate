@@ -18,7 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import {
   Select,
   SelectContent,
@@ -152,11 +152,11 @@ export function AddContentDialog({ open, onOpenChange, categories }: AddContentD
                 <FormItem>
                   <FormLabel>Content</FormLabel>
                   <FormControl>
-                    <Textarea
+                    <RichTextEditor
+                      content={field.value}
+                      onChange={field.onChange}
                       placeholder="Enter the content text..."
-                      className="min-h-32 resize-y"
-                      {...field}
-                      data-testid="textarea-content"
+                      data-testid="editor-content"
                     />
                   </FormControl>
                   <FormMessage />

@@ -9,7 +9,7 @@ import { ContentLibrary } from "@/components/content-library";
 import { CollapsiblePanel } from "@/components/collapsible-panel";
 import { GenerateDocumentDialog } from "@/components/generate-document-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
-import type { ParsedTemplate, ContentSnippet, Category, TagMapping, User as UserType } from "@shared/schema";
+import type { ParsedTemplate, ContentSnippet, Category, TagMapping, User as UserType, Profile, ProfileFieldKey } from "@shared/schema";
 import { SiGoogle } from "react-icons/si";
 
 export default function Home() {
@@ -33,6 +33,11 @@ export default function Home() {
 
   const { data: snippets = [] } = useQuery<ContentSnippet[]>({
     queryKey: ['/api/content-snippets'],
+    enabled: !!user,
+  });
+
+  const { data: profiles = [] } = useQuery<Profile[]>({
+    queryKey: ['/api/profiles'],
     enabled: !!user,
   });
 
@@ -60,6 +65,23 @@ export default function Home() {
       tagName: selectedTag,
       snippetId: snippet.id,
       customContent: null,
+      profileId: null,
+      profileField: null,
+    });
+    setTagMappings(newMappings);
+    setSelectedTag(null);
+  };
+
+  const handleProfileFieldSelect = (profileId: string, fieldKey: ProfileFieldKey) => {
+    if (!selectedTag) return;
+    
+    const newMappings = new Map(tagMappings);
+    newMappings.set(selectedTag, {
+      tagName: selectedTag,
+      snippetId: null,
+      customContent: null,
+      profileId,
+      profileField: fieldKey,
     });
     setTagMappings(newMappings);
     setSelectedTag(null);
@@ -71,6 +93,8 @@ export default function Home() {
       tagName,
       snippetId: null,
       customContent: content,
+      profileId: null,
+      profileField: null,
     });
     setTagMappings(newMappings);
   };
@@ -249,6 +273,7 @@ export default function Home() {
                   selectedTag={selectedTag}
                   tagMappings={tagMappings}
                   snippets={snippets}
+                  profiles={profiles}
                   onMappingRemove={handleMappingRemove}
                   onCustomContentSet={handleCustomContentSet}
                 />
@@ -263,7 +288,9 @@ export default function Home() {
                 <ContentLibrary
                   snippets={snippets}
                   categories={categories}
+                  profiles={profiles}
                   onSnippetSelect={handleSnippetSelect}
+                  onProfileFieldSelect={handleProfileFieldSelect}
                   selectedTag={selectedTag}
                 />
               </CollapsiblePanel>
@@ -281,6 +308,7 @@ export default function Home() {
                     selectedTag={selectedTag}
                     tagMappings={tagMappings}
                     snippets={snippets}
+                    profiles={profiles}
                     onMappingRemove={handleMappingRemove}
                     onCustomContentSet={handleCustomContentSet}
                   />
@@ -289,7 +317,9 @@ export default function Home() {
                   <ContentLibrary
                     snippets={snippets}
                     categories={categories}
+                    profiles={profiles}
                     onSnippetSelect={handleSnippetSelect}
+                    onProfileFieldSelect={handleProfileFieldSelect}
                     selectedTag={selectedTag}
                   />
                 )}

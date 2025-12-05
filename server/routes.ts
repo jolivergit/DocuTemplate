@@ -7,12 +7,42 @@ import { getGoogleDocsClient } from "./google-docs-client";
 import {
   insertCategorySchema,
   insertContentSnippetSchema,
+  insertProfileSchema,
   generateDocumentRequestSchema,
   type ParsedTemplate,
   type TemplateSection,
   type TemplateTag,
   type User,
+  type Profile,
 } from "@shared/schema";
+
+function getProfileFieldValue(profile: Profile, fieldKey: string): string | null {
+  switch (fieldKey) {
+    case 'name': return profile.name;
+    case 'contactName': return profile.contactName;
+    case 'contactTitle': return profile.contactTitle;
+    case 'addressLine1': return profile.addressLine1;
+    case 'addressLine2': return profile.addressLine2;
+    case 'city': return profile.city;
+    case 'state': return profile.state;
+    case 'zip': return profile.zip;
+    case 'phone': return profile.phone;
+    case 'email': return profile.email;
+    case 'fullAddress': {
+      const parts = [];
+      if (profile.addressLine1) parts.push(profile.addressLine1);
+      if (profile.addressLine2) parts.push(profile.addressLine2);
+      const cityStateZip = [profile.city, profile.state, profile.zip].filter(Boolean).join(', ');
+      if (cityStateZip) parts.push(cityStateZip);
+      return parts.join(', ') || null;
+    }
+    case 'cityStateZip': {
+      const parts = [profile.city, profile.state, profile.zip].filter(Boolean);
+      return parts.length > 0 ? parts.join(', ') : null;
+    }
+    default: return null;
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
@@ -147,6 +177,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const success = await storage.deleteContentSnippet(userId, id);
       if (!success) {
         return res.status(404).json({ error: "Content snippet not found" });
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Profiles
+  app.get("/api/profiles", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const profiles = await storage.getProfiles(userId);
+      res.json(profiles);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/profiles/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { id } = req.params;
+      const profile = await storage.getProfileById(userId, id);
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+      res.json(profile);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/profiles", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const validated = insertProfileSchema.parse(req.body);
+      const profile = await storage.createProfile(userId, validated);
+      res.json(profile);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/profiles/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { id } = req.params;
+      const validated = insertProfileSchema.partial().parse(req.body);
+      const profile = await storage.updateProfile(userId, id, validated);
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+      res.json(profile);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/profiles/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { id } = req.params;
+      const success = await storage.deleteProfile(userId, id);
+      if (!success) {
+        return res.status(404).json({ error: "Profile not found" });
       }
       res.json({ success: true });
     } catch (error: any) {
@@ -362,7 +457,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const mapping of tagMappings) {
         let replacementContent = "";
 
-        if (mapping.customContent) {
+        if (mapping.profileId && mapping.profileField) {
+          const profile = await storage.getProfileById(userId, mapping.profileId);
+          if (profile) {
+            replacementContent = getProfileFieldValue(profile, mapping.profileField) || "";
+          }
+        } else if (mapping.customContent) {
           replacementContent = mapping.customContent;
         } else if (mapping.snippetId) {
           const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
