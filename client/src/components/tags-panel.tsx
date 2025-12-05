@@ -118,9 +118,9 @@ function TagItem({
   }
 
   return (
-    <button
+    <div
       onClick={() => onTagClick(tagName)}
-      className={`w-full p-3 rounded-lg border text-left transition-all hover-elevate active-elevate-2 ${
+      className={`w-full p-3 rounded-lg border text-left transition-all hover-elevate active-elevate-2 cursor-pointer ${
         isSelected ? 'border-primary bg-accent/50' : ''
       }`}
       data-testid={`button-tag-${tagName}`}
@@ -231,7 +231,7 @@ function TagItem({
           </div>
         )}
       </div>
-    </button>
+    </div>
   );
 }
 

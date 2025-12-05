@@ -447,11 +447,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const docs = await getGoogleDocsClient(userId);
       const drive = await getGoogleDriveClient(userId);
       
+      // Generate timestamp ticks for unique document naming
+      const timestamp = Date.now();
+      const documentNameWithTicks = `${outputName}_${timestamp}`;
+      
       // Copy the template document to preserve all formatting
       const copiedFile = await drive.files.copy({
         fileId: templateId,
         requestBody: {
-          name: outputName,
+          name: documentNameWithTicks,
         },
       });
 
@@ -558,24 +562,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         });
       }
-
-      // Append timestamp ticks at the end of the document
-      const timestamp = Date.now();
-      await docs.documents.batchUpdate({
-        documentId: newDocId,
-        requestBody: {
-          requests: [
-            {
-              insertText: {
-                text: `\n_${timestamp}`,
-                endOfSegmentLocation: {
-                  segmentId: '',
-                },
-              },
-            },
-          ],
-        },
-      });
 
       const documentUrl = `https://docs.google.com/document/d/${newDocId}/edit`;
 
