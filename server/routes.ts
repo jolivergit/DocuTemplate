@@ -7,13 +7,13 @@ import { getGoogleDocsClient } from "./google-docs-client";
 import {
   insertCategorySchema,
   insertContentSnippetSchema,
-  insertProfileSchema,
+  insertFieldValueSchema,
   generateDocumentRequestSchema,
   type ParsedTemplate,
   type TemplateSection,
   type TemplateTag,
   type User,
-  type Profile,
+  type FieldValue,
 } from "@shared/schema";
 
 // Extract field tags ({{...}}) from content
@@ -30,33 +30,6 @@ function extractEmbeddedFields(content: string): string[] {
   return fields;
 }
 
-function getProfileFieldValue(profile: Profile, fieldKey: string): string | null {
-  switch (fieldKey) {
-    case 'name': return profile.name;
-    case 'contactName': return profile.contactName;
-    case 'contactTitle': return profile.contactTitle;
-    case 'addressLine1': return profile.addressLine1;
-    case 'addressLine2': return profile.addressLine2;
-    case 'city': return profile.city;
-    case 'state': return profile.state;
-    case 'zip': return profile.zip;
-    case 'phone': return profile.phone;
-    case 'email': return profile.email;
-    case 'fullAddress': {
-      const parts = [];
-      if (profile.addressLine1) parts.push(profile.addressLine1);
-      if (profile.addressLine2) parts.push(profile.addressLine2);
-      const cityStateZip = [profile.city, profile.state, profile.zip].filter(Boolean).join(', ');
-      if (cityStateZip) parts.push(cityStateZip);
-      return parts.join(', ') || null;
-    }
-    case 'cityStateZip': {
-      const parts = [profile.city, profile.state, profile.zip].filter(Boolean);
-      return parts.length > 0 ? parts.join(', ') : null;
-    }
-    default: return null;
-  }
-}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
@@ -202,64 +175,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Profiles
-  app.get("/api/profiles", requireAuth, async (req, res) => {
+  // Field Values - simple key/value pairs for field tags
+  app.get("/api/field-values", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      const profiles = await storage.getProfiles(userId);
-      res.json(profiles);
+      const fieldValues = await storage.getFieldValues(userId);
+      res.json(fieldValues);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/profiles/:id", requireAuth, async (req, res) => {
+  app.get("/api/field-values/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
       const { id } = req.params;
-      const profile = await storage.getProfileById(userId, id);
-      if (!profile) {
-        return res.status(404).json({ error: "Profile not found" });
+      const fieldValue = await storage.getFieldValueById(userId, id);
+      if (!fieldValue) {
+        return res.status(404).json({ error: "Field value not found" });
       }
-      res.json(profile);
+      res.json(fieldValue);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.post("/api/profiles", requireAuth, async (req, res) => {
+  app.post("/api/field-values", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      const validated = insertProfileSchema.parse(req.body);
-      const profile = await storage.createProfile(userId, validated);
-      res.json(profile);
+      const validated = insertFieldValueSchema.parse(req.body);
+      const fieldValue = await storage.createFieldValue(userId, validated);
+      res.json(fieldValue);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  app.patch("/api/profiles/:id", requireAuth, async (req, res) => {
+  app.patch("/api/field-values/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
       const { id } = req.params;
-      const validated = insertProfileSchema.partial().parse(req.body);
-      const profile = await storage.updateProfile(userId, id, validated);
-      if (!profile) {
-        return res.status(404).json({ error: "Profile not found" });
+      const validated = insertFieldValueSchema.partial().parse(req.body);
+      const fieldValue = await storage.updateFieldValue(userId, id, validated);
+      if (!fieldValue) {
+        return res.status(404).json({ error: "Field value not found" });
       }
-      res.json(profile);
+      res.json(fieldValue);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  app.delete("/api/profiles/:id", requireAuth, async (req, res) => {
+  app.delete("/api/field-values/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
       const { id } = req.params;
-      const success = await storage.deleteProfile(userId, id);
+      const success = await storage.deleteFieldValue(userId, id);
       if (!success) {
-        return res.status(404).json({ error: "Profile not found" });
+        return res.status(404).json({ error: "Field value not found" });
       }
       res.json({ success: true });
     } catch (error: any) {
@@ -487,16 +460,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ error: "Failed to copy template document" });
       }
 
-      // Build a lookup map for ALL field tag values (profile, custom content, or snippet)
+      // Build a lookup map for ALL field tag values (field value, custom content, or snippet)
       // First pass: collect raw values
       const fieldValueLookup = new Map<string, string>();
       for (const mapping of tagMappings) {
         if (mapping.tagType === 'field') {
           let value = "";
-          if (mapping.profileId && mapping.profileField) {
-            const profile = await storage.getProfileById(userId, mapping.profileId);
-            if (profile) {
-              value = getProfileFieldValue(profile, mapping.profileField) || "";
+          if (mapping.fieldValueId) {
+            const fieldValue = await storage.getFieldValueById(userId, mapping.fieldValueId);
+            if (fieldValue) {
+              value = fieldValue.value;
             }
           } else if (mapping.customContent) {
             value = mapping.customContent;
@@ -542,10 +515,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const mapping of tagMappings) {
         let replacementContent = "";
 
-        if (mapping.profileId && mapping.profileField) {
-          const profile = await storage.getProfileById(userId, mapping.profileId);
-          if (profile) {
-            replacementContent = getProfileFieldValue(profile, mapping.profileField) || "";
+        if (mapping.fieldValueId) {
+          const fieldValue = await storage.getFieldValueById(userId, mapping.fieldValueId);
+          if (fieldValue) {
+            replacementContent = resolveNestedFields(fieldValue.value);
           }
         } else if (mapping.customContent) {
           // Resolve nested field tags in custom content
