@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Sparkles, LogOut, Menu, X } from "lucide-react";
+import { FileText, Sparkles, LogOut, Menu, X, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { TemplateSelector } from "@/components/template-selector";
 import { TagsPanel } from "@/components/tags-panel";
 import { ContentLibrary } from "@/components/content-library";
-import { CollapsiblePanel } from "@/components/collapsible-panel";
 import { GenerateDocumentDialog } from "@/components/generate-document-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { ParsedTemplate, ContentSnippet, Category, TagMapping, User as UserType, Profile, ProfileFieldKey, TagType } from "@shared/schema";
@@ -270,44 +270,56 @@ export default function Home() {
           </div>
         ) : (
           <>
-            {/* Desktop: Two-panel layout */}
+            {/* Desktop: Two-panel resizable layout */}
             <div className="h-full hidden md:flex">
-              <CollapsiblePanel
-                title="Template Tags"
-                side="left"
-                expandedClassName="flex-1 min-w-[350px]"
-                collapsedTitle="Tags"
-              >
-                <TagsPanel
-                  template={selectedTemplate}
-                  sectionOrder={sectionOrder}
-                  onSectionReorder={handleSectionReorder}
-                  onTagClick={handleTagClick}
-                  selectedTag={selectedTag}
-                  tagMappings={tagMappings}
-                  snippets={snippets}
-                  profiles={profiles}
-                  onMappingRemove={handleMappingRemove}
-                  onCustomContentSet={handleCustomContentSet}
-                />
-              </CollapsiblePanel>
+              <ResizablePanelGroup direction="horizontal" className="h-full">
+                <ResizablePanel defaultSize={50} minSize={25} className="bg-card">
+                  <div className="flex flex-col h-full border-r">
+                    <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
+                      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                        Template Tags
+                      </h2>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <TagsPanel
+                        template={selectedTemplate}
+                        sectionOrder={sectionOrder}
+                        onSectionReorder={handleSectionReorder}
+                        onTagClick={handleTagClick}
+                        selectedTag={selectedTag}
+                        tagMappings={tagMappings}
+                        snippets={snippets}
+                        profiles={profiles}
+                        onMappingRemove={handleMappingRemove}
+                        onCustomContentSet={handleCustomContentSet}
+                      />
+                    </div>
+                  </div>
+                </ResizablePanel>
 
-              <CollapsiblePanel
-                title="Content Library"
-                side="right"
-                expandedClassName="flex-1 min-w-[350px]"
-                collapsedTitle="Content"
-              >
-                <ContentLibrary
-                  snippets={snippets}
-                  categories={categories}
-                  profiles={profiles}
-                  onSnippetSelect={handleSnippetSelect}
-                  onProfileFieldSelect={handleProfileFieldSelect}
-                  selectedTag={selectedTag}
-                  selectedTagType={selectedTagType}
-                />
-              </CollapsiblePanel>
+                <ResizableHandle withHandle className="bg-border hover:bg-primary/20 transition-colors" />
+
+                <ResizablePanel defaultSize={50} minSize={25} className="bg-card">
+                  <div className="flex flex-col h-full">
+                    <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
+                      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                        Content Library
+                      </h2>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <ContentLibrary
+                        snippets={snippets}
+                        categories={categories}
+                        profiles={profiles}
+                        onSnippetSelect={handleSnippetSelect}
+                        onProfileFieldSelect={handleProfileFieldSelect}
+                        selectedTag={selectedTag}
+                        selectedTagType={selectedTagType}
+                      />
+                    </div>
+                  </div>
+                </ResizablePanel>
+              </ResizablePanelGroup>
             </div>
 
             {/* Mobile: Bottom navigation with panels */}

@@ -4,6 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RichTextEditor, RichTextDisplay } from "@/components/ui/rich-text-editor";
 import {
   DndContext,
@@ -426,6 +427,7 @@ export function TagsPanel({
   onCustomContentSet,
 }: TagsPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<"document" | "fields">("document");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(template.sections.map(s => s.id))
   );
@@ -489,10 +491,53 @@ export function TagsPanel({
     }
   };
 
+  const getSnippetById = (id: string) => snippets.find(s => s.id === id);
+  const getProfileById = (id: string) => profiles.find(p => p.id === id);
+
+  const getProfileFieldValue = (profile: Profile, fieldKey: string): string | null => {
+    switch (fieldKey) {
+      case 'name': return profile.name;
+      case 'contactName': return profile.contactName;
+      case 'contactTitle': return profile.contactTitle;
+      case 'addressLine1': return profile.addressLine1;
+      case 'addressLine2': return profile.addressLine2;
+      case 'city': return profile.city;
+      case 'state': return profile.state;
+      case 'zip': return profile.zip;
+      case 'phone': return profile.phone;
+      case 'email': return profile.email;
+      case 'fullAddress': {
+        const parts = [];
+        if (profile.addressLine1) parts.push(profile.addressLine1);
+        if (profile.addressLine2) parts.push(profile.addressLine2);
+        const cityStateZip = [profile.city, profile.state, profile.zip].filter(Boolean).join(', ');
+        if (cityStateZip) parts.push(cityStateZip);
+        return parts.join(', ') || null;
+      }
+      case 'cityStateZip': {
+        const parts = [profile.city, profile.state, profile.zip].filter(Boolean);
+        return parts.length > 0 ? parts.join(', ') : null;
+      }
+      default: return null;
+    }
+  };
+
+  const getProfileFieldLabel = (fieldKey: string): string => {
+    const field = PROFILE_FIELDS.find(f => f.key === fieldKey);
+    return field?.label || fieldKey;
+  };
+
   const orderedSections = filterSections(getOrderedSections(), searchQuery);
   const mappedCount = template.allTags.filter(t => tagMappings.has(t.name)).length;
   const totalTags = template.allTags.length;
   const progress = totalTags > 0 ? Math.round((mappedCount / totalTags) * 100) : 0;
+
+  // Get only field tags for the Fields tab
+  const fieldTags = template.allTags.filter(t => t.tagType === 'field');
+  const filteredFieldTags = searchQuery.trim() 
+    ? fieldTags.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : fieldTags;
+  const fieldMappedCount = fieldTags.filter(t => tagMappings.has(t.name)).length;
 
   return (
     <div className="flex flex-col h-full">
@@ -517,50 +562,123 @@ export function TagsPanel({
             {mappedCount}/{totalTags} filled
           </span>
         </div>
+
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "document" | "fields")} className="w-full">
+          <TabsList className="w-full grid grid-cols-2">
+            <TabsTrigger value="document" data-testid="tab-document">
+              <FileText className="w-3 h-3" />
+              Document
+            </TabsTrigger>
+            <TabsTrigger value="fields" data-testid="tab-fields">
+              <Building2 className="w-3 h-3" />
+              Fields
+              {fieldTags.length > 0 && (
+                <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">
+                  {fieldMappedCount}/{fieldTags.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
-          {orderedSections.length === 0 ? (
-            <div className="text-center py-8 px-4">
-              <p className="text-sm text-muted-foreground" data-testid="text-no-sections">
-                No sections found in template
-              </p>
-            </div>
-          ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={orderedSections.map(s => s.id)}
-                strategy={verticalListSortingStrategy}
+      {activeTab === "document" ? (
+        <ScrollArea className="flex-1">
+          <div className="p-2 space-y-1">
+            {orderedSections.length === 0 ? (
+              <div className="text-center py-8 px-4">
+                <p className="text-sm text-muted-foreground" data-testid="text-no-sections">
+                  No sections found in template
+                </p>
+              </div>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
               >
-                {orderedSections.map(section => (
-                  <SectionGroup
-                    key={section.id}
-                    section={section}
-                    sectionOrder={sectionOrder}
-                    allSections={orderedSections}
-                    expandedSections={expandedSections}
-                    selectedTag={selectedTag}
-                    tagMappings={tagMappings}
-                    snippets={snippets}
-                    profiles={profiles}
-                    onToggle={toggleSection}
+                <SortableContext
+                  items={orderedSections.map(s => s.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {orderedSections.map(section => (
+                    <SectionGroup
+                      key={section.id}
+                      section={section}
+                      sectionOrder={sectionOrder}
+                      allSections={orderedSections}
+                      expandedSections={expandedSections}
+                      selectedTag={selectedTag}
+                      tagMappings={tagMappings}
+                      snippets={snippets}
+                      profiles={profiles}
+                      onToggle={toggleSection}
+                      onTagClick={onTagClick}
+                      onMappingRemove={onMappingRemove}
+                      onCustomContentSet={onCustomContentSet}
+                      level={0}
+                      isDraggable={true}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
+        </ScrollArea>
+      ) : (
+        <ScrollArea className="flex-1">
+          <div className="p-2 space-y-2">
+            {filteredFieldTags.length === 0 ? (
+              <div className="text-center py-8 px-4">
+                <Building2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground" data-testid="text-no-fields">
+                  {searchQuery ? "No field tags match your search" : "No field tags in template"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Field tags use the {"{{field_name}}"} syntax
+                </p>
+              </div>
+            ) : (
+              filteredFieldTags.map((tag, idx) => {
+                const mapping = tagMappings.get(tag.name);
+                const snippet = mapping?.snippetId ? getSnippetById(mapping.snippetId) : null;
+                const profile = mapping?.profileId ? getProfileById(mapping.profileId) : null;
+                
+                let mappedContent: string | null = null;
+                let profileInfo: { profileName: string; fieldLabel: string } | null = null;
+                
+                if (profile && mapping?.profileField) {
+                  mappedContent = getProfileFieldValue(profile, mapping.profileField);
+                  profileInfo = {
+                    profileName: profile.name,
+                    fieldLabel: getProfileFieldLabel(mapping.profileField),
+                  };
+                } else if (snippet) {
+                  mappedContent = snippet.content;
+                } else if (mapping?.customContent) {
+                  mappedContent = mapping.customContent;
+                }
+                
+                return (
+                  <TagItem
+                    key={`field-${tag.name}-${idx}`}
+                    tagName={tag.name}
+                    tagType={tag.tagType}
+                    isSelected={selectedTag === tag.name}
+                    isMapped={!!mapping}
+                    mappedContent={mappedContent}
+                    snippetTitle={snippet?.title || null}
+                    profileInfo={profileInfo}
                     onTagClick={onTagClick}
-                    onMappingRemove={onMappingRemove}
+                    onRemove={onMappingRemove}
                     onCustomContentSet={onCustomContentSet}
-                    level={0}
-                    isDraggable={true}
                   />
-                ))}
-              </SortableContext>
-            </DndContext>
-          )}
-        </div>
-      </ScrollArea>
+                );
+              })
+            )}
+          </div>
+        </ScrollArea>
+      )}
     </div>
   );
 }
