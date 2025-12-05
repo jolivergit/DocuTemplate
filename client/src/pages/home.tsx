@@ -285,7 +285,7 @@ export default function Home() {
                         selectedTag={selectedTag}
                         tagMappings={tagMappings}
                         snippets={snippets}
-                        profiles={profiles}
+                        fieldValues={fieldValues}
                         onMappingRemove={handleMappingRemove}
                         onCustomContentSet={handleCustomContentSet}
                       />
@@ -330,7 +330,7 @@ export default function Home() {
                     selectedTag={selectedTag}
                     tagMappings={tagMappings}
                     snippets={snippets}
-                    profiles={profiles}
+                    fieldValues={fieldValues}
                     onMappingRemove={handleMappingRemove}
                     onCustomContentSet={handleCustomContentSet}
                   />
