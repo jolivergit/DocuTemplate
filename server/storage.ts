@@ -2,12 +2,14 @@ import {
   categories,
   contentSnippets,
   profiles,
+  fieldValues,
   type Category,
   type InsertCategory,
   type ContentSnippet,
   type InsertContentSnippet,
   type Profile,
-  type InsertProfile,
+  type FieldValue,
+  type InsertFieldValue,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, sql } from "drizzle-orm";
@@ -27,12 +29,17 @@ export interface IStorage {
   deleteContentSnippet(userId: string, id: string): Promise<boolean>;
   incrementSnippetUsage(userId: string, id: string): Promise<void>;
   
-  // Profiles
+  // Field Values - simple key/value pairs
+  getFieldValues(userId: string): Promise<FieldValue[]>;
+  getFieldValueById(userId: string, id: string): Promise<FieldValue | undefined>;
+  getFieldValueByName(userId: string, name: string): Promise<FieldValue | undefined>;
+  createFieldValue(userId: string, fieldValue: InsertFieldValue): Promise<FieldValue>;
+  updateFieldValue(userId: string, id: string, fieldValue: Partial<InsertFieldValue>): Promise<FieldValue | undefined>;
+  deleteFieldValue(userId: string, id: string): Promise<boolean>;
+  
+  // Legacy Profiles (kept for migration)
   getProfiles(userId: string): Promise<Profile[]>;
   getProfileById(userId: string, id: string): Promise<Profile | undefined>;
-  createProfile(userId: string, profile: InsertProfile): Promise<Profile>;
-  updateProfile(userId: string, id: string, profile: Partial<InsertProfile>): Promise<Profile | undefined>;
-  deleteProfile(userId: string, id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -118,6 +125,56 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(contentSnippets.id, id), eq(contentSnippets.userId, userId)));
   }
 
+  // Field Values - simple key/value pairs
+  async getFieldValues(userId: string): Promise<FieldValue[]> {
+    return await db.select().from(fieldValues).where(eq(fieldValues.userId, userId));
+  }
+
+  async getFieldValueById(userId: string, id: string): Promise<FieldValue | undefined> {
+    const [fieldValue] = await db
+      .select()
+      .from(fieldValues)
+      .where(and(eq(fieldValues.id, id), eq(fieldValues.userId, userId)));
+    return fieldValue || undefined;
+  }
+
+  async getFieldValueByName(userId: string, name: string): Promise<FieldValue | undefined> {
+    const [fieldValue] = await db
+      .select()
+      .from(fieldValues)
+      .where(and(eq(fieldValues.name, name), eq(fieldValues.userId, userId)));
+    return fieldValue || undefined;
+  }
+
+  async createFieldValue(userId: string, insertFieldValue: InsertFieldValue): Promise<FieldValue> {
+    const [fieldValue] = await db
+      .insert(fieldValues)
+      .values({ ...insertFieldValue, userId })
+      .returning();
+    return fieldValue;
+  }
+
+  async updateFieldValue(
+    userId: string,
+    id: string,
+    updates: Partial<InsertFieldValue>
+  ): Promise<FieldValue | undefined> {
+    const [fieldValue] = await db
+      .update(fieldValues)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(and(eq(fieldValues.id, id), eq(fieldValues.userId, userId)))
+      .returning();
+    return fieldValue || undefined;
+  }
+
+  async deleteFieldValue(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(fieldValues)
+      .where(and(eq(fieldValues.id, id), eq(fieldValues.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Legacy Profiles (kept for migration)
   async getProfiles(userId: string): Promise<Profile[]> {
     return await db.select().from(profiles).where(eq(profiles.userId, userId));
   }
@@ -128,34 +185,6 @@ export class DatabaseStorage implements IStorage {
       .from(profiles)
       .where(and(eq(profiles.id, id), eq(profiles.userId, userId)));
     return profile || undefined;
-  }
-
-  async createProfile(userId: string, insertProfile: InsertProfile): Promise<Profile> {
-    const [profile] = await db
-      .insert(profiles)
-      .values({ ...insertProfile, userId })
-      .returning();
-    return profile;
-  }
-
-  async updateProfile(
-    userId: string,
-    id: string,
-    updates: Partial<InsertProfile>
-  ): Promise<Profile | undefined> {
-    const [profile] = await db
-      .update(profiles)
-      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
-      .where(and(eq(profiles.id, id), eq(profiles.userId, userId)))
-      .returning();
-    return profile || undefined;
-  }
-
-  async deleteProfile(userId: string, id: string): Promise<boolean> {
-    const result = await db
-      .delete(profiles)
-      .where(and(eq(profiles.id, id), eq(profiles.userId, userId)));
-    return result.rowCount ? result.rowCount > 0 : false;
   }
 }
 

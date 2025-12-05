@@ -36,14 +36,34 @@ export const insertCategorySchema = createInsertSchema(categories).omit({
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type Category = typeof categories.$inferSelect;
 
-// Profiles - reusable company/client information for title pages
+// Field values - simple key/value pairs for field tags
+export const fieldValues = pgTable("field_values", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // The field name (e.g., "company_name")
+  value: text("value").notNull(), // The value (e.g., "Acme Corp")
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertFieldValueSchema = createInsertSchema(fieldValues).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertFieldValue = z.infer<typeof insertFieldValueSchema>;
+export type FieldValue = typeof fieldValues.$inferSelect;
+
+// Legacy profiles table - kept for migration, no longer used
 export const profiles = pgTable("profiles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(), // Company/Organization name
-  contactName: text("contact_name"), // Contact person name
-  contactTitle: text("contact_title"), // Contact person title/role
-  addressLine1: text("address_line_1"), // Street address
-  addressLine2: text("address_line_2"), // Suite, unit, etc.
+  name: text("name").notNull(),
+  contactName: text("contact_name"),
+  contactTitle: text("contact_title"),
+  addressLine1: text("address_line_1"),
+  addressLine2: text("address_line_2"),
   city: text("city"),
   state: text("state"),
   zip: text("zip"),
@@ -54,14 +74,6 @@ export const profiles = pgTable("profiles", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertProfileSchema = createInsertSchema(profiles).omit({
-  id: true,
-  userId: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertProfile = z.infer<typeof insertProfileSchema>;
 export type Profile = typeof profiles.$inferSelect;
 
 // Content snippets - reusable text pieces
@@ -116,32 +128,13 @@ export interface ParsedTemplate {
   allTags: TemplateTag[];
 }
 
-// Profile field names for mapping
-export const PROFILE_FIELDS = [
-  { key: 'name', label: 'Company/Organization Name' },
-  { key: 'contactName', label: 'Contact Name' },
-  { key: 'contactTitle', label: 'Contact Title/Role' },
-  { key: 'addressLine1', label: 'Address Line 1' },
-  { key: 'addressLine2', label: 'Address Line 2' },
-  { key: 'city', label: 'City' },
-  { key: 'state', label: 'State' },
-  { key: 'zip', label: 'ZIP Code' },
-  { key: 'phone', label: 'Phone' },
-  { key: 'email', label: 'Email' },
-  { key: 'fullAddress', label: 'Full Address' },
-  { key: 'cityStateZip', label: 'City, State ZIP' },
-] as const;
-
-export type ProfileFieldKey = typeof PROFILE_FIELDS[number]['key'];
-
 // Tag mapping for document generation
 export interface TagMapping {
   tagName: string;
   tagType: TagType; // 'field' for {{...}}, 'content' for <<...>>
   snippetId: string | null;
   customContent: string | null;
-  profileId: string | null;
-  profileField: ProfileFieldKey | null;
+  fieldValueId: string | null; // Simple field value reference
 }
 
 export interface GenerateDocumentRequest {
@@ -161,8 +154,7 @@ export const generateDocumentRequestSchema = z.object({
     tagType: z.enum(['field', 'content']),
     snippetId: z.string().nullable(),
     customContent: z.string().nullable(),
-    profileId: z.string().nullable(),
-    profileField: z.string().nullable(),
+    fieldValueId: z.string().nullable(),
   })),
   sectionOrder: z.array(z.string()),
 });
