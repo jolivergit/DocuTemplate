@@ -515,21 +515,20 @@ export function generateDocsRequests(
       // Apply indentation BEFORE creating bullets so Google Docs API
       // picks up the correct nesting level and applies proper glyph progression
       // (● → ○ → ■ for bullets, 1 → a → i for numbered)
-      // Google Docs standard: 18pt per level, with hanging indent
-      if (listLevel > 0) {
-        const indentStart = 18 * (listLevel + 1); // +1 because level 0 gets base indent from bullets
-        const indentFirstLine = indentStart - 18; // Hanging indent for bullet glyph
-        requests.push({
-          updateParagraphStyle: {
-            range: { startIndex: currentIndex, endIndex: paragraphEnd },
-            paragraphStyle: {
-              indentFirstLine: { magnitude: indentFirstLine, unit: 'PT' },
-              indentStart: { magnitude: indentStart, unit: 'PT' },
-            },
-            fields: 'indentFirstLine,indentStart',
+      // Google Docs default: 36pt (0.5 inch) per nesting level
+      // All levels need indentation for proper hierarchy
+      const indentStart = 36 * (listLevel + 1); // Level 0 = 36pt, Level 1 = 72pt, etc.
+      const indentFirstLine = indentStart - 18; // Hanging indent for bullet glyph
+      requests.push({
+        updateParagraphStyle: {
+          range: { startIndex: currentIndex, endIndex: paragraphEnd },
+          paragraphStyle: {
+            indentFirstLine: { magnitude: indentFirstLine, unit: 'PT' },
+            indentStart: { magnitude: indentStart, unit: 'PT' },
           },
-        });
-      }
+          fields: 'indentFirstLine,indentStart',
+        },
+      });
       
       // Create bullets after setting indentation so API sees correct nesting level
       requests.push({
