@@ -11,8 +11,8 @@ Users can manage reusable content snippets and field values, map them to templat
 **MVP Complete** - All core features implemented and tested
 
 ## Recent Changes (December 06, 2025)
-- **Fixed nested list bullet hierarchy**: Indentation is now applied BEFORE createParagraphBullets, enabling Google Docs API to correctly determine nesting level and display proper bullet glyph progression (● → ○ → ■ for bullets, 1 → a → i for numbered)
-- **Google Docs standard indentation**: Uses 18pt per level with hanging indent (indentStart = 18 × (level+1) PT, indentFirstLine = indentStart - 18 PT)
+- **Fixed nested list bullet hierarchy**: Indentation is now applied to ALL list levels BEFORE createParagraphBullets, enabling Google Docs API to correctly determine nesting level and display proper bullet glyph progression (● → ○ → ■ for bullets, 1 → a → i for numbered)
+- **Google Docs standard indentation**: Uses 36pt (0.5 inch) per level with 18pt hanging indent (indentStart = 36 × (level+1) PT, indentFirstLine = indentStart - 18 PT)
 - **Rich text formatting in generated documents**: Implemented htmlparser2-based HTML-to-Google-Docs converter that preserves TipTap rich text formatting (bold, italic, underline, links, headings, lists, blockquotes)
 - **DOM-based HTML parsing**: Replaced regex-based parsing with proper DOM traversal for reliable handling of nested formatting tags
 - **Whitespace preservation**: Non-breaking spaces and deliberate whitespace within content are preserved
