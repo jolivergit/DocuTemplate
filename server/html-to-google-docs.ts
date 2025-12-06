@@ -454,8 +454,8 @@ interface ListRun {
 
 /**
  * Generate Google Docs API requests to insert formatted content
- * Uses grouped list handling: contiguous list items share one createParagraphBullets call,
- * then indentation is applied AFTER to set nesting levels (● → ○ → ■)
+ * Uses indentation BEFORE createParagraphBullets to set nesting level (● → ○ → ■)
+ * Google Docs inspects paragraph indentation when creating bullets to determine nesting
  */
 export function generateDocsRequests(
   blocks: FormattedBlock[],
@@ -609,8 +609,34 @@ export function generateDocsRequests(
     listRuns.push(currentListRun);
   }
 
-  // Second pass: Create bullets for each list run (ONE call per contiguous run)
+  // Second pass: Apply indentation BEFORE creating bullets
+  // Google Docs inspects paragraph indentation when createParagraphBullets runs
+  // to determine the nesting level and assign the correct glyph (● → ○ → ■)
+  for (const run of listRuns) {
+    for (const item of run.items) {
+      if (item.listLevel > 0) {
+        // Set indentation to indicate nesting level
+        // indentStart = 18pt * (level + 1), indentFirstLine = indentStart - 18pt
+        const indentStart = 18 * (item.listLevel + 1);
+        const indentFirstLine = indentStart - 18;
+        
+        requests.push({
+          updateParagraphStyle: {
+            range: { startIndex: item.startIndex, endIndex: item.endIndex },
+            paragraphStyle: {
+              indentFirstLine: { magnitude: indentFirstLine, unit: 'PT' },
+              indentStart: { magnitude: indentStart, unit: 'PT' },
+            },
+            fields: 'indentFirstLine,indentStart',
+          },
+        });
+      }
+    }
+  }
+
+  // Third pass: Create bullets for each list run (ONE call per contiguous run)
   // This ensures all items in a run share the same listId
+  // Google Docs uses the indentation set above to determine nesting level
   for (const run of listRuns) {
     requests.push({
       createParagraphBullets: {
@@ -620,27 +646,6 @@ export function generateDocsRequests(
           : 'BULLET_DISC_CIRCLE_SQUARE',
       },
     });
-  }
-
-  // Third pass: Apply indentation to each list item AFTER bullets are created
-  // This sets the nesting level for proper glyph progression (● → ○ → ■)
-  for (const run of listRuns) {
-    for (const item of run.items) {
-      // Google Docs default: 36pt (0.5 inch) per nesting level
-      const indentStart = 36 * (item.listLevel + 1); // Level 0 = 36pt, Level 1 = 72pt, etc.
-      const indentFirstLine = indentStart - 18; // Hanging indent for bullet glyph
-      
-      requests.push({
-        updateParagraphStyle: {
-          range: { startIndex: item.startIndex, endIndex: item.endIndex },
-          paragraphStyle: {
-            indentFirstLine: { magnitude: indentFirstLine, unit: 'PT' },
-            indentStart: { magnitude: indentStart, unit: 'PT' },
-          },
-          fields: 'indentFirstLine,indentStart',
-        },
-      });
-    }
   }
 
   return { requests, insertedLength };
