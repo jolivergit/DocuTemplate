@@ -11,11 +11,11 @@ Users can manage reusable content snippets and field values, map them to templat
 **MVP Complete** - All core features implemented and tested
 
 ## Recent Changes (December 06, 2025)
-- **HTML roundtrip document generation**: Rewrote document generation to use Google's native HTML-to-Docs conversion. This approach correctly handles nested list hierarchy (proper bullet glyph progression: ● → ○ → ■ for bullets, 1 → a → i for numbered)
-- **Three-step process**: 1) Export template as HTML via Drive API, 2) Replace tags directly in HTML (field tags with escaped values, content tags with rich HTML), 3) Upload merged HTML as new Google Doc
-- **Field value newline handling**: Multi-line field values convert newlines to `<br>` tags for proper rendering
-- **HTML escaping**: Field values are safely HTML-escaped to prevent injection
-- **Nested field resolution**: Field tags embedded within content snippets are properly resolved
+- **Hybrid document generation approach**: Template is copied to preserve all original styling (fonts, headers, margins), then field and content tags are replaced
+- **Template styling preservation**: Uses Drive API `files.copy()` to duplicate the template before any modifications
+- **Field tags use replaceAllText**: Simple `{{field}}` tags use replaceAllText which inherits surrounding styles from the template
+- **Content tags use HTML-to-Docs conversion**: Rich content snippets with `<<content>>` tags are converted to Google Docs API requests using grouped list handling for proper nested bullet hierarchy (● → ○ → ■ for bullets, 1 → a → i for numbered)
+- **Nested field resolution**: Field tags embedded within content snippets are properly resolved before insertion
 
 ## Previous Changes (December 05, 2025)
 - **Tag deduplication with composite keys**: Tags are now uniquely identified by both name AND type (field/content), enabling independent handling of field and content tags that share the same name
