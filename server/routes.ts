@@ -31,7 +31,8 @@ function stringToStream(str: string): Readable {
 
 /**
  * Import HTML content into a Google Doc using Drive API's native conversion.
- * This approach preserves nested list hierarchy because Google handles the conversion.
+ * Uses LEADING TAB CHARACTERS to preserve nested list hierarchy.
+ * Google Docs counts leading tabs when createParagraphBullets is called to determine nesting.
  * 
  * @param drive - Google Drive client
  * @param docs - Google Docs client  
@@ -88,20 +89,12 @@ ${htmlContent}
     const tempBody = tempDocResponse.data.body?.content || [];
 
     // Extract all structural elements (paragraphs, tables, etc.) except section breaks
-    // Skip the first element which is typically an empty paragraph or section break
     const contentElements: any[] = [];
-    let plainTextLength = 0;
 
     for (const element of tempBody) {
       // Skip section breaks and the document start marker
       if (element.sectionBreak) continue;
       if (element.paragraph) {
-        const paragraphElements = element.paragraph.elements || [];
-        for (const el of paragraphElements) {
-          if (el.textRun?.content) {
-            plainTextLength += el.textRun.content.length;
-          }
-        }
         contentElements.push(element);
       } else if (element.table) {
         contentElements.push(element);
@@ -109,20 +102,63 @@ ${htmlContent}
     }
 
     // If there's no content, return early
-    if (contentElements.length === 0 || plainTextLength === 0) {
+    if (contentElements.length === 0) {
       return { insertedLength: 0 };
     }
 
-    // Build the plain text from the temp doc to insert
+    // Build the text to insert WITH leading tabs for bullet nesting
+    // Google Docs uses these leading tabs to determine nesting when createParagraphBullets is called
     let textToInsert = '';
+    let totalTabsInserted = 0; // Track tabs that will be consumed by createParagraphBullets
+    
+    // Track paragraph info for formatting later (including tab prefixes)
+    interface ParagraphInfo {
+      tabPrefix: string;
+      originalText: string;
+      bullet?: {
+        nestingLevel: number;
+        listId: string;
+      };
+      elements: any[];
+    }
+    const paragraphInfos: ParagraphInfo[] = [];
+
     for (const element of contentElements) {
       if (element.paragraph?.elements) {
-        for (const el of element.paragraph.elements) {
+        const paragraphElements = element.paragraph.elements || [];
+        let originalText = '';
+        
+        for (const el of paragraphElements) {
           if (el.textRun?.content) {
-            textToInsert += el.textRun.content;
+            originalText += el.textRun.content;
           }
         }
+
+        // For bullet paragraphs, prepend tabs based on nesting level
+        let tabPrefix = '';
+        if (element.paragraph.bullet) {
+          const nestingLevel = element.paragraph.bullet.nestingLevel || 0;
+          tabPrefix = '\t'.repeat(nestingLevel);
+          totalTabsInserted += nestingLevel; // Track tabs for later subtraction
+        }
+
+        textToInsert += tabPrefix + originalText;
+        
+        paragraphInfos.push({
+          tabPrefix,
+          originalText,
+          bullet: element.paragraph.bullet ? {
+            nestingLevel: element.paragraph.bullet.nestingLevel || 0,
+            listId: element.paragraph.bullet.listId,
+          } : undefined,
+          elements: paragraphElements,
+        });
       }
+    }
+
+    // If no text, return early
+    if (textToInsert.length === 0) {
+      return { insertedLength: 0 };
     }
 
     // Remove trailing newline if present (we'll add our own paragraph break)
@@ -130,7 +166,7 @@ ${htmlContent}
       textToInsert = textToInsert.slice(0, -1);
     }
 
-    // Insert the plain text first
+    // Insert the text (with leading tabs for nested bullets)
     const insertRequests: any[] = [{
       insertText: {
         location: { index: insertIndex },
@@ -144,39 +180,29 @@ ${htmlContent}
       requestBody: { requests: insertRequests },
     });
 
-    // Now copy the formatting from the temp doc to the target doc
-    // Get the target doc's current state to find the inserted content
-    const targetDocResponse = await docs.documents.get({ documentId: targetDocId });
-    const targetBody = targetDocResponse.data.body?.content || [];
-
     // Build formatting requests based on the temp doc structure
     const formattingRequests: any[] = [];
     let currentOffset = insertIndex;
 
-    for (const element of contentElements) {
-      if (!element.paragraph) continue;
+    // Track contiguous bullet runs for batched bullet creation
+    interface BulletRun {
+      startIndex: number;
+      endIndex: number;
+      bulletPreset: string;
+    }
+    const bulletRuns: BulletRun[] = [];
+    let currentBulletRun: BulletRun | null = null;
 
-      const paragraphElements = element.paragraph.elements || [];
-      let paragraphText = '';
-      
-      for (const el of paragraphElements) {
-        if (el.textRun?.content) {
-          paragraphText += el.textRun.content;
-        }
-      }
-
+    for (const info of paragraphInfos) {
+      const fullParagraphLength = info.tabPrefix.length + info.originalText.length;
       const paragraphStart = currentOffset;
-      const paragraphEnd = currentOffset + paragraphText.length;
+      const paragraphEnd = currentOffset + fullParagraphLength;
 
-      // Apply bullet formatting if present
-      if (element.paragraph.bullet) {
-        const bullet = element.paragraph.bullet;
-        const listId = bullet.listId;
-        const nestingLevel = bullet.nestingLevel || 0;
-
+      // Handle bullet formatting
+      if (info.bullet) {
         // Get list properties from temp doc
         const tempLists = tempDocResponse.data.lists || {};
-        const listProps = tempLists[listId];
+        const listProps = tempLists[info.bullet.listId];
         
         // Determine bullet preset based on list properties
         let bulletPreset = 'BULLET_DISC_CIRCLE_SQUARE';
@@ -189,34 +215,32 @@ ${htmlContent}
           }
         }
 
-        // Create bullets for this paragraph
-        formattingRequests.push({
-          createParagraphBullets: {
-            range: { startIndex: paragraphStart, endIndex: paragraphEnd },
+        // Track this paragraph for batched bullet creation
+        if (currentBulletRun && currentBulletRun.bulletPreset === bulletPreset) {
+          // Extend current run
+          currentBulletRun.endIndex = paragraphEnd;
+        } else {
+          // Start new run
+          if (currentBulletRun) {
+            bulletRuns.push(currentBulletRun);
+          }
+          currentBulletRun = {
+            startIndex: paragraphStart,
+            endIndex: paragraphEnd,
             bulletPreset,
-          },
-        });
-
-        // Apply indentation for nesting level
-        if (nestingLevel > 0) {
-          const indentStart = 36 * (nestingLevel + 1);
-          const indentFirstLine = indentStart - 18;
-          formattingRequests.push({
-            updateParagraphStyle: {
-              range: { startIndex: paragraphStart, endIndex: paragraphEnd },
-              paragraphStyle: {
-                indentFirstLine: { magnitude: indentFirstLine, unit: 'PT' },
-                indentStart: { magnitude: indentStart, unit: 'PT' },
-              },
-              fields: 'indentFirstLine,indentStart',
-            },
-          });
+          };
+        }
+      } else {
+        // End current bullet run if exists
+        if (currentBulletRun) {
+          bulletRuns.push(currentBulletRun);
+          currentBulletRun = null;
         }
       }
 
-      // Apply text formatting
-      let textOffset = 0;
-      for (const el of paragraphElements) {
+      // Apply text formatting (offset by tab prefix length)
+      let textOffset = info.tabPrefix.length;
+      for (const el of info.elements) {
         if (!el.textRun?.content) continue;
         
         const textStart = paragraphStart + textOffset;
@@ -245,7 +269,24 @@ ${htmlContent}
         textOffset += el.textRun.content.length;
       }
 
-      currentOffset += paragraphText.length;
+      currentOffset += fullParagraphLength;
+    }
+
+    // Finalize any remaining bullet run
+    if (currentBulletRun) {
+      bulletRuns.push(currentBulletRun);
+    }
+
+    // Create bullets for each contiguous run
+    // Google Docs uses the LEADING TABS to determine nesting level
+    // The tabs are consumed/removed when bullets are created
+    for (const run of bulletRuns) {
+      formattingRequests.push({
+        createParagraphBullets: {
+          range: { startIndex: run.startIndex, endIndex: run.endIndex },
+          bulletPreset: run.bulletPreset,
+        },
+      });
     }
 
     // Apply formatting in batches
@@ -256,7 +297,9 @@ ${htmlContent}
       });
     }
 
-    return { insertedLength: textToInsert.length };
+    // Subtract tabs from insertedLength since they are consumed by createParagraphBullets
+    const finalInsertedLength = textToInsert.length - totalTabsInserted;
+    return { insertedLength: finalInsertedLength };
   } finally {
     // Clean up the temporary document
     try {

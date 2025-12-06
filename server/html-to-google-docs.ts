@@ -454,8 +454,9 @@ interface ListRun {
 
 /**
  * Generate Google Docs API requests to insert formatted content
- * Uses indentation BEFORE createParagraphBullets to set nesting level (● → ○ → ■)
- * Google Docs inspects paragraph indentation when creating bullets to determine nesting
+ * Uses LEADING TAB CHARACTERS to set nesting level for bullets (● → ○ → ■)
+ * Google Docs counts leading tabs when createParagraphBullets is called to determine nesting
+ * The tabs are consumed/removed by the bullet creation process
  */
 export function generateDocsRequests(
   blocks: FormattedBlock[],
@@ -464,17 +465,29 @@ export function generateDocsRequests(
   const requests: any[] = [];
   let currentIndex = startIndex;
   let insertedLength = 0;
+  let totalTabsInserted = 0; // Track tabs that will be consumed by createParagraphBullets
 
   // Track list runs for batched bullet creation
   const listRuns: ListRun[] = [];
   let currentListRun: ListRun | null = null;
 
-  // First pass: Insert all text, apply text styles, and track list item positions
+  // First pass: Insert all text (with leading tabs for list items), apply text styles, and track list positions
   for (let blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
     const block = blocks[blockIdx];
     
     // Build text for this block
     let blockText = '';
+    let tabPrefix = '';
+    
+    // For list items, prepend tab characters based on nesting level
+    // Google Docs uses these leading tabs to determine nesting when createParagraphBullets is called
+    if (block.type === 'listItem') {
+      const listLevel = block.listLevel || 0;
+      tabPrefix = '\t'.repeat(listLevel);
+      blockText = tabPrefix;
+      totalTabsInserted += listLevel; // Track tabs for later subtraction
+    }
+    
     for (const run of block.runs) {
       blockText += run.text;
     }
@@ -497,8 +510,8 @@ export function generateDocsRequests(
       },
     });
 
-    // Apply text styles for each run
-    let runOffset = 0;
+    // Apply text styles for each run (offset by tab prefix length)
+    let runOffset = tabPrefix.length; // Start after the leading tabs
     for (const run of block.runs) {
       if (run.text.length === 0) continue;
 
@@ -609,34 +622,10 @@ export function generateDocsRequests(
     listRuns.push(currentListRun);
   }
 
-  // Second pass: Apply indentation BEFORE creating bullets
-  // Google Docs inspects paragraph indentation when createParagraphBullets runs
-  // to determine the nesting level and assign the correct glyph (● → ○ → ■)
-  for (const run of listRuns) {
-    for (const item of run.items) {
-      if (item.listLevel > 0) {
-        // Set indentation to indicate nesting level
-        // indentStart = 18pt * (level + 1), indentFirstLine = indentStart - 18pt
-        const indentStart = 18 * (item.listLevel + 1);
-        const indentFirstLine = indentStart - 18;
-        
-        requests.push({
-          updateParagraphStyle: {
-            range: { startIndex: item.startIndex, endIndex: item.endIndex },
-            paragraphStyle: {
-              indentFirstLine: { magnitude: indentFirstLine, unit: 'PT' },
-              indentStart: { magnitude: indentStart, unit: 'PT' },
-            },
-            fields: 'indentFirstLine,indentStart',
-          },
-        });
-      }
-    }
-  }
-
-  // Third pass: Create bullets for each list run (ONE call per contiguous run)
+  // Second pass: Create bullets for each list run (ONE call per contiguous run)
   // This ensures all items in a run share the same listId
-  // Google Docs uses the indentation set above to determine nesting level
+  // Google Docs uses the LEADING TABS inserted above to determine nesting level
+  // The tabs are consumed/removed when bullets are created
   for (const run of listRuns) {
     requests.push({
       createParagraphBullets: {
@@ -648,7 +637,11 @@ export function generateDocsRequests(
     });
   }
 
-  return { requests, insertedLength };
+  // Subtract tabs from insertedLength since they are consumed by createParagraphBullets
+  // This ensures callers have the correct final content length after bullet creation
+  const finalInsertedLength = insertedLength - totalTabsInserted;
+
+  return { requests, insertedLength: finalInsertedLength };
 }
 
 /**
