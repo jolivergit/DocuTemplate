@@ -510,7 +510,28 @@ export function generateDocsRequests(
         },
       });
     } else if (block.type === 'listItem') {
-      // First create bullets
+      const listLevel = block.listLevel || 0;
+      
+      // Apply indentation BEFORE creating bullets so Google Docs API
+      // picks up the correct nesting level and applies proper glyph progression
+      // (● → ○ → ■ for bullets, 1 → a → i for numbered)
+      // Google Docs standard: 18pt per level, with hanging indent
+      if (listLevel > 0) {
+        const indentStart = 18 * (listLevel + 1); // +1 because level 0 gets base indent from bullets
+        const indentFirstLine = indentStart - 18; // Hanging indent for bullet glyph
+        requests.push({
+          updateParagraphStyle: {
+            range: { startIndex: currentIndex, endIndex: paragraphEnd },
+            paragraphStyle: {
+              indentFirstLine: { magnitude: indentFirstLine, unit: 'PT' },
+              indentStart: { magnitude: indentStart, unit: 'PT' },
+            },
+            fields: 'indentFirstLine,indentStart',
+          },
+        });
+      }
+      
+      // Create bullets after setting indentation so API sees correct nesting level
       requests.push({
         createParagraphBullets: {
           range: { startIndex: currentIndex, endIndex: paragraphEnd },
@@ -519,22 +540,6 @@ export function generateDocsRequests(
             : 'BULLET_DISC_CIRCLE_SQUARE',
         },
       });
-      
-      // Then apply indentation AFTER creating bullets to preserve nested hierarchy
-      const listLevel = block.listLevel || 0;
-      if (listLevel > 0) {
-        const indentMagnitude = 36 * (listLevel + 1); // +1 because bullets add base indent
-        requests.push({
-          updateParagraphStyle: {
-            range: { startIndex: currentIndex, endIndex: paragraphEnd },
-            paragraphStyle: {
-              indentFirstLine: { magnitude: indentMagnitude, unit: 'PT' },
-              indentStart: { magnitude: indentMagnitude, unit: 'PT' },
-            },
-            fields: 'indentFirstLine,indentStart',
-          },
-        });
-      }
     } else if (block.type === 'blockquote') {
       requests.push({
         updateParagraphStyle: {
