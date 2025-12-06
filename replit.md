@@ -11,12 +11,11 @@ Users can manage reusable content snippets and field values, map them to templat
 **MVP Complete** - All core features implemented and tested
 
 ## Recent Changes (December 06, 2025)
-- **Fixed nested list bullet hierarchy**: Indentation is now applied to ALL list levels BEFORE createParagraphBullets, enabling Google Docs API to correctly determine nesting level and display proper bullet glyph progression (● → ○ → ■ for bullets, 1 → a → i for numbered)
-- **Google Docs standard indentation**: Uses 36pt (0.5 inch) per level with 18pt hanging indent (indentStart = 36 × (level+1) PT, indentFirstLine = indentStart - 18 PT)
-- **Rich text formatting in generated documents**: Implemented htmlparser2-based HTML-to-Google-Docs converter that preserves TipTap rich text formatting (bold, italic, underline, links, headings, lists, blockquotes)
-- **DOM-based HTML parsing**: Replaced regex-based parsing with proper DOM traversal for reliable handling of nested formatting tags
-- **Whitespace preservation**: Non-breaking spaces and deliberate whitespace within content are preserved
-- **Empty bullet prevention**: List items containing only nested lists no longer create blank parent bullets
+- **HTML roundtrip document generation**: Rewrote document generation to use Google's native HTML-to-Docs conversion. This approach correctly handles nested list hierarchy (proper bullet glyph progression: ● → ○ → ■ for bullets, 1 → a → i for numbered)
+- **Three-step process**: 1) Export template as HTML via Drive API, 2) Replace tags directly in HTML (field tags with escaped values, content tags with rich HTML), 3) Upload merged HTML as new Google Doc
+- **Field value newline handling**: Multi-line field values convert newlines to `<br>` tags for proper rendering
+- **HTML escaping**: Field values are safely HTML-escaped to prevent injection
+- **Nested field resolution**: Field tags embedded within content snippets are properly resolved
 
 ## Previous Changes (December 05, 2025)
 - **Tag deduplication with composite keys**: Tags are now uniquely identified by both name AND type (field/content), enabling independent handling of field and content tags that share the same name
