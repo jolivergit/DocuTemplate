@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { Readable } from "stream";
 import passport, { requireAuth } from "./auth";
 import { storage } from "./storage";
 import { getGoogleDriveClient } from "./google-drive-client";
@@ -17,6 +18,254 @@ import {
   type User,
   type FieldValue,
 } from "@shared/schema";
+
+/**
+ * Helper to create a readable stream from a string
+ */
+function stringToStream(str: string): Readable {
+  const stream = new Readable();
+  stream.push(str);
+  stream.push(null);
+  return stream;
+}
+
+/**
+ * Import HTML content into a Google Doc using Drive API's native conversion.
+ * This approach preserves nested list hierarchy because Google handles the conversion.
+ * 
+ * @param drive - Google Drive client
+ * @param docs - Google Docs client  
+ * @param htmlContent - HTML content to import
+ * @param targetDocId - Target document ID to insert content into
+ * @param insertIndex - Index in target doc where content should be inserted
+ * @returns The length of inserted content
+ */
+async function importHtmlContent(
+  drive: any,
+  docs: any,
+  htmlContent: string,
+  targetDocId: string,
+  insertIndex: number
+): Promise<{ insertedLength: number }> {
+  // Wrap HTML in a complete document structure for proper conversion
+  const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; }
+    ul, ol { margin-left: 0; padding-left: 1.5em; }
+    li { margin: 0.25em 0; }
+  </style>
+</head>
+<body>
+${htmlContent}
+</body>
+</html>`;
+
+  // Create a temporary Google Doc from the HTML
+  // Google Drive will convert HTML to native Docs format, preserving list nesting
+  const tempFile = await drive.files.create({
+    requestBody: {
+      name: `_temp_import_${Date.now()}`,
+      mimeType: 'application/vnd.google-apps.document',
+    },
+    media: {
+      mimeType: 'text/html',
+      body: stringToStream(fullHtml),
+    },
+    fields: 'id',
+  });
+
+  const tempDocId = tempFile.data.id;
+  if (!tempDocId) {
+    throw new Error('Failed to create temporary document for HTML import');
+  }
+
+  try {
+    // Get the content from the temporary document
+    const tempDocResponse = await docs.documents.get({ documentId: tempDocId });
+    const tempBody = tempDocResponse.data.body?.content || [];
+
+    // Extract all structural elements (paragraphs, tables, etc.) except section breaks
+    // Skip the first element which is typically an empty paragraph or section break
+    const contentElements: any[] = [];
+    let plainTextLength = 0;
+
+    for (const element of tempBody) {
+      // Skip section breaks and the document start marker
+      if (element.sectionBreak) continue;
+      if (element.paragraph) {
+        const paragraphElements = element.paragraph.elements || [];
+        for (const el of paragraphElements) {
+          if (el.textRun?.content) {
+            plainTextLength += el.textRun.content.length;
+          }
+        }
+        contentElements.push(element);
+      } else if (element.table) {
+        contentElements.push(element);
+      }
+    }
+
+    // If there's no content, return early
+    if (contentElements.length === 0 || plainTextLength === 0) {
+      return { insertedLength: 0 };
+    }
+
+    // Build the plain text from the temp doc to insert
+    let textToInsert = '';
+    for (const element of contentElements) {
+      if (element.paragraph?.elements) {
+        for (const el of element.paragraph.elements) {
+          if (el.textRun?.content) {
+            textToInsert += el.textRun.content;
+          }
+        }
+      }
+    }
+
+    // Remove trailing newline if present (we'll add our own paragraph break)
+    if (textToInsert.endsWith('\n')) {
+      textToInsert = textToInsert.slice(0, -1);
+    }
+
+    // Insert the plain text first
+    const insertRequests: any[] = [{
+      insertText: {
+        location: { index: insertIndex },
+        text: textToInsert,
+      },
+    }];
+
+    // Apply the batch update
+    await docs.documents.batchUpdate({
+      documentId: targetDocId,
+      requestBody: { requests: insertRequests },
+    });
+
+    // Now copy the formatting from the temp doc to the target doc
+    // Get the target doc's current state to find the inserted content
+    const targetDocResponse = await docs.documents.get({ documentId: targetDocId });
+    const targetBody = targetDocResponse.data.body?.content || [];
+
+    // Build formatting requests based on the temp doc structure
+    const formattingRequests: any[] = [];
+    let currentOffset = insertIndex;
+
+    for (const element of contentElements) {
+      if (!element.paragraph) continue;
+
+      const paragraphElements = element.paragraph.elements || [];
+      let paragraphText = '';
+      
+      for (const el of paragraphElements) {
+        if (el.textRun?.content) {
+          paragraphText += el.textRun.content;
+        }
+      }
+
+      const paragraphStart = currentOffset;
+      const paragraphEnd = currentOffset + paragraphText.length;
+
+      // Apply bullet formatting if present
+      if (element.paragraph.bullet) {
+        const bullet = element.paragraph.bullet;
+        const listId = bullet.listId;
+        const nestingLevel = bullet.nestingLevel || 0;
+
+        // Get list properties from temp doc
+        const tempLists = tempDocResponse.data.lists || {};
+        const listProps = tempLists[listId];
+        
+        // Determine bullet preset based on list properties
+        let bulletPreset = 'BULLET_DISC_CIRCLE_SQUARE';
+        if (listProps?.listProperties?.nestingLevels) {
+          const levelProps = listProps.listProperties.nestingLevels[0];
+          if (levelProps?.glyphType?.includes('DECIMAL') || 
+              levelProps?.glyphType?.includes('ALPHA') ||
+              levelProps?.glyphType?.includes('ROMAN')) {
+            bulletPreset = 'NUMBERED_DECIMAL_ALPHA_ROMAN';
+          }
+        }
+
+        // Create bullets for this paragraph
+        formattingRequests.push({
+          createParagraphBullets: {
+            range: { startIndex: paragraphStart, endIndex: paragraphEnd },
+            bulletPreset,
+          },
+        });
+
+        // Apply indentation for nesting level
+        if (nestingLevel > 0) {
+          const indentStart = 36 * (nestingLevel + 1);
+          const indentFirstLine = indentStart - 18;
+          formattingRequests.push({
+            updateParagraphStyle: {
+              range: { startIndex: paragraphStart, endIndex: paragraphEnd },
+              paragraphStyle: {
+                indentFirstLine: { magnitude: indentFirstLine, unit: 'PT' },
+                indentStart: { magnitude: indentStart, unit: 'PT' },
+              },
+              fields: 'indentFirstLine,indentStart',
+            },
+          });
+        }
+      }
+
+      // Apply text formatting
+      let textOffset = 0;
+      for (const el of paragraphElements) {
+        if (!el.textRun?.content) continue;
+        
+        const textStart = paragraphStart + textOffset;
+        const textEnd = textStart + el.textRun.content.length;
+        const textStyle = el.textRun.textStyle || {};
+        
+        const styleFields: string[] = [];
+        const newStyle: any = {};
+
+        if (textStyle.bold) { newStyle.bold = true; styleFields.push('bold'); }
+        if (textStyle.italic) { newStyle.italic = true; styleFields.push('italic'); }
+        if (textStyle.underline) { newStyle.underline = true; styleFields.push('underline'); }
+        if (textStyle.strikethrough) { newStyle.strikethrough = true; styleFields.push('strikethrough'); }
+        if (textStyle.link?.url) { newStyle.link = { url: textStyle.link.url }; styleFields.push('link'); }
+
+        if (styleFields.length > 0) {
+          formattingRequests.push({
+            updateTextStyle: {
+              range: { startIndex: textStart, endIndex: textEnd },
+              textStyle: newStyle,
+              fields: styleFields.join(','),
+            },
+          });
+        }
+
+        textOffset += el.textRun.content.length;
+      }
+
+      currentOffset += paragraphText.length;
+    }
+
+    // Apply formatting in batches
+    if (formattingRequests.length > 0) {
+      await docs.documents.batchUpdate({
+        documentId: targetDocId,
+        requestBody: { requests: formattingRequests },
+      });
+    }
+
+    return { insertedLength: textToInsert.length };
+  } finally {
+    // Clean up the temporary document
+    try {
+      await drive.files.delete({ fileId: tempDocId });
+    } catch (cleanupError) {
+      console.error('Failed to delete temporary document:', cleanupError);
+    }
+  }
+}
 
 // Extract field tags ({{...}}) from content
 function extractEmbeddedFields(content: string): string[] {

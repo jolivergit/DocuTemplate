@@ -433,7 +433,29 @@ export function parseHtmlToBlocks(html: string): ParseResult {
 }
 
 /**
+ * Track list item info for batched bullet creation
+ */
+interface ListItemInfo {
+  startIndex: number;
+  endIndex: number;
+  listLevel: number;
+  listType: 'bullet' | 'ordered';
+}
+
+/**
+ * Track contiguous list runs for grouped bullet creation
+ */
+interface ListRun {
+  startIndex: number;
+  endIndex: number;
+  listType: 'bullet' | 'ordered';
+  items: ListItemInfo[];
+}
+
+/**
  * Generate Google Docs API requests to insert formatted content
+ * Uses grouped list handling: contiguous list items share one createParagraphBullets call,
+ * then indentation is applied AFTER to set nesting levels (● → ○ → ■)
  */
 export function generateDocsRequests(
   blocks: FormattedBlock[],
@@ -443,6 +465,11 @@ export function generateDocsRequests(
   let currentIndex = startIndex;
   let insertedLength = 0;
 
+  // Track list runs for batched bullet creation
+  const listRuns: ListRun[] = [];
+  let currentListRun: ListRun | null = null;
+
+  // First pass: Insert all text, apply text styles, and track list item positions
   for (let blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
     const block = blocks[blockIdx];
     
@@ -458,6 +485,9 @@ export function generateDocsRequests(
     }
 
     if (blockText.length === 0) continue;
+
+    const blockStart = currentIndex;
+    const blockEnd = currentIndex + blockText.length;
 
     // Insert text
     requests.push({
@@ -497,52 +527,64 @@ export function generateDocsRequests(
       runOffset += run.text.length;
     }
 
-    // Apply paragraph styles
-    const paragraphEnd = currentIndex + blockText.length;
-    
+    // Handle paragraph styles based on block type
     if (block.type.startsWith('heading')) {
+      // End any current list run
+      if (currentListRun) {
+        listRuns.push(currentListRun);
+        currentListRun = null;
+      }
+      
       const level = parseInt(block.type.replace('heading', ''));
       requests.push({
         updateParagraphStyle: {
-          range: { startIndex: currentIndex, endIndex: paragraphEnd },
+          range: { startIndex: blockStart, endIndex: blockEnd },
           paragraphStyle: { namedStyleType: `HEADING_${level}` },
           fields: 'namedStyleType',
         },
       });
     } else if (block.type === 'listItem') {
       const listLevel = block.listLevel || 0;
+      const listType = block.listType || 'bullet';
       
-      // Apply indentation BEFORE creating bullets so Google Docs API
-      // picks up the correct nesting level and applies proper glyph progression
-      // (● → ○ → ■ for bullets, 1 → a → i for numbered)
-      // Google Docs default: 36pt (0.5 inch) per nesting level
-      // All levels need indentation for proper hierarchy
-      const indentStart = 36 * (listLevel + 1); // Level 0 = 36pt, Level 1 = 72pt, etc.
-      const indentFirstLine = indentStart - 18; // Hanging indent for bullet glyph
-      requests.push({
-        updateParagraphStyle: {
-          range: { startIndex: currentIndex, endIndex: paragraphEnd },
-          paragraphStyle: {
-            indentFirstLine: { magnitude: indentFirstLine, unit: 'PT' },
-            indentStart: { magnitude: indentStart, unit: 'PT' },
-          },
-          fields: 'indentFirstLine,indentStart',
-        },
-      });
-      
-      // Create bullets after setting indentation so API sees correct nesting level
-      requests.push({
-        createParagraphBullets: {
-          range: { startIndex: currentIndex, endIndex: paragraphEnd },
-          bulletPreset: block.listType === 'ordered' 
-            ? 'NUMBERED_DECIMAL_ALPHA_ROMAN' 
-            : 'BULLET_DISC_CIRCLE_SQUARE',
-        },
-      });
+      // Check if this continues the current list run (same list type)
+      if (currentListRun && currentListRun.listType === listType) {
+        // Extend the current run
+        currentListRun.endIndex = blockEnd;
+        currentListRun.items.push({
+          startIndex: blockStart,
+          endIndex: blockEnd,
+          listLevel,
+          listType,
+        });
+      } else {
+        // End previous run if exists
+        if (currentListRun) {
+          listRuns.push(currentListRun);
+        }
+        // Start a new run
+        currentListRun = {
+          startIndex: blockStart,
+          endIndex: blockEnd,
+          listType,
+          items: [{
+            startIndex: blockStart,
+            endIndex: blockEnd,
+            listLevel,
+            listType,
+          }],
+        };
+      }
     } else if (block.type === 'blockquote') {
+      // End any current list run
+      if (currentListRun) {
+        listRuns.push(currentListRun);
+        currentListRun = null;
+      }
+      
       requests.push({
         updateParagraphStyle: {
-          range: { startIndex: currentIndex, endIndex: paragraphEnd },
+          range: { startIndex: blockStart, endIndex: blockEnd },
           paragraphStyle: {
             indentFirstLine: { magnitude: 36, unit: 'PT' },
             indentStart: { magnitude: 36, unit: 'PT' },
@@ -550,10 +592,55 @@ export function generateDocsRequests(
           fields: 'indentFirstLine,indentStart',
         },
       });
+    } else {
+      // Regular paragraph - end any current list run
+      if (currentListRun) {
+        listRuns.push(currentListRun);
+        currentListRun = null;
+      }
     }
 
     currentIndex += blockText.length;
     insertedLength += blockText.length;
+  }
+
+  // Finalize any remaining list run
+  if (currentListRun) {
+    listRuns.push(currentListRun);
+  }
+
+  // Second pass: Create bullets for each list run (ONE call per contiguous run)
+  // This ensures all items in a run share the same listId
+  for (const run of listRuns) {
+    requests.push({
+      createParagraphBullets: {
+        range: { startIndex: run.startIndex, endIndex: run.endIndex },
+        bulletPreset: run.listType === 'ordered' 
+          ? 'NUMBERED_DECIMAL_ALPHA_ROMAN' 
+          : 'BULLET_DISC_CIRCLE_SQUARE',
+      },
+    });
+  }
+
+  // Third pass: Apply indentation to each list item AFTER bullets are created
+  // This sets the nesting level for proper glyph progression (● → ○ → ■)
+  for (const run of listRuns) {
+    for (const item of run.items) {
+      // Google Docs default: 36pt (0.5 inch) per nesting level
+      const indentStart = 36 * (item.listLevel + 1); // Level 0 = 36pt, Level 1 = 72pt, etc.
+      const indentFirstLine = indentStart - 18; // Hanging indent for bullet glyph
+      
+      requests.push({
+        updateParagraphStyle: {
+          range: { startIndex: item.startIndex, endIndex: item.endIndex },
+          paragraphStyle: {
+            indentFirstLine: { magnitude: indentFirstLine, unit: 'PT' },
+            indentStart: { magnitude: indentStart, unit: 'PT' },
+          },
+          fields: 'indentFirstLine,indentStart',
+        },
+      });
+    }
   }
 
   return { requests, insertedLength };
