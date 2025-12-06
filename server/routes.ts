@@ -688,36 +688,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate document
+  // Generate document using HTML roundtrip approach
+  // 1. Export template as HTML
+  // 2. Replace tags in HTML
+  // 3. Import merged HTML as new Google Doc (Google handles list nesting natively)
   app.post("/api/documents/generate", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
       const validated = generateDocumentRequestSchema.parse(req.body);
       const { templateId, outputName, tagMappings } = validated;
 
-      const docs = await getGoogleDocsClient(userId);
       const drive = await getGoogleDriveClient(userId);
       
       // Generate timestamp ticks for unique document naming
       const timestamp = Date.now();
       const documentNameWithTicks = `${outputName}_${timestamp}`;
       
-      // Copy the template document to preserve all formatting
-      const copiedFile = await drive.files.copy({
+      // Step 1: Export the template as HTML
+      // This preserves all the template's styling (fonts, headings, etc.)
+      // Request as text to get the HTML string directly
+      const exportResponse = await drive.files.export({
         fileId: templateId,
-        requestBody: {
-          name: documentNameWithTicks,
-        },
+        mimeType: 'text/html',
+      }, {
+        responseType: 'text',
       });
-
-      const newDocId = copiedFile.data.id;
-      if (!newDocId) {
-        return res.status(500).json({ error: "Failed to copy template document" });
+      
+      let templateHtml = typeof exportResponse.data === 'string' 
+        ? exportResponse.data 
+        : String(exportResponse.data);
+      
+      if (!templateHtml) {
+        return res.status(500).json({ error: "Failed to export template as HTML" });
       }
 
-      // Build a lookup map for ALL field tag values (field value, custom content, or snippet)
-      // First pass: collect raw values and convert HTML to plain text for field values
+      // Build lookup maps for field and content values
       const fieldValueLookup = new Map<string, string>();
+      const contentValueLookup = new Map<string, string>();
+      
       for (const mapping of tagMappings) {
         if (mapping.tagType === 'field') {
           let value = "";
@@ -727,7 +735,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               value = fieldValue.value;
             }
           } else if (mapping.customContent) {
-            // Convert HTML to plain text for custom content
             value = htmlToPlainText(mapping.customContent);
           } else if (mapping.snippetId) {
             const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
@@ -736,10 +743,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           fieldValueLookup.set(mapping.tagName, value);
+        } else if (mapping.tagType === 'content') {
+          let htmlContent = "";
+          if (mapping.customContent) {
+            htmlContent = mapping.customContent;
+          } else if (mapping.snippetId) {
+            const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
+            if (snippet) {
+              htmlContent = snippet.content;
+              await storage.incrementSnippetUsage(userId, mapping.snippetId);
+            }
+          }
+          contentValueLookup.set(mapping.tagName, htmlContent);
         }
       }
 
-      // Helper function to resolve nested field tags in content (plain text version)
+      // Helper to HTML-escape text for safe insertion
+      const escapeHtml = (text: string): string => {
+        return text
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;')
+          .replace(/\n/g, '<br>');
+      };
+
+      // Helper to resolve nested field tags in plain text
       const resolveNestedFieldsPlainText = (content: string): string => {
         return content.replace(/\{\{([^}]+)\}\}/g, (match, fieldName) => {
           const trimmedName = fieldName.trim();
@@ -747,15 +777,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       };
 
-      // Helper function to resolve nested field tags in HTML content (preserves HTML)
+      // Helper to resolve nested field tags in HTML content
       const resolveNestedFieldsHtml = (html: string): string => {
         return html.replace(/\{\{([^}]+)\}\}/g, (match, fieldName) => {
           const trimmedName = fieldName.trim();
-          return fieldValueLookup.get(trimmedName) ?? match;
+          const value = fieldValueLookup.get(trimmedName);
+          return value !== undefined ? escapeHtml(value) : match;
         });
       };
 
-      // Second pass: resolve any nested field tags within the lookup values themselves
+      // Resolve nested field tags within field values themselves
       let hasChanges = true;
       let iterations = 0;
       const maxIterations = 10;
@@ -771,144 +802,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
         iterations++;
       }
 
-      // Separate mappings into field tags (plain text) and content tags (rich text)
-      const fieldMappings = tagMappings.filter(m => m.tagType === 'field');
-      const contentMappings = tagMappings.filter(m => m.tagType === 'content');
+      // Step 2: Replace tags in the HTML
+      
+      // Replace field tags {{...}} with escaped plain text values
+      templateHtml = templateHtml.replace(/\{\{([^}]+)\}\}/g, (match, fieldName) => {
+        const trimmedName = fieldName.trim();
+        const value = fieldValueLookup.get(trimmedName);
+        return value !== undefined ? escapeHtml(value) : match;
+      });
 
-      // First, handle simple field tag replacements with replaceAllText
-      const fieldRequests: any[] = [];
-      for (const mapping of fieldMappings) {
-        let replacementContent = "";
-
-        if (mapping.fieldValueId) {
-          const fieldValue = await storage.getFieldValueById(userId, mapping.fieldValueId);
-          if (fieldValue) {
-            replacementContent = resolveNestedFieldsPlainText(fieldValue.value);
-          }
-        } else if (mapping.customContent) {
-          replacementContent = resolveNestedFieldsPlainText(htmlToPlainText(mapping.customContent));
-        } else if (mapping.snippetId) {
-          const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
-          if (snippet) {
-            replacementContent = resolveNestedFieldsPlainText(htmlToPlainText(snippet.content));
-            await storage.incrementSnippetUsage(userId, mapping.snippetId);
-          }
+      // Replace content tags <<...>> with rich HTML content
+      templateHtml = templateHtml.replace(/&lt;&lt;([^&]+)&gt;&gt;/g, (match, tagName) => {
+        const trimmedName = tagName.trim();
+        let htmlContent = contentValueLookup.get(trimmedName);
+        if (htmlContent) {
+          // Resolve any nested field tags within the content
+          htmlContent = resolveNestedFieldsHtml(htmlContent);
+          return htmlContent;
         }
+        return match;
+      });
 
-        fieldRequests.push({
-          replaceAllText: {
-            containsText: {
-              text: `{{${mapping.tagName}}}`,
-              matchCase: true,
-            },
-            replaceText: replacementContent,
-          },
-        });
-      }
-
-      // Apply field replacements first
-      if (fieldRequests.length > 0) {
-        await docs.documents.batchUpdate({
-          documentId: newDocId,
-          requestBody: { requests: fieldRequests },
-        });
-      }
-
-      // Now handle content tags with rich text formatting
-      // For each content tag, we need to: 1) find its location, 2) delete it, 3) insert formatted content
-      for (const mapping of contentMappings) {
-        // Get the HTML content
-        let htmlContent = "";
-        if (mapping.customContent) {
-          htmlContent = resolveNestedFieldsHtml(mapping.customContent);
-        } else if (mapping.snippetId) {
-          const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
-          if (snippet) {
-            htmlContent = resolveNestedFieldsHtml(snippet.content);
-            await storage.incrementSnippetUsage(userId, mapping.snippetId);
-          }
+      // Also handle non-escaped content tags (in case they appear unescaped)
+      templateHtml = templateHtml.replace(/<<([^>]+)>>/g, (match, tagName) => {
+        const trimmedName = tagName.trim();
+        let htmlContent = contentValueLookup.get(trimmedName);
+        if (htmlContent) {
+          htmlContent = resolveNestedFieldsHtml(htmlContent);
+          return htmlContent;
         }
+        return match;
+      });
 
-        if (!htmlContent) continue;
+      // Step 3: Create a new Google Doc from the merged HTML
+      // Google Drive will convert HTML to native Docs format, preserving nested lists
+      const newFile = await drive.files.create({
+        requestBody: {
+          name: documentNameWithTicks,
+          mimeType: 'application/vnd.google-apps.document',
+        },
+        media: {
+          mimeType: 'text/html',
+          body: stringToStream(templateHtml),
+        },
+        fields: 'id',
+      });
 
-        const tagSyntax = `<<${mapping.tagName}>>`;
-
-        // Check if content has rich formatting
-        if (hasRichFormatting(htmlContent)) {
-          // Get current document to find tag locations
-          const docResponse = await docs.documents.get({ documentId: newDocId });
-          const docContent = docResponse.data.body?.content || [];
-          
-          // Find all occurrences of the tag in the document
-          const tagLocations: { startIndex: number; endIndex: number }[] = [];
-          
-          for (const element of docContent) {
-            if (element.paragraph?.elements) {
-              for (const el of element.paragraph.elements) {
-                if (el.textRun?.content) {
-                  const text = el.textRun.content;
-                  const startOffset = el.startIndex || 0;
-                  let searchStart = 0;
-                  
-                  while (true) {
-                    const idx = text.indexOf(tagSyntax, searchStart);
-                    if (idx === -1) break;
-                    
-                    tagLocations.push({
-                      startIndex: startOffset + idx,
-                      endIndex: startOffset + idx + tagSyntax.length,
-                    });
-                    searchStart = idx + 1;
-                  }
-                }
-              }
-            }
-          }
-
-          // Process tag locations from end to beginning to avoid index shifting issues
-          tagLocations.sort((a, b) => b.startIndex - a.startIndex);
-
-          for (const location of tagLocations) {
-            // Generate the formatted content insertion requests
-            const { requests: formatRequests } = htmlToGoogleDocsRequests(htmlContent, location.startIndex);
-
-            // Build batch: delete tag first, then insert formatted content
-            const batchRequests: any[] = [
-              {
-                deleteContentRange: {
-                  range: {
-                    startIndex: location.startIndex,
-                    endIndex: location.endIndex,
-                  },
-                },
-              },
-              ...formatRequests,
-            ];
-
-            // Apply the batch update for this tag occurrence
-            await docs.documents.batchUpdate({
-              documentId: newDocId,
-              requestBody: { requests: batchRequests },
-            });
-          }
-        } else {
-          // No rich formatting, use simple replaceAllText
-          const plainText = resolveNestedFieldsPlainText(htmlToPlainText(htmlContent));
-          await docs.documents.batchUpdate({
-            documentId: newDocId,
-            requestBody: {
-              requests: [{
-                replaceAllText: {
-                  containsText: {
-                    text: tagSyntax,
-                    matchCase: true,
-                  },
-                  replaceText: plainText,
-                },
-              }],
-            },
-          });
-        }
+      const newDocId = newFile.data.id;
+      if (!newDocId) {
+        return res.status(500).json({ error: "Failed to create document from HTML" });
       }
 
       const documentUrl = `https://docs.google.com/document/d/${newDocId}/edit`;
