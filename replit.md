@@ -10,7 +10,14 @@ Users can manage reusable content snippets and field values, map them to templat
 ## Project Status
 **MVP Complete** - All core features implemented and tested
 
-## Recent Changes (December 05, 2025)
+## Recent Changes (December 06, 2025)
+- **Rich text formatting in generated documents**: Implemented htmlparser2-based HTML-to-Google-Docs converter that preserves TipTap rich text formatting (bold, italic, underline, links, headings, lists, blockquotes)
+- **DOM-based HTML parsing**: Replaced regex-based parsing with proper DOM traversal for reliable handling of nested formatting tags
+- **Nested list support**: Lists maintain proper visual hierarchy with indentation applied after bullet creation
+- **Whitespace preservation**: Non-breaking spaces and deliberate whitespace within content are preserved
+- **Empty bullet prevention**: List items containing only nested lists no longer create blank parent bullets
+
+## Previous Changes (December 05, 2025)
 - **Tag deduplication with composite keys**: Tags are now uniquely identified by both name AND type (field/content), enabling independent handling of field and content tags that share the same name
 - **Composite key mapping**: tagMappings now uses `${name}:${type}` as key, allowing field tag `{{name}}` and content tag `<<name>>` to be mapped separately
 - **Unique React keys and test IDs**: All TagItem keys and data-testid attributes include tagType to prevent DOM collisions when same name used for both field and content tags

@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { getGoogleDriveClient } from "./google-drive-client";
 import { getGoogleDocsClient } from "./google-docs-client";
 import { htmlToPlainText } from "./html-to-text";
+import { htmlToGoogleDocsRequests, hasRichFormatting, parseHtmlToBlocks } from "./html-to-google-docs";
 import {
   insertCategorySchema,
   insertContentSnippetSchema,
@@ -466,7 +467,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Build a lookup map for ALL field tag values (field value, custom content, or snippet)
-      // First pass: collect raw values and convert HTML to plain text
+      // First pass: collect raw values and convert HTML to plain text for field values
       const fieldValueLookup = new Map<string, string>();
       for (const mapping of tagMappings) {
         if (mapping.tagType === 'field') {
@@ -482,7 +483,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else if (mapping.snippetId) {
             const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
             if (snippet) {
-              // Convert HTML content to plain text for Google Docs
               value = htmlToPlainText(snippet.content);
             }
           }
@@ -490,24 +490,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Helper function to resolve nested field tags in content
-      const resolveNestedFields = (content: string): string => {
+      // Helper function to resolve nested field tags in content (plain text version)
+      const resolveNestedFieldsPlainText = (content: string): string => {
         return content.replace(/\{\{([^}]+)\}\}/g, (match, fieldName) => {
           const trimmedName = fieldName.trim();
-          return fieldValueLookup.get(trimmedName) ?? match; // Keep original if not found
+          return fieldValueLookup.get(trimmedName) ?? match;
+        });
+      };
+
+      // Helper function to resolve nested field tags in HTML content (preserves HTML)
+      const resolveNestedFieldsHtml = (html: string): string => {
+        return html.replace(/\{\{([^}]+)\}\}/g, (match, fieldName) => {
+          const trimmedName = fieldName.trim();
+          return fieldValueLookup.get(trimmedName) ?? match;
         });
       };
 
       // Second pass: resolve any nested field tags within the lookup values themselves
-      // This handles cases where a field's value contains other field tags
-      // Use a convergence loop to handle multi-level nesting
       let hasChanges = true;
       let iterations = 0;
-      const maxIterations = 10; // Prevent infinite loops
+      const maxIterations = 10;
       while (hasChanges && iterations < maxIterations) {
         hasChanges = false;
         Array.from(fieldValueLookup.entries()).forEach(([key, value]) => {
-          const resolvedValue = resolveNestedFields(value);
+          const resolvedValue = resolveNestedFieldsPlainText(value);
           if (resolvedValue !== value) {
             fieldValueLookup.set(key, resolvedValue);
             hasChanges = true;
@@ -516,40 +522,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         iterations++;
       }
 
-      // Build batch update requests to replace all tags with content
-      const requests: any[] = [];
+      // Separate mappings into field tags (plain text) and content tags (rich text)
+      const fieldMappings = tagMappings.filter(m => m.tagType === 'field');
+      const contentMappings = tagMappings.filter(m => m.tagType === 'content');
 
-      for (const mapping of tagMappings) {
+      // First, handle simple field tag replacements with replaceAllText
+      const fieldRequests: any[] = [];
+      for (const mapping of fieldMappings) {
         let replacementContent = "";
 
         if (mapping.fieldValueId) {
           const fieldValue = await storage.getFieldValueById(userId, mapping.fieldValueId);
           if (fieldValue) {
-            replacementContent = resolveNestedFields(fieldValue.value);
+            replacementContent = resolveNestedFieldsPlainText(fieldValue.value);
           }
         } else if (mapping.customContent) {
-          // Resolve nested field tags in custom content
-          // Convert HTML to plain text if present
-          replacementContent = resolveNestedFields(htmlToPlainText(mapping.customContent));
+          replacementContent = resolveNestedFieldsPlainText(htmlToPlainText(mapping.customContent));
         } else if (mapping.snippetId) {
           const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
           if (snippet) {
-            // Convert HTML to plain text and resolve nested field tags
-            replacementContent = resolveNestedFields(htmlToPlainText(snippet.content));
+            replacementContent = resolveNestedFieldsPlainText(htmlToPlainText(snippet.content));
             await storage.incrementSnippetUsage(userId, mapping.snippetId);
           }
         }
 
-        // Use replaceAllText to preserve formatting
-        // Use appropriate syntax based on tag type
-        const tagSyntax = mapping.tagType === 'field' 
-          ? `{{${mapping.tagName}}}` 
-          : `<<${mapping.tagName}>>`;
-
-        requests.push({
+        fieldRequests.push({
           replaceAllText: {
             containsText: {
-              text: tagSyntax,
+              text: `{{${mapping.tagName}}}`,
               matchCase: true,
             },
             replaceText: replacementContent,
@@ -557,14 +557,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Apply all replacements in a single batch update
-      if (requests.length > 0) {
+      // Apply field replacements first
+      if (fieldRequests.length > 0) {
         await docs.documents.batchUpdate({
           documentId: newDocId,
-          requestBody: {
-            requests,
-          },
+          requestBody: { requests: fieldRequests },
         });
+      }
+
+      // Now handle content tags with rich text formatting
+      // For each content tag, we need to: 1) find its location, 2) delete it, 3) insert formatted content
+      for (const mapping of contentMappings) {
+        // Get the HTML content
+        let htmlContent = "";
+        if (mapping.customContent) {
+          htmlContent = resolveNestedFieldsHtml(mapping.customContent);
+        } else if (mapping.snippetId) {
+          const snippet = await storage.getContentSnippetById(userId, mapping.snippetId);
+          if (snippet) {
+            htmlContent = resolveNestedFieldsHtml(snippet.content);
+            await storage.incrementSnippetUsage(userId, mapping.snippetId);
+          }
+        }
+
+        if (!htmlContent) continue;
+
+        const tagSyntax = `<<${mapping.tagName}>>`;
+
+        // Check if content has rich formatting
+        if (hasRichFormatting(htmlContent)) {
+          // Get current document to find tag locations
+          const docResponse = await docs.documents.get({ documentId: newDocId });
+          const docContent = docResponse.data.body?.content || [];
+          
+          // Find all occurrences of the tag in the document
+          const tagLocations: { startIndex: number; endIndex: number }[] = [];
+          
+          for (const element of docContent) {
+            if (element.paragraph?.elements) {
+              for (const el of element.paragraph.elements) {
+                if (el.textRun?.content) {
+                  const text = el.textRun.content;
+                  const startOffset = el.startIndex || 0;
+                  let searchStart = 0;
+                  
+                  while (true) {
+                    const idx = text.indexOf(tagSyntax, searchStart);
+                    if (idx === -1) break;
+                    
+                    tagLocations.push({
+                      startIndex: startOffset + idx,
+                      endIndex: startOffset + idx + tagSyntax.length,
+                    });
+                    searchStart = idx + 1;
+                  }
+                }
+              }
+            }
+          }
+
+          // Process tag locations from end to beginning to avoid index shifting issues
+          tagLocations.sort((a, b) => b.startIndex - a.startIndex);
+
+          for (const location of tagLocations) {
+            // Generate the formatted content insertion requests
+            const { requests: formatRequests } = htmlToGoogleDocsRequests(htmlContent, location.startIndex);
+
+            // Build batch: delete tag first, then insert formatted content
+            const batchRequests: any[] = [
+              {
+                deleteContentRange: {
+                  range: {
+                    startIndex: location.startIndex,
+                    endIndex: location.endIndex,
+                  },
+                },
+              },
+              ...formatRequests,
+            ];
+
+            // Apply the batch update for this tag occurrence
+            await docs.documents.batchUpdate({
+              documentId: newDocId,
+              requestBody: { requests: batchRequests },
+            });
+          }
+        } else {
+          // No rich formatting, use simple replaceAllText
+          const plainText = resolveNestedFieldsPlainText(htmlToPlainText(htmlContent));
+          await docs.documents.batchUpdate({
+            documentId: newDocId,
+            requestBody: {
+              requests: [{
+                replaceAllText: {
+                  containsText: {
+                    text: tagSyntax,
+                    matchCase: true,
+                  },
+                  replaceText: plainText,
+                },
+              }],
+            },
+          });
+        }
       }
 
       const documentUrl = `https://docs.google.com/document/d/${newDocId}/edit`;
