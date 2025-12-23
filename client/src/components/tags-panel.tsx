@@ -632,7 +632,7 @@ export function TagsPanel({
 
       {activeTab === "document" ? (
         <ScrollArea className="flex-1">
-          <div className="p-2 space-y-1">
+          <div className="pl-2 pr-4 py-2 space-y-1">
             {orderedSections.length === 0 ? (
               <div className="text-center py-8 px-4">
                 <p className="text-sm text-muted-foreground" data-testid="text-no-sections">
@@ -679,7 +679,7 @@ export function TagsPanel({
         </ScrollArea>
       ) : (
         <ScrollArea className="flex-1">
-          <div className="p-2 space-y-2">
+          <div className="pl-2 pr-4 py-2 space-y-2">
             {onAddCustomField && (
               <div className="pb-2 border-b mb-2">
                 {showAddField ? (
