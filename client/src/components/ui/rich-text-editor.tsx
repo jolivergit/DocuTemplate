@@ -12,15 +12,13 @@ import {
   DropdownMenuTrigger,
 } from "./dropdown-menu";
 
-type OrderedListStyle = 'decimal' | 'zero-decimal' | 'lower-alpha' | 'upper-alpha' | 'lower-roman' | 'upper-roman';
+type OrderedListStyle = 'decimal' | 'zero-decimal' | 'upper-alpha' | 'upper-roman';
 
 const LIST_STYLES: { value: OrderedListStyle; label: string; preview: string }[] = [
   { value: 'decimal', label: 'Numbers', preview: '1, 2, 3' },
   { value: 'zero-decimal', label: 'Leading Zero', preview: '01, 02, 03' },
-  { value: 'upper-alpha', label: 'Uppercase Letters', preview: 'A, B, C' },
-  { value: 'lower-alpha', label: 'Lowercase Letters', preview: 'a, b, c' },
-  { value: 'upper-roman', label: 'Uppercase Roman', preview: 'I, II, III' },
-  { value: 'lower-roman', label: 'Lowercase Roman', preview: 'i, ii, iii' },
+  { value: 'upper-alpha', label: 'Letters', preview: 'A, B, C' },
+  { value: 'upper-roman', label: 'Roman Numerals', preview: 'I, II, III' },
 ];
 
 const CustomOrderedList = OrderedList.extend({

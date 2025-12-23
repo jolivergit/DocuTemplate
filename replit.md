@@ -11,17 +11,14 @@ Users can manage reusable content snippets and field values, map them to templat
 **MVP Complete** - All core features implemented and tested
 
 ## Recent Changes (December 23, 2025)
-- **Extended ordered list styles**: Rich text editor now supports 6 different ordered list formats:
+- **Extended ordered list styles**: Rich text editor now supports 4 ordered list formats matching Google Docs capabilities:
   - decimal (1, 2, 3) - default
   - zero-decimal (01, 02, 03)
   - upper-alpha (A, B, C)
-  - lower-alpha (a, b, c)
   - upper-roman (I, II, III)
-  - lower-roman (i, ii, iii)
 - **Ordered list dropdown**: Toolbar now shows a dropdown for ordered lists allowing users to select list style
 - **Backwards compatible**: Existing lists without explicit style default to decimal (1, 2, 3) format
-- **Google Docs integration**: List styles mapped to Google Docs bulletPreset values
-  - **Note**: Google Docs API limitation - lowercase styles (a,b,c and i,ii,iii) get converted to uppercase (A,B,C and I,II,III) in generated documents because Google Docs API lacks lowercase-first presets
+- **Google Docs integration**: List styles are preserved when generating documents (legacy lowercase styles map to uppercase equivalents)
 
 ## Previous Changes (December 06, 2025)
 - **Hybrid document generation approach**: Template is copied to preserve all original styling (fonts, headers, margins), then field and content tags are replaced

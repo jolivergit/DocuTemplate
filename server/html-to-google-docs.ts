@@ -697,46 +697,24 @@ export function generateDocsRequests(
       bulletPreset = 'BULLET_DISC_CIRCLE_SQUARE';
     } else {
       // Map ordered list style to Google Docs bulletPreset
-      // Google Docs API only provides these numbered list presets:
-      // - NUMBERED_DECIMAL_ALPHA_ROMAN: 1 → a → i
-      // - NUMBERED_DECIMAL_ALPHA_ROMAN_PARENS: 1) → a) → i)
-      // - NUMBERED_DECIMAL_NESTED: 1 → 1.1 → 1.1.1
-      // - NUMBERED_UPPERALPHA_ALPHA_ROMAN: A → a → i
-      // - NUMBERED_UPPERROMAN_UPPERALPHA_DECIMAL: I → A → 1
-      // - NUMBERED_ZERODECIMAL_ALPHA_ROMAN: 01 → a → i
-      //
-      // LIMITATION: There are no presets that start with lowercase letters (a, b, c)
-      // or lowercase roman numerals (i, ii, iii) at level 0. For those styles,
-      // we use the closest available preset. The editor will still display
-      // the correct style, but the Google Docs output will use a fallback.
+      // Editor supports: decimal, zero-decimal, upper-alpha, upper-roman
+      // Legacy support: lower-alpha → upper-alpha, lower-roman → upper-roman
       switch (run.orderedListStyle) {
         case 'upper-alpha':
-          // A → a → i (exact match)
-          bulletPreset = 'NUMBERED_UPPERALPHA_ALPHA_ROMAN';
-          break;
         case 'lower-alpha':
-          // API limitation: no preset starts with lowercase alpha
-          // Using NUMBERED_UPPERALPHA_ALPHA_ROMAN as closest match (A → a → i)
-          // User will see A, B, C instead of a, b, c in generated doc
+          // lower-alpha fallback for legacy content
           bulletPreset = 'NUMBERED_UPPERALPHA_ALPHA_ROMAN';
           break;
         case 'upper-roman':
-          // I → A → 1 (exact match)
-          bulletPreset = 'NUMBERED_UPPERROMAN_UPPERALPHA_DECIMAL';
-          break;
         case 'lower-roman':
-          // API limitation: no preset starts with lowercase roman
-          // Using NUMBERED_UPPERROMAN_UPPERALPHA_DECIMAL as closest match (I → A → 1)
-          // User will see I, II, III instead of i, ii, iii in generated doc
+          // lower-roman fallback for legacy content
           bulletPreset = 'NUMBERED_UPPERROMAN_UPPERALPHA_DECIMAL';
           break;
         case 'zero-decimal':
-          // 01 → a → i (exact match)
           bulletPreset = 'NUMBERED_ZERODECIMAL_ALPHA_ROMAN';
           break;
         case 'decimal':
         default:
-          // 1 → a → i (exact match, backwards compatible default)
           bulletPreset = 'NUMBERED_DECIMAL_ALPHA_ROMAN';
           break;
       }
