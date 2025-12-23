@@ -23,6 +23,7 @@ export default function Home() {
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'tags' | 'content' | null>(null);
   const [fieldValueToEdit, setFieldValueToEdit] = useState<FieldValue | null>(null);
+  const [customFieldTags, setCustomFieldTags] = useState<string[]>([]);
 
   const { data: user, isLoading: isLoadingUser } = useQuery<UserType | null>({
     queryKey: ['/auth/user'],
@@ -51,7 +52,38 @@ export default function Home() {
     setTagMappings(new Map());
     setSelectedTag(null);
     setSelectedTagType(null);
+    setCustomFieldTags([]);
   };
+
+  const handleAddCustomField = (fieldName: string) => {
+    // Check if field already exists in template or custom tags
+    const existsInTemplate = selectedTemplate?.allTags.some(
+      t => t.name === fieldName && t.tagType === 'field'
+    );
+    if (!customFieldTags.includes(fieldName) && !existsInTemplate) {
+      setCustomFieldTags([...customFieldTags, fieldName]);
+    }
+  };
+
+  // Create enhanced template that includes custom field tags
+  const getEnhancedTemplate = (): ParsedTemplate | null => {
+    if (!selectedTemplate) return null;
+    
+    const customTags = customFieldTags.map(name => ({
+      type: 'custom',
+      name,
+      tagType: 'field' as TagType,
+      startIndex: -1,
+      endIndex: -1,
+    }));
+    
+    return {
+      ...selectedTemplate,
+      allTags: [...selectedTemplate.allTags, ...customTags],
+    };
+  };
+
+  const enhancedTemplate = getEnhancedTemplate();
 
   const handleSectionReorder = (newOrder: string[]) => {
     setSectionOrder(newOrder);
@@ -265,9 +297,9 @@ export default function Home() {
                   </h2>
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  {selectedTemplate ? (
+                  {enhancedTemplate ? (
                     <TagsPanel
-                      template={selectedTemplate}
+                      template={enhancedTemplate}
                       sectionOrder={sectionOrder}
                       onSectionReorder={handleSectionReorder}
                       onTagClick={handleTagClick}
@@ -279,6 +311,7 @@ export default function Home() {
                       onMappingRemove={handleMappingRemove}
                       onCustomContentSet={handleCustomContentSet}
                       onFieldValueEdit={handleFieldValueEdit}
+                      onAddCustomField={handleAddCustomField}
                     />
                   ) : (
                     <div className="h-full flex items-center justify-center p-6">
@@ -333,9 +366,9 @@ export default function Home() {
         <div className="md:hidden h-full flex flex-col">
           <div className="flex-1 overflow-hidden">
             {mobilePanel === 'tags' && (
-              selectedTemplate ? (
+              enhancedTemplate ? (
                 <TagsPanel
-                  template={selectedTemplate}
+                  template={enhancedTemplate}
                   sectionOrder={sectionOrder}
                   onSectionReorder={handleSectionReorder}
                   onTagClick={handleTagClick}
@@ -347,6 +380,7 @@ export default function Home() {
                   onMappingRemove={handleMappingRemove}
                   onCustomContentSet={handleCustomContentSet}
                   onFieldValueEdit={handleFieldValueEdit}
+                  onAddCustomField={handleAddCustomField}
                 />
               ) : (
                 <div className="h-full flex items-center justify-center p-6">

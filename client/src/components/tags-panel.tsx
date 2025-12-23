@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, ChevronDown, Hash, Check, Circle, Edit2, X, GripVertical, Variable } from "lucide-react";
+import { ChevronRight, ChevronDown, Hash, Check, Circle, Edit2, X, GripVertical, Variable, Plus } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ interface TagsPanelProps {
   onMappingRemove: (tagName: string, tagType: TagType) => void;
   onCustomContentSet: (tagName: string, tagType: TagType, content: string) => void;
   onFieldValueEdit?: (fieldValueId: string) => void;
+  onAddCustomField?: (fieldName: string) => void;
 }
 
 interface TagItemProps {
@@ -456,12 +457,15 @@ export function TagsPanel({
   onMappingRemove,
   onCustomContentSet,
   onFieldValueEdit,
+  onAddCustomField,
 }: TagsPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"document" | "fields">("document");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(template.sections.map(s => s.id))
   );
+  const [showAddField, setShowAddField] = useState(false);
+  const [newFieldName, setNewFieldName] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -676,6 +680,70 @@ export function TagsPanel({
       ) : (
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-2">
+            {onAddCustomField && (
+              <div className="pb-2 border-b mb-2">
+                {showAddField ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Field name (e.g. Company_Name)"
+                      value={newFieldName}
+                      onChange={(e) => setNewFieldName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newFieldName.trim()) {
+                          onAddCustomField(newFieldName.trim());
+                          setNewFieldName("");
+                          setShowAddField(false);
+                        } else if (e.key === 'Escape') {
+                          setNewFieldName("");
+                          setShowAddField(false);
+                        }
+                      }}
+                      autoFocus
+                      className="flex-1 h-8 text-sm"
+                      data-testid="input-new-field-name"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-8"
+                      onClick={() => {
+                        if (newFieldName.trim()) {
+                          onAddCustomField(newFieldName.trim());
+                          setNewFieldName("");
+                          setShowAddField(false);
+                        }
+                      }}
+                      disabled={!newFieldName.trim()}
+                      data-testid="button-confirm-add-field"
+                    >
+                      Add
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setNewFieldName("");
+                        setShowAddField(false);
+                      }}
+                      data-testid="button-cancel-add-field"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setShowAddField(true)}
+                    data-testid="button-add-field"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Custom Field
+                  </Button>
+                )}
+              </div>
+            )}
             {filteredFieldTags.length === 0 ? (
               <div className="text-center py-8 px-4">
                 <Variable className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
