@@ -269,6 +269,55 @@
   list-style-type: decimal;
 }
 
+.ProseMirror ol[data-list-style="decimal"] {
+  list-style-type: decimal;
+}
+
+.ProseMirror ol[data-list-style="zero-decimal"] {
+  list-style-type: decimal-leading-zero;
+}
+
+.ProseMirror ol[data-list-style="upper-alpha"] {
+  list-style-type: upper-alpha;
+}
+
+.ProseMirror ol[data-list-style="lower-alpha"] {
+  list-style-type: lower-alpha;
+}
+
+.ProseMirror ol[data-list-style="upper-roman"] {
+  list-style-type: upper-roman;
+}
+
+.ProseMirror ol[data-list-style="lower-roman"] {
+  list-style-type: lower-roman;
+}
+
+/* Also apply styles for RichTextDisplay component (prose class) */
+.prose ol[data-list-style="decimal"] {
+  list-style-type: decimal;
+}
+
+.prose ol[data-list-style="zero-decimal"] {
+  list-style-type: decimal-leading-zero;
+}
+
+.prose ol[data-list-style="upper-alpha"] {
+  list-style-type: upper-alpha;
+}
+
+.prose ol[data-list-style="lower-alpha"] {
+  list-style-type: lower-alpha;
+}
+
+.prose ol[data-list-style="upper-roman"] {
+  list-style-type: upper-roman;
+}
+
+.prose ol[data-list-style="lower-roman"] {
+  list-style-type: lower-roman;
+}
+
 .ProseMirror li {
   margin-top: 0.25rem;
   margin-bottom: 0.25rem;

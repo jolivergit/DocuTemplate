@@ -14,11 +14,15 @@ interface TextRun {
   link?: string;
 }
 
+// Ordered list style types matching Google Docs glyph types
+type OrderedListStyle = 'decimal' | 'zero-decimal' | 'lower-alpha' | 'upper-alpha' | 'lower-roman' | 'upper-roman';
+
 interface FormattedBlock {
   type: 'paragraph' | 'heading1' | 'heading2' | 'heading3' | 'heading4' | 'heading5' | 'heading6' | 'listItem' | 'blockquote' | 'horizontalRule';
   runs: TextRun[];
   listLevel?: number;
   listType?: 'bullet' | 'ordered';
+  orderedListStyle?: OrderedListStyle;
 }
 
 interface ParseResult {
@@ -219,12 +223,61 @@ function extractBlockChildrenRuns(children: DomNode[], defaultState: FormatState
 }
 
 /**
+ * Info about a list context in the stack
+ */
+interface ListContext {
+  type: 'bullet' | 'ordered';
+  orderedStyle?: OrderedListStyle;
+}
+
+/**
+ * Parse ordered list style from HTML attributes
+ * Supports data-list-style attribute and HTML type attribute
+ */
+function parseOrderedListStyle(attribs?: Record<string, string>): OrderedListStyle {
+  if (!attribs) return 'decimal';
+  
+  // Check data-list-style first (our custom attribute)
+  const dataStyle = attribs['data-list-style'];
+  if (dataStyle) {
+    const validStyles: OrderedListStyle[] = ['decimal', 'zero-decimal', 'lower-alpha', 'upper-alpha', 'lower-roman', 'upper-roman'];
+    if (validStyles.includes(dataStyle as OrderedListStyle)) {
+      return dataStyle as OrderedListStyle;
+    }
+  }
+  
+  // Check HTML type attribute as fallback
+  const typeAttr = attribs['type'];
+  if (typeAttr) {
+    switch (typeAttr) {
+      case '1': return 'decimal';
+      case 'A': return 'upper-alpha';
+      case 'a': return 'lower-alpha';
+      case 'I': return 'upper-roman';
+      case 'i': return 'lower-roman';
+    }
+  }
+  
+  // Check CSS list-style-type in style attribute
+  const style = attribs['style'];
+  if (style) {
+    if (style.includes('decimal-leading-zero')) return 'zero-decimal';
+    if (style.includes('upper-alpha') || style.includes('upper-latin')) return 'upper-alpha';
+    if (style.includes('lower-alpha') || style.includes('lower-latin')) return 'lower-alpha';
+    if (style.includes('upper-roman')) return 'upper-roman';
+    if (style.includes('lower-roman')) return 'lower-roman';
+  }
+  
+  return 'decimal';
+}
+
+/**
  * Process DOM tree in document order, extracting blocks
  */
 function processNode(
   node: DomNode,
   blocks: FormattedBlock[],
-  listStack: ('bullet' | 'ordered')[],
+  listStack: ListContext[],
   insideBlock: FormattedBlock | null
 ): FormattedBlock | null {
   
@@ -257,7 +310,7 @@ function processNode(
       blocks.push(insideBlock);
       insideBlock = null;
     }
-    listStack.push('bullet');
+    listStack.push({ type: 'bullet' });
     for (const child of node.children || []) {
       insideBlock = processNode(child, blocks, listStack, insideBlock);
     }
@@ -271,7 +324,8 @@ function processNode(
       blocks.push(insideBlock);
       insideBlock = null;
     }
-    listStack.push('ordered');
+    const orderedStyle = parseOrderedListStyle(node.attribs);
+    listStack.push({ type: 'ordered', orderedStyle });
     for (const child of node.children || []) {
       insideBlock = processNode(child, blocks, listStack, insideBlock);
     }
@@ -305,11 +359,13 @@ function processNode(
     // (Skip empty parent bullets that only contain nested lists or whitespace)
     const hasContent = runs.some(run => run.text.trim().length > 0);
     if (hasContent) {
+      const currentList = listStack[listStack.length - 1];
       const listItem: FormattedBlock = {
         type: 'listItem',
         runs,
         listLevel: listStack.length - 1,
-        listType: listStack[listStack.length - 1] || 'bullet',
+        listType: currentList?.type || 'bullet',
+        orderedListStyle: currentList?.orderedStyle,
       };
       blocks.push(listItem);
     }
@@ -393,7 +449,7 @@ export function parseHtmlToBlocks(html: string): ParseResult {
 
   const dom = parseHtml(html);
   const blocks: FormattedBlock[] = [];
-  const listStack: ('bullet' | 'ordered')[] = [];
+  const listStack: ListContext[] = [];
   
   // Check if content starts with inline elements (no block wrapper)
   // If so, we need to bootstrap with a paragraph block
@@ -440,6 +496,7 @@ interface ListItemInfo {
   endIndex: number;
   listLevel: number;
   listType: 'bullet' | 'ordered';
+  orderedListStyle?: OrderedListStyle;
 }
 
 /**
@@ -449,6 +506,7 @@ interface ListRun {
   startIndex: number;
   endIndex: number;
   listType: 'bullet' | 'ordered';
+  orderedListStyle?: OrderedListStyle;
   items: ListItemInfo[];
 }
 
@@ -559,9 +617,12 @@ export function generateDocsRequests(
     } else if (block.type === 'listItem') {
       const listLevel = block.listLevel || 0;
       const listType = block.listType || 'bullet';
+      const orderedListStyle = block.orderedListStyle;
       
-      // Check if this continues the current list run (same list type)
-      if (currentListRun && currentListRun.listType === listType) {
+      // Check if this continues the current list run (same list type and style)
+      const sameListType = currentListRun !== null && currentListRun.listType === listType;
+      const sameOrderedStyle = currentListRun !== null && currentListRun.orderedListStyle === orderedListStyle;
+      if (currentListRun && sameListType && sameOrderedStyle) {
         // Extend the current run
         currentListRun.endIndex = blockEnd;
         currentListRun.items.push({
@@ -569,6 +630,7 @@ export function generateDocsRequests(
           endIndex: blockEnd,
           listLevel,
           listType,
+          orderedListStyle,
         });
       } else {
         // End previous run if exists
@@ -580,11 +642,13 @@ export function generateDocsRequests(
           startIndex: blockStart,
           endIndex: blockEnd,
           listType,
+          orderedListStyle,
           items: [{
             startIndex: blockStart,
             endIndex: blockEnd,
             listLevel,
             listType,
+            orderedListStyle,
           }],
         };
       }
@@ -627,12 +691,61 @@ export function generateDocsRequests(
   // Google Docs uses the LEADING TABS inserted above to determine nesting level
   // The tabs are consumed/removed when bullets are created
   for (const run of listRuns) {
+    let bulletPreset: string;
+    
+    if (run.listType === 'bullet') {
+      bulletPreset = 'BULLET_DISC_CIRCLE_SQUARE';
+    } else {
+      // Map ordered list style to Google Docs bulletPreset
+      // Google Docs API only provides these numbered list presets:
+      // - NUMBERED_DECIMAL_ALPHA_ROMAN: 1 → a → i
+      // - NUMBERED_DECIMAL_ALPHA_ROMAN_PARENS: 1) → a) → i)
+      // - NUMBERED_DECIMAL_NESTED: 1 → 1.1 → 1.1.1
+      // - NUMBERED_UPPERALPHA_ALPHA_ROMAN: A → a → i
+      // - NUMBERED_UPPERROMAN_UPPERALPHA_DECIMAL: I → A → 1
+      // - NUMBERED_ZERODECIMAL_ALPHA_ROMAN: 01 → a → i
+      //
+      // LIMITATION: There are no presets that start with lowercase letters (a, b, c)
+      // or lowercase roman numerals (i, ii, iii) at level 0. For those styles,
+      // we use the closest available preset. The editor will still display
+      // the correct style, but the Google Docs output will use a fallback.
+      switch (run.orderedListStyle) {
+        case 'upper-alpha':
+          // A → a → i (exact match)
+          bulletPreset = 'NUMBERED_UPPERALPHA_ALPHA_ROMAN';
+          break;
+        case 'lower-alpha':
+          // API limitation: no preset starts with lowercase alpha
+          // Using NUMBERED_UPPERALPHA_ALPHA_ROMAN as closest match (A → a → i)
+          // User will see A, B, C instead of a, b, c in generated doc
+          bulletPreset = 'NUMBERED_UPPERALPHA_ALPHA_ROMAN';
+          break;
+        case 'upper-roman':
+          // I → A → 1 (exact match)
+          bulletPreset = 'NUMBERED_UPPERROMAN_UPPERALPHA_DECIMAL';
+          break;
+        case 'lower-roman':
+          // API limitation: no preset starts with lowercase roman
+          // Using NUMBERED_UPPERROMAN_UPPERALPHA_DECIMAL as closest match (I → A → 1)
+          // User will see I, II, III instead of i, ii, iii in generated doc
+          bulletPreset = 'NUMBERED_UPPERROMAN_UPPERALPHA_DECIMAL';
+          break;
+        case 'zero-decimal':
+          // 01 → a → i (exact match)
+          bulletPreset = 'NUMBERED_ZERODECIMAL_ALPHA_ROMAN';
+          break;
+        case 'decimal':
+        default:
+          // 1 → a → i (exact match, backwards compatible default)
+          bulletPreset = 'NUMBERED_DECIMAL_ALPHA_ROMAN';
+          break;
+      }
+    }
+    
     requests.push({
       createParagraphBullets: {
         range: { startIndex: run.startIndex, endIndex: run.endIndex },
-        bulletPreset: run.listType === 'ordered' 
-          ? 'NUMBERED_DECIMAL_ALPHA_ROMAN' 
-          : 'BULLET_DISC_CIRCLE_SQUARE',
+        bulletPreset,
       },
     });
   }
