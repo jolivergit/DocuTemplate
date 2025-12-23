@@ -559,6 +559,12 @@ export function generateDocsRequests(
   const listRuns: ListRun[] = [];
   let currentListRun: ListRun | null = null;
   
+  // Stack to track suspended parent list runs when entering nested lists with different styles
+  // When we encounter a nested list (e.g., decimal items inside an upper-alpha list),
+  // we suspend the parent run and start a new one. When returning to the parent level/style,
+  // we resume the suspended run.
+  const suspendedListRuns: ListRun[] = [];
+  
   // Track paragraphs since last list run ended (for potential merge)
   let paragraphsSinceLastList: ParagraphInfo[] = [];
   let lastEndedListRun: ListRun | null = null; // The most recently ended list run
@@ -670,23 +676,39 @@ export function generateDocsRequests(
           listStartNumber,
         });
       } else {
-        // Check if this is a continuation of the last ended list run
-        // (list with start > 1 after some paragraphs, same type/style)
-        let mergedWithPrevious = false;
+        // Different list type/style - check if we're returning to a suspended parent list
+        // This handles cases like: A, B, C (upper-alpha) → 1,2,3,4,5 (decimal nested) → D,E,F,G (upper-alpha continues)
+        let resumedSuspended = false;
         
-        if (listStartNumber > 1 && lastEndedListRun !== null && paragraphsSinceLastList.length > 0) {
-          const prevRun: ListRun = lastEndedListRun; // Create explicit reference to narrow type
-          if (prevRun.listType === listType && prevRun.orderedListStyle === orderedListStyle) {
-            // Merge with the last ended list run
-            // Add the intervening paragraphs to the list run for bullet deletion later
-            if (!prevRun.interveningParagraphs) {
-              prevRun.interveningParagraphs = [];
+        // Look for a suspended run that matches this item's type and style
+        for (let i = suspendedListRuns.length - 1; i >= 0; i--) {
+          const suspended = suspendedListRuns[i];
+          if (suspended.listType === listType && suspended.orderedListStyle === orderedListStyle) {
+            // Found a matching suspended run - resume it
+            // First, finalize the current run (the nested list)
+            if (currentListRun) {
+              listRuns.push(currentListRun);
+              // Track the nested run as lastEndedListRun in case it needs continuation later
+              lastEndedListRun = currentListRun;
             }
-            prevRun.interveningParagraphs.push(...paragraphsSinceLastList);
             
-            // Extend the last ended list run
-            prevRun.endIndex = blockEnd;
-            prevRun.items.push({
+            // Resume the suspended run
+            currentListRun = suspended;
+            suspendedListRuns.splice(i, 1); // Remove from suspended stack
+            
+            // If there were paragraphs between the nested list and this resumption,
+            // attach them to the resumed run for bullet deletion
+            if (paragraphsSinceLastList.length > 0) {
+              if (!currentListRun.interveningParagraphs) {
+                currentListRun.interveningParagraphs = [];
+              }
+              currentListRun.interveningParagraphs.push(...paragraphsSinceLastList);
+              paragraphsSinceLastList = [];
+            }
+            
+            // Extend the resumed run with this item
+            currentListRun.endIndex = blockEnd;
+            currentListRun.items.push({
               startIndex: blockStart,
               endIndex: blockEnd,
               listLevel,
@@ -695,45 +717,78 @@ export function generateDocsRequests(
               listStartNumber,
             });
             
-            // Make this the current list run again (it might continue further)
-            currentListRun = prevRun;
-            // Remove it from listRuns since we're extending it
-            const idx = listRuns.indexOf(prevRun);
-            if (idx !== -1) {
-              listRuns.splice(idx, 1);
-            }
-            
-            // Clear tracking state
-            paragraphsSinceLastList = [];
-            lastEndedListRun = null;
-            mergedWithPrevious = true;
+            resumedSuspended = true;
+            break;
           }
         }
         
-        if (!mergedWithPrevious) {
-          // End previous run if exists
-          if (currentListRun) {
-            listRuns.push(currentListRun);
-            lastEndedListRun = currentListRun;
-          }
-          // Clear paragraph tracking since we're starting a new list
-          paragraphsSinceLastList = [];
+        if (!resumedSuspended) {
+          // Check if this is a continuation of the last ended list run
+          // (list with start > 1 after some paragraphs, same type/style)
+          let mergedWithPrevious = false;
           
-          // Start a new run
-          currentListRun = {
-            startIndex: blockStart,
-            endIndex: blockEnd,
-            listType,
-            orderedListStyle,
-            items: [{
+          if (listStartNumber > 1 && lastEndedListRun !== null && paragraphsSinceLastList.length > 0) {
+            const prevRun: ListRun = lastEndedListRun; // Create explicit reference to narrow type
+            if (prevRun.listType === listType && prevRun.orderedListStyle === orderedListStyle) {
+              // Merge with the last ended list run
+              // Add the intervening paragraphs to the list run for bullet deletion later
+              if (!prevRun.interveningParagraphs) {
+                prevRun.interveningParagraphs = [];
+              }
+              prevRun.interveningParagraphs.push(...paragraphsSinceLastList);
+              
+              // Extend the last ended list run
+              prevRun.endIndex = blockEnd;
+              prevRun.items.push({
+                startIndex: blockStart,
+                endIndex: blockEnd,
+                listLevel,
+                listType,
+                orderedListStyle,
+                listStartNumber,
+              });
+              
+              // Make this the current list run again (it might continue further)
+              currentListRun = prevRun;
+              // Remove it from listRuns since we're extending it
+              const idx = listRuns.indexOf(prevRun);
+              if (idx !== -1) {
+                listRuns.splice(idx, 1);
+              }
+              
+              // Clear tracking state
+              paragraphsSinceLastList = [];
+              lastEndedListRun = null;
+              mergedWithPrevious = true;
+            }
+          }
+          
+          if (!mergedWithPrevious) {
+            // Starting a genuinely new list - suspend current run if it exists
+            if (currentListRun) {
+              // Suspend the current run instead of finalizing it
+              // This allows us to resume it later if we return to the same type/style
+              suspendedListRuns.push(currentListRun);
+            }
+            // Clear paragraph tracking since we're starting a new list
+            paragraphsSinceLastList = [];
+            
+            // Start a new run
+            currentListRun = {
               startIndex: blockStart,
               endIndex: blockEnd,
-              listLevel,
               listType,
               orderedListStyle,
-              listStartNumber,
-            }],
-          };
+              items: [{
+                startIndex: blockStart,
+                endIndex: blockEnd,
+                listLevel,
+                listType,
+                orderedListStyle,
+                listStartNumber,
+              }],
+            };
+          }
         }
       }
     } else if (block.type === 'blockquote') {
@@ -782,6 +837,11 @@ export function generateDocsRequests(
   // Finalize any remaining list run
   if (currentListRun) {
     listRuns.push(currentListRun);
+  }
+  
+  // Also finalize any suspended runs (these are parent lists that never got resumed)
+  for (const suspended of suspendedListRuns) {
+    listRuns.push(suspended);
   }
 
   // DEBUG: Log list runs
