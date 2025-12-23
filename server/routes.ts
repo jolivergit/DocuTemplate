@@ -855,6 +855,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return fieldValueLookup.get(trimmedName) ?? match;
         });
 
+        // DEBUG: Log the content being processed for each tag
+        console.log(`\n========== Processing content tag: ${tagName} ==========`);
+        console.log(`Raw HTML content:\n${htmlContent}`);
+        console.log(`\nResolved HTML (after field substitution):\n${resolvedHtml}`);
+
         // Check if content has rich formatting that needs HTML-to-Docs conversion
         if (hasRichFormatting(resolvedHtml)) {
           // Get current document to find tag locations

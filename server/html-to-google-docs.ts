@@ -485,6 +485,19 @@ export function parseHtmlToBlocks(html: string): ParseResult {
     }
   }
   
+  // DEBUG: Log parsed blocks
+  console.log('\n--- Parsed Blocks ---');
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const text = block.runs.map(r => r.text).join('');
+    const preview = text.substring(0, 80).replace(/\n/g, '\\n');
+    if (block.type === 'listItem') {
+      console.log(`  [${i}] ${block.type} (level=${block.listLevel}, type=${block.listType}, style=${block.orderedListStyle}): "${preview}..."`);
+    } else {
+      console.log(`  [${i}] ${block.type}: "${preview}..."`);
+    }
+  }
+  
   return { blocks, plainText: plainText.trim() };
 }
 
@@ -684,6 +697,17 @@ export function generateDocsRequests(
   // Finalize any remaining list run
   if (currentListRun) {
     listRuns.push(currentListRun);
+  }
+
+  // DEBUG: Log list runs
+  console.log('\n--- List Runs (each becomes a separate numbered/bulleted list) ---');
+  for (let i = 0; i < listRuns.length; i++) {
+    const run = listRuns[i];
+    console.log(`  Run ${i}: type=${run.listType}, style=${run.orderedListStyle}, items=${run.items.length}, range=[${run.startIndex}-${run.endIndex}]`);
+    for (let j = 0; j < run.items.length; j++) {
+      const item = run.items[j];
+      console.log(`    Item ${j}: level=${item.listLevel}, range=[${item.startIndex}-${item.endIndex}]`);
+    }
   }
 
   // Second pass: Create bullets for each list run (ONE call per contiguous run)
