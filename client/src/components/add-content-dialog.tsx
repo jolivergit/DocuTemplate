@@ -134,7 +134,7 @@ export function AddContentDialog({ open, onOpenChange, categories, snippet }: Ad
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col" data-testid="dialog-add-content">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col" data-testid="dialog-add-content">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle data-testid="text-add-content-title">
             {isEditing ? "Edit Content Snippet" : "Add Content Snippet"}

@@ -108,7 +108,7 @@ export function RichTextEditor({
   return (
     <div
       className={cn(
-        "rounded-md border border-input bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 max-h-[400px] overflow-y-auto",
+        "rounded-md border border-input bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
         className
       )}
       data-testid={testId}
