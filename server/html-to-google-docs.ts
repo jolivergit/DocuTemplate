@@ -23,6 +23,7 @@ interface FormattedBlock {
   listLevel?: number;
   listType?: 'bullet' | 'ordered';
   orderedListStyle?: OrderedListStyle;
+  listStartNumber?: number; // For ordered lists, the start number (1 = default, >1 means continuation)
 }
 
 interface ParseResult {
@@ -228,6 +229,7 @@ function extractBlockChildrenRuns(children: DomNode[], defaultState: FormatState
 interface ListContext {
   type: 'bullet' | 'ordered';
   orderedStyle?: OrderedListStyle;
+  startNumber?: number; // For ordered lists, what number to start from (1 = default)
 }
 
 /**
@@ -325,7 +327,10 @@ function processNode(
       insideBlock = null;
     }
     const orderedStyle = parseOrderedListStyle(node.attribs);
-    listStack.push({ type: 'ordered', orderedStyle });
+    // Parse start attribute for list continuation
+    const startAttr = node.attribs?.['start'];
+    const startNumber = startAttr ? parseInt(startAttr, 10) : 1;
+    listStack.push({ type: 'ordered', orderedStyle, startNumber });
     for (const child of node.children || []) {
       insideBlock = processNode(child, blocks, listStack, insideBlock);
     }
@@ -366,6 +371,7 @@ function processNode(
         listLevel: listStack.length - 1,
         listType: currentList?.type || 'bullet',
         orderedListStyle: currentList?.orderedStyle,
+        listStartNumber: currentList?.startNumber,
       };
       blocks.push(listItem);
     }
@@ -492,7 +498,8 @@ export function parseHtmlToBlocks(html: string): ParseResult {
     const text = block.runs.map(r => r.text).join('');
     const preview = text.substring(0, 80).replace(/\n/g, '\\n');
     if (block.type === 'listItem') {
-      console.log(`  [${i}] ${block.type} (level=${block.listLevel}, type=${block.listType}, style=${block.orderedListStyle}): "${preview}..."`);
+      const startInfo = block.listStartNumber && block.listStartNumber > 1 ? `, start=${block.listStartNumber}` : '';
+      console.log(`  [${i}] ${block.type} (level=${block.listLevel}, type=${block.listType}, style=${block.orderedListStyle}${startInfo}): "${preview}..."`);
     } else {
       console.log(`  [${i}] ${block.type}: "${preview}..."`);
     }
@@ -510,6 +517,15 @@ interface ListItemInfo {
   listLevel: number;
   listType: 'bullet' | 'ordered';
   orderedListStyle?: OrderedListStyle;
+  listStartNumber?: number; // For detecting continuations
+}
+
+/**
+ * Track paragraph positions for bullet deletion after merge
+ */
+interface ParagraphInfo {
+  startIndex: number;
+  endIndex: number;
 }
 
 /**
@@ -521,6 +537,7 @@ interface ListRun {
   listType: 'bullet' | 'ordered';
   orderedListStyle?: OrderedListStyle;
   items: ListItemInfo[];
+  interveningParagraphs?: ParagraphInfo[]; // Paragraphs between merged list segments
 }
 
 /**
@@ -541,6 +558,10 @@ export function generateDocsRequests(
   // Track list runs for batched bullet creation
   const listRuns: ListRun[] = [];
   let currentListRun: ListRun | null = null;
+  
+  // Track paragraphs since last list run ended (for potential merge)
+  let paragraphsSinceLastList: ParagraphInfo[] = [];
+  let lastEndedListRun: ListRun | null = null; // The most recently ended list run
 
   // First pass: Insert all text (with leading tabs for list items), apply text styles, and track list positions
   for (let blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
@@ -631,10 +652,12 @@ export function generateDocsRequests(
       const listLevel = block.listLevel || 0;
       const listType = block.listType || 'bullet';
       const orderedListStyle = block.orderedListStyle;
+      const listStartNumber = block.listStartNumber || 1;
       
       // Check if this continues the current list run (same list type and style)
       const sameListType = currentListRun !== null && currentListRun.listType === listType;
       const sameOrderedStyle = currentListRun !== null && currentListRun.orderedListStyle === orderedListStyle;
+      
       if (currentListRun && sameListType && sameOrderedStyle) {
         // Extend the current run
         currentListRun.endIndex = blockEnd;
@@ -644,33 +667,85 @@ export function generateDocsRequests(
           listLevel,
           listType,
           orderedListStyle,
+          listStartNumber,
         });
       } else {
-        // End previous run if exists
-        if (currentListRun) {
-          listRuns.push(currentListRun);
+        // Check if this is a continuation of the last ended list run
+        // (list with start > 1 after some paragraphs, same type/style)
+        let mergedWithPrevious = false;
+        
+        if (listStartNumber > 1 && lastEndedListRun !== null && paragraphsSinceLastList.length > 0) {
+          const prevRun: ListRun = lastEndedListRun; // Create explicit reference to narrow type
+          if (prevRun.listType === listType && prevRun.orderedListStyle === orderedListStyle) {
+            // Merge with the last ended list run
+            // Add the intervening paragraphs to the list run for bullet deletion later
+            if (!prevRun.interveningParagraphs) {
+              prevRun.interveningParagraphs = [];
+            }
+            prevRun.interveningParagraphs.push(...paragraphsSinceLastList);
+            
+            // Extend the last ended list run
+            prevRun.endIndex = blockEnd;
+            prevRun.items.push({
+              startIndex: blockStart,
+              endIndex: blockEnd,
+              listLevel,
+              listType,
+              orderedListStyle,
+              listStartNumber,
+            });
+            
+            // Make this the current list run again (it might continue further)
+            currentListRun = prevRun;
+            // Remove it from listRuns since we're extending it
+            const idx = listRuns.indexOf(prevRun);
+            if (idx !== -1) {
+              listRuns.splice(idx, 1);
+            }
+            
+            // Clear tracking state
+            paragraphsSinceLastList = [];
+            lastEndedListRun = null;
+            mergedWithPrevious = true;
+          }
         }
-        // Start a new run
-        currentListRun = {
-          startIndex: blockStart,
-          endIndex: blockEnd,
-          listType,
-          orderedListStyle,
-          items: [{
+        
+        if (!mergedWithPrevious) {
+          // End previous run if exists
+          if (currentListRun) {
+            listRuns.push(currentListRun);
+            lastEndedListRun = currentListRun;
+          }
+          // Clear paragraph tracking since we're starting a new list
+          paragraphsSinceLastList = [];
+          
+          // Start a new run
+          currentListRun = {
             startIndex: blockStart,
             endIndex: blockEnd,
-            listLevel,
             listType,
             orderedListStyle,
-          }],
-        };
+            items: [{
+              startIndex: blockStart,
+              endIndex: blockEnd,
+              listLevel,
+              listType,
+              orderedListStyle,
+              listStartNumber,
+            }],
+          };
+        }
       }
     } else if (block.type === 'blockquote') {
       // End any current list run
       if (currentListRun) {
         listRuns.push(currentListRun);
+        lastEndedListRun = currentListRun;
         currentListRun = null;
       }
+      // Clear paragraph tracking - blockquotes break list continuation
+      paragraphsSinceLastList = [];
+      lastEndedListRun = null;
       
       requests.push({
         updateParagraphStyle: {
@@ -683,10 +758,20 @@ export function generateDocsRequests(
         },
       });
     } else {
-      // Regular paragraph - end any current list run
+      // Regular paragraph - end any current list run and track the paragraph
       if (currentListRun) {
         listRuns.push(currentListRun);
+        lastEndedListRun = currentListRun;
         currentListRun = null;
+        paragraphsSinceLastList = []; // Reset since we just ended a list
+      }
+      
+      // Track this paragraph in case we need to merge with a continuation list
+      if (lastEndedListRun) {
+        paragraphsSinceLastList.push({
+          startIndex: blockStart,
+          endIndex: blockEnd,
+        });
       }
     }
 
@@ -706,7 +791,13 @@ export function generateDocsRequests(
     console.log(`  Run ${i}: type=${run.listType}, style=${run.orderedListStyle}, items=${run.items.length}, range=[${run.startIndex}-${run.endIndex}]`);
     for (let j = 0; j < run.items.length; j++) {
       const item = run.items[j];
-      console.log(`    Item ${j}: level=${item.listLevel}, range=[${item.startIndex}-${item.endIndex}]`);
+      console.log(`    Item ${j}: level=${item.listLevel}, start=${item.listStartNumber || 1}, range=[${item.startIndex}-${item.endIndex}]`);
+    }
+    if (run.interveningParagraphs && run.interveningParagraphs.length > 0) {
+      console.log(`    Intervening paragraphs to de-bullet: ${run.interveningParagraphs.length}`);
+      for (const p of run.interveningParagraphs) {
+        console.log(`      Para: range=[${p.startIndex}-${p.endIndex}]`);
+      }
     }
   }
 
@@ -750,6 +841,18 @@ export function generateDocsRequests(
         bulletPreset,
       },
     });
+    
+    // Delete bullets from intervening paragraphs (they got bullets from createParagraphBullets
+    // because they're in the range, but they shouldn't have bullets)
+    if (run.interveningParagraphs && run.interveningParagraphs.length > 0) {
+      for (const para of run.interveningParagraphs) {
+        requests.push({
+          deleteParagraphBullets: {
+            range: { startIndex: para.startIndex, endIndex: para.endIndex },
+          },
+        });
+      }
+    }
   }
 
   // Subtract tabs from insertedLength since they are consumed by createParagraphBullets
