@@ -108,12 +108,12 @@ export function RichTextEditor({
   return (
     <div
       className={cn(
-        "rounded-md border border-input bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+        "rounded-md border border-input bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 max-h-[400px] overflow-y-auto",
         className
       )}
       data-testid={testId}
     >
-      <div className="flex items-center gap-1 border-b p-1">
+      <div className="sticky top-0 z-10 flex items-center gap-1 border-b bg-background p-1 rounded-t-md">
         <Button
           type="button"
           variant="ghost"
