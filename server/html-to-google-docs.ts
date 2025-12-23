@@ -764,11 +764,22 @@ export function generateDocsRequests(
           }
           
           if (!mergedWithPrevious) {
-            // Starting a genuinely new list - suspend current run if it exists
+            // Starting a new list - check if this is a nested list or a sibling/new list
             if (currentListRun) {
-              // Suspend the current run instead of finalizing it
-              // This allows us to resume it later if we return to the same type/style
-              suspendedListRuns.push(currentListRun);
+              // Get the last item's level from the current run to determine nesting
+              const lastItemLevel = currentListRun.items.length > 0 
+                ? currentListRun.items[currentListRun.items.length - 1].listLevel 
+                : 0;
+              
+              if (listLevel > lastItemLevel) {
+                // This is a genuinely NESTED list (deeper level) - suspend the parent run
+                // This allows us to resume it later when we return to the parent level
+                suspendedListRuns.push(currentListRun);
+              } else {
+                // Same level or shallower - this is a NEW unrelated list, finalize the current run
+                listRuns.push(currentListRun);
+                lastEndedListRun = currentListRun;
+              }
             }
             // Clear paragraph tracking since we're starting a new list
             paragraphsSinceLastList = [];
