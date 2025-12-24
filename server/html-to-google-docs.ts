@@ -568,11 +568,6 @@ export function generateDocsRequests(
   // Track paragraphs since last list run ended (for potential merge)
   let paragraphsSinceLastList: ParagraphInfo[] = [];
   let lastEndedListRun: ListRun | null = null; // The most recently ended list run
-  
-  // Track the current list style to compute effective nesting level
-  // When list style changes, the new items should be at level 0 of their own list
-  let currentListStyle: { listType: 'bullet' | 'ordered'; orderedListStyle?: string } | null = null;
-  let baseLevel = 0; // The HTML level at which the current list style started
 
   // First pass: Insert all text (with leading tabs for list items), apply text styles, and track list positions
   for (let blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
@@ -584,35 +579,11 @@ export function generateDocsRequests(
     
     // For list items, prepend tab characters based on nesting level
     // Google Docs uses these leading tabs to determine nesting when createParagraphBullets is called
-    // BUT: when list style changes (e.g., parent is upper-alpha, nested is decimal),
-    // the nested items should be at level 0 of their NEW list, not level 1 of the parent
     if (block.type === 'listItem') {
       const listLevel = block.listLevel || 0;
-      const listType = block.listType || 'bullet';
-      const orderedListStyle = block.orderedListStyle;
-      
-      // Check if this is a different list style than current
-      const sameStyle = currentListStyle !== null && 
-                        currentListStyle.listType === listType && 
-                        currentListStyle.orderedListStyle === orderedListStyle;
-      
-      if (!sameStyle) {
-        // New list style - reset base level
-        currentListStyle = { listType, orderedListStyle };
-        baseLevel = listLevel;
-      }
-      
-      // Compute effective level within current list (relative to base)
-      const effectiveLevel = listLevel - baseLevel;
-      const tabCount = Math.max(0, effectiveLevel);
-      
-      tabPrefix = '\t'.repeat(tabCount);
+      tabPrefix = '\t'.repeat(listLevel);
       blockText = tabPrefix;
-      totalTabsInserted += tabCount; // Track tabs for later subtraction
-    } else {
-      // Non-list item - reset list style tracking
-      currentListStyle = null;
-      baseLevel = 0;
+      totalTabsInserted += listLevel; // Track tabs for later subtraction
     }
     
     for (const run of block.runs) {
@@ -885,11 +856,88 @@ export function generateDocsRequests(
   }
 
   // Sort list runs by startIndex so parent/outer runs are processed before nested/inner runs
-  // This ensures parent bullets are created first, then nested bullets override the correct portions
+  listRuns.sort((a, b) => a.startIndex - b.startIndex);
+
+  // Split overlapping runs into non-overlapping segments
+  // This prevents createParagraphBullets from overriding each other
+  // E.g., if run A [100-500] contains run B [200-300], split A into [100-200] and [300-500]
+  const splitRuns: ListRun[] = [];
+  
+  for (const run of listRuns) {
+    // Find all runs that are INSIDE this run (nested with different style)
+    const nestedRuns = listRuns.filter(other => 
+      other !== run &&
+      other.startIndex >= run.startIndex &&
+      other.endIndex <= run.endIndex &&
+      (other.listType !== run.listType || other.orderedListStyle !== run.orderedListStyle)
+    );
+    
+    if (nestedRuns.length === 0) {
+      // No nested runs with different styles - keep as is
+      splitRuns.push(run);
+    } else {
+      // Sort nested runs by startIndex
+      nestedRuns.sort((a, b) => a.startIndex - b.startIndex);
+      
+      // Split the parent run around the nested runs
+      let currentStart = run.startIndex;
+      const parentItems = [...run.items];
+      
+      for (const nested of nestedRuns) {
+        // Create segment BEFORE the nested run (if there are items there)
+        if (currentStart < nested.startIndex) {
+          const segmentItems = parentItems.filter(item => 
+            item.startIndex >= currentStart && item.endIndex <= nested.startIndex
+          );
+          if (segmentItems.length > 0) {
+            splitRuns.push({
+              startIndex: currentStart,
+              endIndex: nested.startIndex,
+              listType: run.listType,
+              orderedListStyle: run.orderedListStyle,
+              items: segmentItems,
+              interveningParagraphs: run.interveningParagraphs?.filter(p =>
+                p.startIndex >= currentStart && p.endIndex <= nested.startIndex
+              ),
+            });
+          }
+        }
+        
+        // Add the nested run itself (it will be added when we process it)
+        // Move current position past the nested run
+        currentStart = nested.endIndex;
+      }
+      
+      // Create segment AFTER all nested runs (if there are items there)
+      if (currentStart < run.endIndex) {
+        const segmentItems = parentItems.filter(item => 
+          item.startIndex >= currentStart && item.endIndex <= run.endIndex
+        );
+        if (segmentItems.length > 0) {
+          splitRuns.push({
+            startIndex: currentStart,
+            endIndex: run.endIndex,
+            listType: run.listType,
+            orderedListStyle: run.orderedListStyle,
+            items: segmentItems,
+            interveningParagraphs: run.interveningParagraphs?.filter(p =>
+              p.startIndex >= currentStart && p.endIndex <= run.endIndex
+            ),
+          });
+        }
+      }
+    }
+  }
+  
+  // Replace listRuns with splitRuns
+  listRuns.length = 0;
+  listRuns.push(...splitRuns);
+  
+  // Re-sort after splitting
   listRuns.sort((a, b) => a.startIndex - b.startIndex);
 
   // DEBUG: Log list runs
-  console.log('\n--- List Runs (sorted by startIndex, each becomes a separate numbered/bulleted list) ---');
+  console.log('\n--- List Runs (split to avoid overlaps, each becomes a separate numbered/bulleted list) ---');
   for (let i = 0; i < listRuns.length; i++) {
     const run = listRuns[i];
     console.log(`  Run ${i}: type=${run.listType}, style=${run.orderedListStyle}, items=${run.items.length}, range=[${run.startIndex}-${run.endIndex}]`);
