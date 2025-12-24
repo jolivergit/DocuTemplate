@@ -855,8 +855,12 @@ export function generateDocsRequests(
     listRuns.push(suspended);
   }
 
+  // Sort list runs by startIndex so parent/outer runs are processed before nested/inner runs
+  // This ensures parent bullets are created first, then nested bullets override the correct portions
+  listRuns.sort((a, b) => a.startIndex - b.startIndex);
+
   // DEBUG: Log list runs
-  console.log('\n--- List Runs (each becomes a separate numbered/bulleted list) ---');
+  console.log('\n--- List Runs (sorted by startIndex, each becomes a separate numbered/bulleted list) ---');
   for (let i = 0; i < listRuns.length; i++) {
     const run = listRuns[i];
     console.log(`  Run ${i}: type=${run.listType}, style=${run.orderedListStyle}, items=${run.items.length}, range=[${run.startIndex}-${run.endIndex}]`);
