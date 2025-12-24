@@ -538,6 +538,7 @@ interface ListRun {
   orderedListStyle?: OrderedListStyle;
   items: ListItemInfo[];
   interveningParagraphs?: ParagraphInfo[]; // Paragraphs between merged list segments
+  levelStyles?: Map<number, OrderedListStyle | undefined>; // Per-level glyph styles for nested lists with different styles
 }
 
 /**
@@ -549,7 +550,7 @@ interface ListRun {
 export function generateDocsRequests(
   blocks: FormattedBlock[],
   startIndex: number
-): { requests: any[]; insertedLength: number } {
+): { requests: any[]; insertedLength: number; listRuns: ListRun[] } {
   const requests: any[] = [];
   let currentIndex = startIndex;
   let insertedLength = 0;
@@ -857,90 +858,86 @@ export function generateDocsRequests(
 
   // Sort list runs by startIndex so parent/outer runs are processed before nested/inner runs
   listRuns.sort((a, b) => a.startIndex - b.startIndex);
-
-  // Split overlapping runs into non-overlapping segments
-  // This prevents createParagraphBullets from overriding each other
-  // E.g., if run A [100-500] contains run B [200-300], split A into [100-200] and [300-500]
-  const splitRuns: ListRun[] = [];
   
-  for (const run of listRuns) {
-    // Find all runs that are INSIDE this run (nested with different style)
-    const nestedRuns = listRuns.filter(other => 
-      other !== run &&
-      other.startIndex >= run.startIndex &&
-      other.endIndex <= run.endIndex &&
-      (other.listType !== run.listType || other.orderedListStyle !== run.orderedListStyle)
-    );
+  // Merge nested runs with different styles INTO the parent run as sub-level items
+  // This ensures a single createParagraphBullets call covers the entire list,
+  // and we'll use updateList to set per-level glyph styles afterward
+  const mergedRuns: ListRun[] = [];
+  const processedIndices = new Set<number>();
+  
+  for (let i = 0; i < listRuns.length; i++) {
+    if (processedIndices.has(i)) continue;
     
-    if (nestedRuns.length === 0) {
-      // No nested runs with different styles - keep as is
-      splitRuns.push(run);
+    const parentRun = listRuns[i];
+    
+    // Find all runs that are INSIDE this run (nested with different style)
+    const nestedIndices: number[] = [];
+    for (let j = 0; j < listRuns.length; j++) {
+      if (i === j) continue;
+      const other = listRuns[j];
+      if (other.startIndex >= parentRun.startIndex &&
+          other.endIndex <= parentRun.endIndex) {
+        nestedIndices.push(j);
+      }
+    }
+    
+    if (nestedIndices.length === 0) {
+      // No nested runs - keep as is
+      mergedRuns.push(parentRun);
+      processedIndices.add(i);
     } else {
-      // Sort nested runs by startIndex
-      nestedRuns.sort((a, b) => a.startIndex - b.startIndex);
+      // Merge nested runs into parent
+      // The parent run's style applies to level 0
+      // Nested runs' styles apply to their respective levels
+      const mergedItems = [...parentRun.items];
+      const levelStyles: Map<number, OrderedListStyle | undefined> = new Map();
+      levelStyles.set(0, parentRun.orderedListStyle);
       
-      // Split the parent run around the nested runs
-      let currentStart = run.startIndex;
-      const parentItems = [...run.items];
-      
-      for (const nested of nestedRuns) {
-        // Create segment BEFORE the nested run (if there are items there)
-        if (currentStart < nested.startIndex) {
-          const segmentItems = parentItems.filter(item => 
-            item.startIndex >= currentStart && item.endIndex <= nested.startIndex
-          );
-          if (segmentItems.length > 0) {
-            splitRuns.push({
-              startIndex: currentStart,
-              endIndex: nested.startIndex,
-              listType: run.listType,
-              orderedListStyle: run.orderedListStyle,
-              items: segmentItems,
-              interveningParagraphs: run.interveningParagraphs?.filter(p =>
-                p.startIndex >= currentStart && p.endIndex <= nested.startIndex
-              ),
-            });
-          }
+      for (const nestedIdx of nestedIndices) {
+        const nestedRun = listRuns[nestedIdx];
+        // Add nested items to merged list
+        for (const item of nestedRun.items) {
+          mergedItems.push(item);
+          // Track the style for this nesting level
+          levelStyles.set(item.listLevel, nestedRun.orderedListStyle);
         }
-        
-        // Add the nested run itself (it will be added when we process it)
-        // Move current position past the nested run
-        currentStart = nested.endIndex;
+        processedIndices.add(nestedIdx);
       }
       
-      // Create segment AFTER all nested runs (if there are items there)
-      if (currentStart < run.endIndex) {
-        const segmentItems = parentItems.filter(item => 
-          item.startIndex >= currentStart && item.endIndex <= run.endIndex
-        );
-        if (segmentItems.length > 0) {
-          splitRuns.push({
-            startIndex: currentStart,
-            endIndex: run.endIndex,
-            listType: run.listType,
-            orderedListStyle: run.orderedListStyle,
-            items: segmentItems,
-            interveningParagraphs: run.interveningParagraphs?.filter(p =>
-              p.startIndex >= currentStart && p.endIndex <= run.endIndex
-            ),
-          });
-        }
-      }
+      // Sort merged items by startIndex
+      mergedItems.sort((a, b) => a.startIndex - b.startIndex);
+      
+      // Create merged run with level-specific style info
+      const mergedRun: ListRun = {
+        startIndex: parentRun.startIndex,
+        endIndex: parentRun.endIndex,
+        listType: parentRun.listType,
+        orderedListStyle: parentRun.orderedListStyle, // Primary style for level 0
+        items: mergedItems,
+        interveningParagraphs: parentRun.interveningParagraphs,
+        levelStyles: levelStyles,
+      };
+      
+      mergedRuns.push(mergedRun);
+      processedIndices.add(i);
     }
   }
   
-  // Replace listRuns with splitRuns
+  // Replace listRuns with mergedRuns
   listRuns.length = 0;
-  listRuns.push(...splitRuns);
+  listRuns.push(...mergedRuns);
   
-  // Re-sort after splitting
+  // Re-sort after merging
   listRuns.sort((a, b) => a.startIndex - b.startIndex);
 
   // DEBUG: Log list runs
-  console.log('\n--- List Runs (split to avoid overlaps, each becomes a separate numbered/bulleted list) ---');
+  console.log('\n--- List Runs (merged for single createParagraphBullets call) ---');
   for (let i = 0; i < listRuns.length; i++) {
     const run = listRuns[i];
     console.log(`  Run ${i}: type=${run.listType}, style=${run.orderedListStyle}, items=${run.items.length}, range=[${run.startIndex}-${run.endIndex}]`);
+    if (run.levelStyles) {
+      console.log(`    Level styles: ${JSON.stringify(Array.from(run.levelStyles.entries()))}`);
+    }
     for (let j = 0; j < run.items.length; j++) {
       const item = run.items[j];
       console.log(`    Item ${j}: level=${item.listLevel}, start=${item.listStartNumber || 1}, range=[${item.startIndex}-${item.endIndex}]`);
@@ -1014,7 +1011,7 @@ export function generateDocsRequests(
   // This ensures callers have the correct final content length after bullet creation
   const finalInsertedLength = insertedLength - totalTabsInserted;
 
-  return { requests, insertedLength: finalInsertedLength };
+  return { requests, insertedLength: finalInsertedLength, listRuns };
 }
 
 /**
@@ -1023,10 +1020,10 @@ export function generateDocsRequests(
 export function htmlToGoogleDocsRequests(
   html: string,
   startIndex: number
-): { requests: any[]; insertedLength: number; plainText: string } {
+): { requests: any[]; insertedLength: number; plainText: string; listRuns: ListRun[] } {
   const { blocks, plainText } = parseHtmlToBlocks(html);
-  const { requests, insertedLength } = generateDocsRequests(blocks, startIndex);
-  return { requests, insertedLength, plainText };
+  const { requests, insertedLength, listRuns } = generateDocsRequests(blocks, startIndex);
+  return { requests, insertedLength, plainText, listRuns };
 }
 
 /**

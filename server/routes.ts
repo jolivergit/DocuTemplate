@@ -897,7 +897,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           for (const location of tagLocations) {
             // Generate the formatted content insertion requests using htmlToGoogleDocsRequests
-            const { requests: formatRequests } = htmlToGoogleDocsRequests(resolvedHtml, location.startIndex);
+            const { requests: formatRequests, listRuns } = htmlToGoogleDocsRequests(resolvedHtml, location.startIndex);
 
             // Build batch: delete tag first, then insert formatted content
             const batchRequests: any[] = [
@@ -913,10 +913,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ];
 
             // Apply the batch update for this tag occurrence
-            await docs.documents.batchUpdate({
+            const batchResult = await docs.documents.batchUpdate({
               documentId: newDocId,
               requestBody: { requests: batchRequests },
             });
+            
+            // Check if any list runs have per-level styles that need to be applied via updateList
+            // This is required when parent and nested lists have different numbering styles
+            // (e.g., parent uses A,B,C and nested uses 1,2,3)
+            const runsWithLevelStyles = listRuns.filter(run => run.levelStyles && run.levelStyles.size > 0);
+            
+            if (runsWithLevelStyles.length > 0) {
+              // Get the updated document to find listIds created by createParagraphBullets
+              const updatedDoc = await docs.documents.get({ documentId: newDocId });
+              const docBody = updatedDoc.data.body?.content || [];
+              
+              // For each list run with level styles, find the listId and apply updateList
+              for (const run of runsWithLevelStyles) {
+                if (!run.levelStyles) continue;
+                
+                // Find the listId for paragraphs in this range
+                let foundListId: string | null = null;
+                for (const element of docBody) {
+                  if (element.paragraph?.bullet?.listId) {
+                    const startIdx = element.startIndex || 0;
+                    // Check if this paragraph is in our run's range
+                    if (startIdx >= run.startIndex && startIdx < run.endIndex) {
+                      foundListId = element.paragraph.bullet.listId;
+                      break;
+                    }
+                  }
+                }
+                
+                if (foundListId) {
+                  console.log(`  Found listId ${foundListId} for run [${run.startIndex}-${run.endIndex}]`);
+                  const levelStylesArray = Array.from(run.levelStyles.entries());
+                  console.log(`  Applying level styles:`, levelStylesArray);
+                  
+                  // Build updateList request to set glyph types per level
+                  const listUpdateRequests: any[] = [];
+                  
+                  for (const [level, style] of levelStylesArray) {
+                    // Map style to Google Docs glyphType
+                    let glyphType: string;
+                    let glyphFormat: string;
+                    
+                    switch (style) {
+                      case 'upper-alpha':
+                        glyphType = 'ALPHA';  // Google Docs uses ALPHA which is uppercase
+                        glyphFormat = '%0.';
+                        break;
+                      case 'lower-alpha':
+                        glyphType = 'ALPHA';
+                        glyphFormat = '%0.';
+                        break;
+                      case 'upper-roman':
+                        glyphType = 'ROMAN';  // Uppercase roman
+                        glyphFormat = '%0.';
+                        break;
+                      case 'lower-roman':
+                        glyphType = 'ROMAN';
+                        glyphFormat = '%0.';
+                        break;
+                      case 'zero-decimal':
+                        glyphType = 'ZERO_DECIMAL';
+                        glyphFormat = '%0.';
+                        break;
+                      case 'decimal':
+                      default:
+                        glyphType = 'DECIMAL';
+                        glyphFormat = '%0.';
+                        break;
+                    }
+                    
+                    listUpdateRequests.push({
+                      updateListProperties: {
+                        listId: foundListId,
+                        listProperties: {
+                          nestingLevels: {
+                            [level]: {
+                              glyphType,
+                              glyphFormat,
+                            },
+                          },
+                        },
+                        fields: `nestingLevels.${level}.glyphType,nestingLevels.${level}.glyphFormat`,
+                      },
+                    });
+                    
+                    console.log(`    Level ${level}: ${style} → glyphType=${glyphType}`);
+                  }
+                  
+                  if (listUpdateRequests.length > 0) {
+                    await docs.documents.batchUpdate({
+                      documentId: newDocId,
+                      requestBody: { requests: listUpdateRequests },
+                    });
+                  }
+                }
+              }
+            }
           }
         } else {
           // No rich formatting, use simple replaceAllText
