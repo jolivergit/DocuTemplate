@@ -880,6 +880,7 @@ export function generateDocsRequests(
   // This ensures all items in a run share the same listId
   // Google Docs uses the LEADING TABS inserted above to determine nesting level
   // The tabs are consumed/removed when bullets are created
+  console.log('\n--- Creating Bullet Requests ---');
   for (const run of listRuns) {
     let bulletPreset: string;
     
@@ -909,6 +910,8 @@ export function generateDocsRequests(
           break;
       }
     }
+    
+    console.log(`  Creating bullets: style=${run.orderedListStyle} → preset=${bulletPreset}, range=[${run.startIndex}-${run.endIndex}]`);
     
     requests.push({
       createParagraphBullets: {
