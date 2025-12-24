@@ -568,6 +568,11 @@ export function generateDocsRequests(
   // Track paragraphs since last list run ended (for potential merge)
   let paragraphsSinceLastList: ParagraphInfo[] = [];
   let lastEndedListRun: ListRun | null = null; // The most recently ended list run
+  
+  // Track the current list style to compute effective nesting level
+  // When list style changes, the new items should be at level 0 of their own list
+  let currentListStyle: { listType: 'bullet' | 'ordered'; orderedListStyle?: string } | null = null;
+  let baseLevel = 0; // The HTML level at which the current list style started
 
   // First pass: Insert all text (with leading tabs for list items), apply text styles, and track list positions
   for (let blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
@@ -579,11 +584,35 @@ export function generateDocsRequests(
     
     // For list items, prepend tab characters based on nesting level
     // Google Docs uses these leading tabs to determine nesting when createParagraphBullets is called
+    // BUT: when list style changes (e.g., parent is upper-alpha, nested is decimal),
+    // the nested items should be at level 0 of their NEW list, not level 1 of the parent
     if (block.type === 'listItem') {
       const listLevel = block.listLevel || 0;
-      tabPrefix = '\t'.repeat(listLevel);
+      const listType = block.listType || 'bullet';
+      const orderedListStyle = block.orderedListStyle;
+      
+      // Check if this is a different list style than current
+      const sameStyle = currentListStyle !== null && 
+                        currentListStyle.listType === listType && 
+                        currentListStyle.orderedListStyle === orderedListStyle;
+      
+      if (!sameStyle) {
+        // New list style - reset base level
+        currentListStyle = { listType, orderedListStyle };
+        baseLevel = listLevel;
+      }
+      
+      // Compute effective level within current list (relative to base)
+      const effectiveLevel = listLevel - baseLevel;
+      const tabCount = Math.max(0, effectiveLevel);
+      
+      tabPrefix = '\t'.repeat(tabCount);
       blockText = tabPrefix;
-      totalTabsInserted += listLevel; // Track tabs for later subtraction
+      totalTabsInserted += tabCount; // Track tabs for later subtraction
+    } else {
+      // Non-list item - reset list style tracking
+      currentListStyle = null;
+      baseLevel = 0;
     }
     
     for (const run of block.runs) {
