@@ -10,6 +10,30 @@ Users can manage reusable content snippets and field values, map them to templat
 ## Project Status
 **MVP Complete** - All core features implemented and tested
 
+## Planned Next Steps (December 24, 2025)
+
+### Nested List Style Customization
+**Problem:** Google Docs API presets force all nesting levels to use the same style hierarchy. For example, `UPPERALPHA_ALPHA_ROMAN` gives A→a→i, but users may want A→1→i (parent uppercase alpha, nested decimal).
+
+**Current behavior:** Nested lists inherit the preset's level hierarchy (e.g., nested items show a,b,c instead of 1,2,3).
+
+**Planned solution:**
+1. **Detect style mismatch:** When parsing HTML, check if parent and nested list items have different styles (e.g., parent=upper-alpha, nested=decimal)
+2. **Split into separate lists:** Create parent items as one list with UPPERALPHA preset, nested items as a separate list with DECIMAL preset
+3. **Apply visual indentation:** Use `updateParagraphStyle` to indent nested items so they visually appear nested
+4. **Preserve simple content:** Only apply this logic when styles differ; otherwise use existing single-list approach
+
+**Files to modify:**
+- `server/html-to-google-docs.ts` - Update `groupListRuns()` to split runs by style mismatch
+- `server/routes.ts` - Add indentation styling for separated nested lists
+
+**API constraint:** Google Docs API has no `updateListProperties` request, so per-level glyph customization after list creation is impossible. The separate-lists approach is the workaround.
+
+## Recent Changes (December 24, 2025)
+- **Fixed document generation error:** Removed unsupported `updateListProperties` API calls that were causing 400 errors
+- **Discovered API limitation:** Google Docs API presets define all nesting level styles together; individual level customization not supported
+- **Merged nested list runs:** Nested items now merge into parent runs with `levelStyles` tracking for future enhancement
+
 ## Recent Changes (December 23, 2025)
 - **Extended ordered list styles**: Rich text editor now supports 4 ordered list formats matching Google Docs capabilities:
   - decimal (1, 2, 3) - default
