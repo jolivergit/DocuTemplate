@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, serial, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, serial, numeric, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -158,6 +158,7 @@ export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
 
 // Lead companies — 6 typed company associations per lead
+// Unique constraint on (lead_id, company_role) enforces one company per role per lead
 export const leadCompanies = pgTable("lead_companies", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
@@ -172,7 +173,7 @@ export const leadCompanies = pgTable("lead_companies", {
   contactTitle: text("contact_title"),
   contactPhone: text("contact_phone"),
   contactEmail: text("contact_email"),
-});
+}, (t) => [unique("lead_companies_lead_id_role_unique").on(t.leadId, t.companyRole)]);
 
 export const insertLeadCompanySchema = createInsertSchema(leadCompanies).omit({
   id: true,
