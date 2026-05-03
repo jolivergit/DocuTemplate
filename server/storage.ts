@@ -20,7 +20,7 @@ import {
   COMPANY_ROLES,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Categories
@@ -210,7 +210,7 @@ export class DatabaseStorage implements IStorage {
     const allCompanies = await db
       .select()
       .from(leadCompanies)
-      .where(sql`${leadCompanies.leadId} = ANY(${sql.raw(`ARRAY[${ids.join(',')}]::int[]`)})`);
+      .where(inArray(leadCompanies.leadId, ids));
     return leadRows.map(lead => ({
       ...lead,
       companies: allCompanies.filter(c => c.leadId === lead.id),
