@@ -11,12 +11,15 @@ import {
   insertCategorySchema,
   insertContentSnippetSchema,
   insertFieldValueSchema,
+  insertLeadSchema,
+  insertLeadCompanySchema,
   generateDocumentRequestSchema,
   type ParsedTemplate,
   type TemplateSection,
   type TemplateTag,
   type User,
   type FieldValue,
+  COMPANY_ROLES,
 } from "@shared/schema";
 
 /**
@@ -951,6 +954,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error generating document:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Leads ─────────────────────────────────────────────────────────────────
+
+  app.get("/api/leads", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const result = await storage.getLeads(userId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/leads/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid lead ID" });
+      const lead = await storage.getLeadById(userId, id);
+      if (!lead) return res.status(404).json({ error: "Lead not found" });
+      res.json(lead);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/leads", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { companies: companiesRaw, ...leadRaw } = req.body;
+      const validated = insertLeadSchema.parse(leadRaw);
+      const companiesInput = Array.isArray(companiesRaw) ? companiesRaw : [];
+      const validatedCompanies = companiesInput.map((c: any) =>
+        insertLeadCompanySchema.omit({ leadId: true } as any).parse(c)
+      );
+      const lead = await storage.createLead(userId, validated, validatedCompanies);
+      res.json(lead);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/leads/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid lead ID" });
+      const { companies: companiesRaw, ...leadRaw } = req.body;
+      const validated = insertLeadSchema.partial().parse(leadRaw);
+      const lead = await storage.updateLead(userId, id, validated);
+      if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+      // If companies were provided, upsert them
+      if (Array.isArray(companiesRaw)) {
+        const validatedCompanies = companiesRaw.map((c: any) =>
+          insertLeadCompanySchema.omit({ leadId: true } as any).parse(c)
+        );
+        await storage.upsertLeadCompanies(id, validatedCompanies);
+      }
+
+      const updated = await storage.getLeadById(userId, id);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/leads/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid lead ID" });
+      const success = await storage.deleteLead(userId, id);
+      if (!success) return res.status(404).json({ error: "Lead not found" });
+      res.json({ success: true });
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, serial, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -101,7 +101,95 @@ export const insertContentSnippetSchema = createInsertSchema(contentSnippets).om
 export type InsertContentSnippet = z.infer<typeof insertContentSnippetSchema>;
 export type ContentSnippet = typeof contentSnippets.$inferSelect;
 
-// Template structure types (not stored in DB, parsed from Google Docs)
+// ─── Lead Pipeline ─────────────────────────────────────────────────────────────
+
+export const LEAD_STATUSES = ["Lead", "Proposal", "Active Project", "Completed", "Lost"] as const;
+export type LeadStatus = typeof LEAD_STATUSES[number];
+
+export const LEAD_PROBABILITIES = ["LOW", "MEDIUM", "HIGH"] as const;
+export type LeadProbability = typeof LEAD_PROBABILITIES[number];
+
+export const COMPANY_ROLES = [
+  "ContractHolder",
+  "Client",
+  "MEP",
+  "Structural",
+  "EquipmentVendor",
+  "FurnitureVendor",
+] as const;
+export type CompanyRole = typeof COMPANY_ROLES[number];
+
+export const COMPANY_ROLE_LABELS: Record<CompanyRole, string> = {
+  ContractHolder: "Contract Holder",
+  Client: "Client",
+  MEP: "MEP Engineering",
+  Structural: "Structural Engineering",
+  EquipmentVendor: "Equipment Vendor",
+  FurnitureVendor: "Furniture Vendor",
+};
+
+// Leads table — the core pipeline record
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  projectName: text("project_name").notNull(),
+  description: text("description"),
+  squareFootage: numeric("square_footage", { precision: 10, scale: 0 }),
+  probability: text("probability").notNull().default("LOW"),
+  potentialFee: numeric("potential_fee", { precision: 12, scale: 2 }),
+  status: text("status").notNull().default("Lead"),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertLeadSchema = createInsertSchema(leads).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  probability: z.enum(LEAD_PROBABILITIES),
+  status: z.enum(LEAD_STATUSES),
+  squareFootage: z.string().optional().nullable(),
+  potentialFee: z.string().optional().nullable(),
+});
+
+export type InsertLead = z.infer<typeof insertLeadSchema>;
+export type Lead = typeof leads.$inferSelect;
+
+// Lead companies — 6 typed company associations per lead
+export const leadCompanies = pgTable("lead_companies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
+  companyRole: text("company_role").notNull(),
+  companyName: text("company_name"),
+  addressLine1: text("address_line_1"),
+  addressLine2: text("address_line_2"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  contactFullName: text("contact_full_name"),
+  contactTitle: text("contact_title"),
+  contactPhone: text("contact_phone"),
+  contactEmail: text("contact_email"),
+});
+
+export const insertLeadCompanySchema = createInsertSchema(leadCompanies).omit({
+  id: true,
+}).extend({
+  companyRole: z.enum(COMPANY_ROLES),
+});
+
+export type InsertLeadCompany = z.infer<typeof insertLeadCompanySchema>;
+export type LeadCompany = typeof leadCompanies.$inferSelect;
+
+// Full lead with nested companies (API response shape)
+export interface LeadWithCompanies extends Lead {
+  companies: LeadCompany[];
+}
+
+// ─── Template / Doc Builder types (not stored in DB) ──────────────────────────
+
 export type TagType = 'field' | 'content';
 
 export interface TemplateTag {

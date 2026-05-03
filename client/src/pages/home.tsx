@@ -1,17 +1,14 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Sparkles, LogOut, Menu, X, GripVertical } from "lucide-react";
+import { FileText, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { TemplateSelector } from "@/components/template-selector";
 import { TagsPanel } from "@/components/tags-panel";
 import { ContentLibrary } from "@/components/content-library";
 import { GenerateDocumentDialog } from "@/components/generate-document-dialog";
 import { FieldValueDialog } from "@/components/field-value-dialog";
-import { ThemeToggle } from "@/components/theme-toggle";
 import type { ParsedTemplate, ContentSnippet, Category, TagMapping, User as UserType, FieldValue, TagType } from "@shared/schema";
-import { SiGoogle } from "react-icons/si";
 
 export default function Home() {
   const [selectedTemplate, setSelectedTemplate] = useState<ParsedTemplate | null>(null);
@@ -25,7 +22,7 @@ export default function Home() {
   const [fieldValueToEdit, setFieldValueToEdit] = useState<FieldValue | null>(null);
   const [customFieldTags, setCustomFieldTags] = useState<string[]>([]);
 
-  const { data: user, isLoading: isLoadingUser } = useQuery<UserType | null>({
+  const { data: user } = useQuery<UserType | null>({
     queryKey: ['/auth/user'],
     retry: false,
   });
@@ -56,7 +53,6 @@ export default function Home() {
   };
 
   const handleAddCustomField = (fieldName: string) => {
-    // Check if field already exists in template or custom tags
     const existsInTemplate = selectedTemplate?.allTags.some(
       t => t.name === fieldName && t.tagType === 'field'
     );
@@ -65,10 +61,8 @@ export default function Home() {
     }
   };
 
-  // Create enhanced template that includes custom field tags
   const getEnhancedTemplate = (): ParsedTemplate | null => {
     if (!selectedTemplate) return null;
-    
     const customTags = customFieldTags.map(name => ({
       type: 'custom',
       name,
@@ -76,7 +70,6 @@ export default function Home() {
       startIndex: -1,
       endIndex: -1,
     }));
-    
     return {
       ...selectedTemplate,
       allTags: [...selectedTemplate.allTags, ...customTags],
@@ -89,9 +82,8 @@ export default function Home() {
     setSectionOrder(newOrder);
   };
 
-  // Helper to create composite key for tagMappings (name:type)
   const makeTagKey = (name: string, type: string) => `${name}:${type}`;
-  
+
   const handleTagClick = (tagName: string, tagType: TagType) => {
     setSelectedTag(tagName);
     setSelectedTagType(tagType);
@@ -99,7 +91,6 @@ export default function Home() {
 
   const handleSnippetSelect = (snippet: ContentSnippet) => {
     if (!selectedTag || !selectedTagType) return;
-    
     const newMappings = new Map(tagMappings);
     newMappings.set(makeTagKey(selectedTag, selectedTagType), {
       tagName: selectedTag,
@@ -115,7 +106,6 @@ export default function Home() {
 
   const handleFieldValueSelect = (fieldValue: FieldValue) => {
     if (!selectedTag || !selectedTagType) return;
-    
     const newMappings = new Map(tagMappings);
     newMappings.set(makeTagKey(selectedTag, selectedTagType), {
       tagName: selectedTag,
@@ -159,134 +149,52 @@ export default function Home() {
     setShowGenerateDialog(true);
   };
 
-  const handleLogin = () => {
-    window.location.href = '/auth/google';
-  };
-
-  const handleLogout = () => {
-    window.location.href = '/auth/logout';
-  };
-
   const mappedCount = selectedTemplate ? selectedTemplate.allTags.filter(t => {
     const key = makeTagKey(t.name, t.tagType);
     return tagMappings.has(key);
   }).length : 0;
   const canGenerate = selectedTemplate && mappedCount > 0;
 
-  if (isLoadingUser) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-center">
-          <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground animate-pulse" data-testid="icon-loading" />
-          <p className="text-sm text-muted-foreground" data-testid="text-loading">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex flex-col h-screen bg-background">
-        <header className="h-14 border-b flex items-center justify-between px-6 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <FileText className="w-5 h-5 text-primary" data-testid="icon-app-logo" />
-            <h1 className="text-lg font-semibold" data-testid="text-app-title">DocBuilder</h1>
-          </div>
-          <ThemeToggle />
-        </header>
-        
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center max-w-md px-6">
-            <FileText className="w-16 h-16 mx-auto mb-6 text-primary" data-testid="icon-login-logo" />
-            <h2 className="text-2xl font-semibold mb-3" data-testid="text-login-title">Welcome to DocBuilder</h2>
-            <p className="text-sm text-muted-foreground mb-8" data-testid="text-login-description">
-              Build Google Documents from customizable templates with ease. Sign in with your Google account 
-              to access your Drive files and start creating.
-            </p>
-            <Button
-              variant="default"
-              size="default"
-              onClick={handleLogin}
-              className="gap-2"
-              data-testid="button-google-login"
-            >
-              <SiGoogle className="w-4 h-4" />
-              Sign in with Google
-            </Button>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col h-screen bg-background">
-      <header className="h-14 border-b flex items-center justify-between px-4 sm:px-6 flex-shrink-0 gap-2">
+    <div className="flex flex-col h-full bg-background">
+      {/* Doc builder sub-header */}
+      <div className="h-14 border-b flex items-center justify-between px-4 flex-shrink-0 gap-2">
         <div className="flex items-center gap-3 min-w-0">
-          <FileText className="w-5 h-5 text-primary flex-shrink-0" data-testid="icon-app-logo" />
-          <h1 className="text-lg font-semibold hidden sm:block" data-testid="text-app-title">DocBuilder</h1>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Doc Builder</h2>
           {selectedTemplate && (
             <>
-              <span className="text-muted-foreground hidden sm:block">/</span>
+              <span className="text-muted-foreground">/</span>
               <span className="text-sm text-muted-foreground truncate max-w-[150px] sm:max-w-[250px]" data-testid="text-template-name">
                 {selectedTemplate.documentName}
               </span>
             </>
           )}
         </div>
-        
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowTemplateSelector(true)}
-            className="hidden sm:flex"
             data-testid="button-load-template"
           >
             <FileText className="w-4 h-4" />
             <span className="hidden md:inline">Load Template</span>
           </Button>
-          
           <Button
             variant="default"
             size="sm"
             onClick={handleGenerate}
             disabled={!canGenerate}
-            className="hidden sm:flex"
             data-testid="button-generate-document"
           >
             <Sparkles className="w-4 h-4" />
             <span className="hidden md:inline">Generate</span>
           </Button>
-          
-          <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-muted">
-            <Avatar className="h-6 w-6" data-testid="avatar-user">
-              <AvatarImage src={user.picture || undefined} alt={user.name || 'User'} />
-              <AvatarFallback>
-                {user.name?.charAt(0).toUpperCase() || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <span className="text-sm hidden lg:inline" data-testid="text-user-name">
-              {user.name || user.email}
-            </span>
-          </div>
-          
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleLogout}
-            title="Sign out"
-            data-testid="button-logout"
-          >
-            <LogOut className="w-4 h-4" />
-          </Button>
-          
-          <ThemeToggle />
         </div>
-      </header>
+      </div>
 
       <main className="flex-1 overflow-hidden">
-        {/* Desktop: Two-panel resizable layout - always visible */}
+        {/* Desktop: Two-panel resizable layout */}
         <div className="h-full hidden md:flex">
           <ResizablePanelGroup direction="horizontal" className="h-full">
             <ResizablePanel defaultSize={50} minSize={25} className="bg-card">
@@ -390,14 +298,6 @@ export default function Home() {
                     <p className="text-xs text-muted-foreground mb-4">
                       Load a template to see its tags.
                     </p>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => setShowTemplateSelector(true)}
-                    >
-                      <FileText className="w-4 h-4" />
-                      Load Template
-                    </Button>
                   </div>
                 </div>
               )
@@ -420,20 +320,10 @@ export default function Home() {
                     Use the buttons below to view template tags or your content library
                   </p>
                   <div className="flex items-center justify-center gap-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setMobilePanel('tags')}
-                      data-testid="button-mobile-tags"
-                    >
+                    <Button variant="outline" size="sm" onClick={() => setMobilePanel('tags')} data-testid="button-mobile-tags">
                       View Tags
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setMobilePanel('content')}
-                      data-testid="button-mobile-content"
-                    >
+                    <Button variant="outline" size="sm" onClick={() => setMobilePanel('content')} data-testid="button-mobile-content">
                       View Content
                     </Button>
                   </div>
@@ -462,23 +352,11 @@ export default function Home() {
                 Content
               </Button>
             </div>
-            
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowTemplateSelector(true)}
-                data-testid="button-load-template-mobile"
-              >
+              <Button variant="outline" size="sm" onClick={() => setShowTemplateSelector(true)} data-testid="button-load-template-mobile">
                 <FileText className="w-4 h-4" />
               </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleGenerate}
-                disabled={!canGenerate}
-                data-testid="button-generate-mobile"
-              >
+              <Button variant="default" size="sm" onClick={handleGenerate} disabled={!canGenerate} data-testid="button-generate-mobile">
                 <Sparkles className="w-4 h-4" />
                 Generate
               </Button>

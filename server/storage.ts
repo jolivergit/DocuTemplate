@@ -3,6 +3,8 @@ import {
   contentSnippets,
   profiles,
   fieldValues,
+  leads,
+  leadCompanies,
   type Category,
   type InsertCategory,
   type ContentSnippet,
@@ -10,6 +12,12 @@ import {
   type Profile,
   type FieldValue,
   type InsertFieldValue,
+  type Lead,
+  type InsertLead,
+  type LeadCompany,
+  type InsertLeadCompany,
+  type LeadWithCompanies,
+  COMPANY_ROLES,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, sql } from "drizzle-orm";
@@ -20,7 +28,7 @@ export interface IStorage {
   createCategory(userId: string, category: InsertCategory): Promise<Category>;
   updateCategory(userId: string, id: string, category: Partial<InsertCategory>): Promise<Category | undefined>;
   deleteCategory(userId: string, id: string): Promise<boolean>;
-  
+
   // Content Snippets
   getContentSnippets(userId: string): Promise<ContentSnippet[]>;
   getContentSnippetById(userId: string, id: string): Promise<ContentSnippet | undefined>;
@@ -28,7 +36,7 @@ export interface IStorage {
   updateContentSnippet(userId: string, id: string, snippet: Partial<InsertContentSnippet>, embeddedFields?: string[]): Promise<ContentSnippet | undefined>;
   deleteContentSnippet(userId: string, id: string): Promise<boolean>;
   incrementSnippetUsage(userId: string, id: string): Promise<void>;
-  
+
   // Field Values - simple key/value pairs
   getFieldValues(userId: string): Promise<FieldValue[]>;
   getFieldValueById(userId: string, id: string): Promise<FieldValue | undefined>;
@@ -36,10 +44,18 @@ export interface IStorage {
   createFieldValue(userId: string, fieldValue: InsertFieldValue): Promise<FieldValue>;
   updateFieldValue(userId: string, id: string, fieldValue: Partial<InsertFieldValue>): Promise<FieldValue | undefined>;
   deleteFieldValue(userId: string, id: string): Promise<boolean>;
-  
+
   // Legacy Profiles (kept for migration)
   getProfiles(userId: string): Promise<Profile[]>;
   getProfileById(userId: string, id: string): Promise<Profile | undefined>;
+
+  // Leads
+  getLeads(userId: string): Promise<LeadWithCompanies[]>;
+  getLeadById(userId: string, id: number): Promise<LeadWithCompanies | undefined>;
+  createLead(userId: string, lead: InsertLead, companies: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadWithCompanies>;
+  updateLead(userId: string, id: number, lead: Partial<InsertLead>): Promise<Lead | undefined>;
+  upsertLeadCompanies(leadId: number, companies: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadCompany[]>;
+  deleteLead(userId: string, id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -125,7 +141,6 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(contentSnippets.id, id), eq(contentSnippets.userId, userId)));
   }
 
-  // Field Values - simple key/value pairs
   async getFieldValues(userId: string): Promise<FieldValue[]> {
     return await db.select().from(fieldValues).where(eq(fieldValues.userId, userId));
   }
@@ -185,6 +200,94 @@ export class DatabaseStorage implements IStorage {
       .from(profiles)
       .where(and(eq(profiles.id, id), eq(profiles.userId, userId)));
     return profile || undefined;
+  }
+
+  // ─── Leads ───────────────────────────────────────────────────────────────────
+
+  private async attachCompanies(leadRows: Lead[]): Promise<LeadWithCompanies[]> {
+    if (leadRows.length === 0) return [];
+    const ids = leadRows.map(l => l.id);
+    const allCompanies = await db
+      .select()
+      .from(leadCompanies)
+      .where(sql`${leadCompanies.leadId} = ANY(${sql.raw(`ARRAY[${ids.join(',')}]::int[]`)})`);
+    return leadRows.map(lead => ({
+      ...lead,
+      companies: allCompanies.filter(c => c.leadId === lead.id),
+    }));
+  }
+
+  async getLeads(userId: string): Promise<LeadWithCompanies[]> {
+    const rows = await db
+      .select()
+      .from(leads)
+      .where(eq(leads.userId, userId))
+      .orderBy(leads.id);
+    return this.attachCompanies(rows);
+  }
+
+  async getLeadById(userId: string, id: number): Promise<LeadWithCompanies | undefined> {
+    const [lead] = await db
+      .select()
+      .from(leads)
+      .where(and(eq(leads.id, id), eq(leads.userId, userId)));
+    if (!lead) return undefined;
+    const companies = await db
+      .select()
+      .from(leadCompanies)
+      .where(eq(leadCompanies.leadId, id));
+    return { ...lead, companies };
+  }
+
+  async createLead(
+    userId: string,
+    leadData: InsertLead,
+    companies: Omit<InsertLeadCompany, 'leadId'>[]
+  ): Promise<LeadWithCompanies> {
+    const [lead] = await db
+      .insert(leads)
+      .values({ ...leadData, userId })
+      .returning();
+
+    let savedCompanies: LeadCompany[] = [];
+    if (companies.length > 0) {
+      savedCompanies = await db
+        .insert(leadCompanies)
+        .values(companies.map(c => ({ ...c, leadId: lead.id })))
+        .returning();
+    }
+
+    return { ...lead, companies: savedCompanies };
+  }
+
+  async updateLead(userId: string, id: number, updates: Partial<InsertLead>): Promise<Lead | undefined> {
+    const [lead] = await db
+      .update(leads)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(and(eq(leads.id, id), eq(leads.userId, userId)))
+      .returning();
+    return lead || undefined;
+  }
+
+  async upsertLeadCompanies(
+    leadId: number,
+    companies: Omit<InsertLeadCompany, 'leadId'>[]
+  ): Promise<LeadCompany[]> {
+    // Delete existing companies for this lead and re-insert
+    await db.delete(leadCompanies).where(eq(leadCompanies.leadId, leadId));
+    if (companies.length === 0) return [];
+    const saved = await db
+      .insert(leadCompanies)
+      .values(companies.map(c => ({ ...c, leadId })))
+      .returning();
+    return saved;
+  }
+
+  async deleteLead(userId: string, id: number): Promise<boolean> {
+    const result = await db
+      .delete(leads)
+      .where(and(eq(leads.id, id), eq(leads.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
   }
 }
 
