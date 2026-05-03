@@ -244,6 +244,13 @@ export class DatabaseStorage implements IStorage {
     leadData: InsertLead,
     companies: Omit<InsertLeadCompany, 'leadId'>[]
   ): Promise<LeadWithCompanies> {
+    // Enforce role uniqueness before touching DB
+    const roles = companies.map(c => c.companyRole);
+    const duplicates = roles.filter((r, i) => roles.indexOf(r) !== i);
+    if (duplicates.length > 0) {
+      throw new Error(`Duplicate company roles: ${Array.from(new Set(duplicates)).join(', ')}`);
+    }
+
     const [lead] = await db
       .insert(leads)
       .values({ ...leadData, userId })
@@ -273,6 +280,13 @@ export class DatabaseStorage implements IStorage {
     leadId: number,
     companies: Omit<InsertLeadCompany, 'leadId'>[]
   ): Promise<LeadCompany[]> {
+    // Enforce role uniqueness before touching DB
+    const roles = companies.map(c => c.companyRole);
+    const duplicates = roles.filter((r, i) => roles.indexOf(r) !== i);
+    if (duplicates.length > 0) {
+      throw new Error(`Duplicate company roles: ${Array.from(new Set(duplicates)).join(', ')}`);
+    }
+
     // Delete existing companies for this lead and re-insert
     await db.delete(leadCompanies).where(eq(leadCompanies.leadId, leadId));
     if (companies.length === 0) return [];
