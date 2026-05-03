@@ -54,7 +54,7 @@ export interface IStorage {
   getLeadById(userId: string, id: number): Promise<LeadWithCompanies | undefined>;
   createLead(userId: string, lead: InsertLead, companies: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadWithCompanies>;
   updateLead(userId: string, id: number, lead: Partial<InsertLead>): Promise<Lead | undefined>;
-  upsertLeadCompanies(leadId: number, companies: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadCompany[]>;
+  upsertLeadCompanies(userId: string, leadId: number, companies: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadCompany[]>;
   deleteLead(userId: string, id: number): Promise<boolean>;
 }
 
@@ -277,9 +277,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertLeadCompanies(
+    userId: string,
     leadId: number,
     companies: Omit<InsertLeadCompany, 'leadId'>[]
   ): Promise<LeadCompany[]> {
+    // Verify the lead belongs to the requesting user before touching companies
+    const [existingLead] = await db
+      .select({ id: leads.id })
+      .from(leads)
+      .where(and(eq(leads.id, leadId), eq(leads.userId, userId)));
+    if (!existingLead) {
+      throw new Error(`Lead not found or access denied`);
+    }
+
     // Enforce role uniqueness before touching DB
     const roles = companies.map(c => c.companyRole);
     const duplicates = roles.filter((r, i) => roles.indexOf(r) !== i);

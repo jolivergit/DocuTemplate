@@ -1014,7 +1014,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const validatedCompanies = (companiesRaw as unknown[]).map((c) =>
           insertLeadCompanyInputSchema.parse(c)
         );
-        await storage.upsertLeadCompanies(id, validatedCompanies);
+        await storage.upsertLeadCompanies(userId, id, validatedCompanies);
       }
 
       const updated = await storage.getLeadById(userId, id);

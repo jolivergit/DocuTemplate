@@ -21,11 +21,13 @@ const navItems = [
     title: "Leads",
     url: "/",
     icon: Briefcase,
+    activePrefix: "/leads",
   },
   {
     title: "Doc Builder",
     url: "/doc-builder",
     icon: FileText,
+    activePrefix: "/doc-builder",
   },
 ];
 
@@ -51,9 +53,10 @@ export function AppSidebar({ user }: AppSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
-                const isActive = item.url === "/"
-                  ? location === "/" || location === ""
-                  : location.startsWith(item.url);
+                const isActive =
+                  location === item.url ||
+                  location === "" && item.url === "/" ||
+                  (item.activePrefix && location.startsWith(item.activePrefix));
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild data-active={isActive}>
