@@ -157,8 +157,11 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
 export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
 
-// Lead companies — 6 typed company associations per lead
-// Unique constraint on (lead_id, company_role) enforces one company per role per lead
+// Lead companies — 6 typed company associations per lead.
+// Contact data (name/title/phone/email) is stored directly on each company row rather than
+// a separate contacts table. This is an intentional design choice: each company role has
+// exactly one primary contact, so the 1:1 relationship adds no value as a separate table.
+// The unique constraint on (lead_id, company_role) enforces one company per role per lead.
 export const leadCompanies = pgTable("lead_companies", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
