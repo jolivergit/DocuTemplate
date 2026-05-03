@@ -12,7 +12,7 @@ import {
   insertContentSnippetSchema,
   insertFieldValueSchema,
   insertLeadSchema,
-  insertLeadCompanySchema,
+  insertLeadCompanyInputSchema,
   generateDocumentRequestSchema,
   type ParsedTemplate,
   type TemplateSection,
@@ -989,8 +989,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { companies: companiesRaw, ...leadRaw } = req.body;
       const validated = insertLeadSchema.parse(leadRaw);
       const companiesInput = Array.isArray(companiesRaw) ? companiesRaw : [];
-      const validatedCompanies = companiesInput.map((c: any) =>
-        insertLeadCompanySchema.omit({ leadId: true } as any).parse(c)
+      const validatedCompanies = companiesInput.map((c: unknown) =>
+        insertLeadCompanyInputSchema.parse(c)
       );
       const lead = await storage.createLead(userId, validated, validatedCompanies);
       res.json(lead);
@@ -1011,8 +1011,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // If companies were provided, upsert them
       if (Array.isArray(companiesRaw)) {
-        const validatedCompanies = companiesRaw.map((c: any) =>
-          insertLeadCompanySchema.omit({ leadId: true } as any).parse(c)
+        const validatedCompanies = (companiesRaw as unknown[]).map((c) =>
+          insertLeadCompanyInputSchema.parse(c)
         );
         await storage.upsertLeadCompanies(id, validatedCompanies);
       }

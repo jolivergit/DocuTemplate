@@ -180,7 +180,11 @@ export const insertLeadCompanySchema = createInsertSchema(leadCompanies).omit({
   companyRole: z.enum(COMPANY_ROLES),
 });
 
+// Schema for API input — leadId is injected server-side, not sent by clients
+export const insertLeadCompanyInputSchema = insertLeadCompanySchema.omit({ leadId: true });
+
 export type InsertLeadCompany = z.infer<typeof insertLeadCompanySchema>;
+export type InsertLeadCompanyInput = z.infer<typeof insertLeadCompanyInputSchema>;
 export type LeadCompany = typeof leadCompanies.$inferSelect;
 
 // Full lead with nested companies (API response shape)

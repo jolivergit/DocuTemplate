@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
@@ -38,6 +38,8 @@ import {
   LEAD_PROBABILITIES,
   COMPANY_ROLES,
   COMPANY_ROLE_LABELS,
+  type LeadProbability,
+  type LeadStatus,
   type LeadWithCompanies,
   type CompanyRole,
 } from "@shared/schema";
@@ -94,7 +96,7 @@ function CompanyFields({
 }: {
   index: number;
   role: CompanyRole;
-  form: any;
+  form: UseFormReturn<FormValues>;
 }) {
   const [open, setOpen] = useState(false);
   const companyName = form.watch(`companies.${index}.companyName`);
@@ -285,9 +287,9 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
       projectName: lead?.projectName || "",
       description: lead?.description || "",
       squareFootage: lead?.squareFootage ? String(lead.squareFootage) : "",
-      probability: (lead?.probability as any) || "LOW",
+      probability: (LEAD_PROBABILITIES.includes(lead?.probability as LeadProbability) ? lead!.probability as LeadProbability : "LOW"),
       potentialFee: lead?.potentialFee ? String(lead.potentialFee) : "",
-      status: (lead?.status as any) || "Lead",
+      status: (LEAD_STATUSES.includes(lead?.status as LeadStatus) ? lead!.status as LeadStatus : "Lead"),
       companies: buildDefaultCompanies(lead?.companies),
     },
   });
