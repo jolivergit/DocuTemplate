@@ -449,9 +449,12 @@ export class DatabaseStorage implements IStorage {
     const existing = await this.getProposalById(userId, proposalId);
     if (!existing) return undefined;
 
+    // Server-side allowlist: strip any fields that must not be updated via this path
+    const { leadId: _leadId, id: _id, userId: _userId, ...safeUpdates } = updates as Record<string, unknown>;
+    void _leadId; void _id; void _userId;
     const [updated] = await db
       .update(proposals)
-      .set({ ...this.toProposalDbValues(updates), updatedAt: sql`CURRENT_TIMESTAMP` } as Parameters<ReturnType<typeof db.update>["set"]>[0])
+      .set({ ...this.toProposalDbValues(safeUpdates as Partial<InsertProposal>), updatedAt: sql`CURRENT_TIMESTAMP` } as Parameters<ReturnType<typeof db.update>["set"]>[0])
       .where(eq(proposals.id, proposalId))
       .returning();
 

@@ -1106,8 +1106,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/proposals/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      const { phases, ...updates } = req.body;
-      const proposal = await storage.updateProposal(userId, req.params.id, updates, phases);
+      const { phases } = req.body;
+      // Allowlist mutable fields — leadId and id are never allowed to change
+      const ALLOWED_FIELDS = ["name", "description", "status", "docUrl", "dateSent", "dateSigned"] as const;
+      const updates: Partial<Record<typeof ALLOWED_FIELDS[number], unknown>> = {};
+      for (const field of ALLOWED_FIELDS) {
+        if (field in req.body) updates[field] = req.body[field];
+      }
+      const proposal = await storage.updateProposal(userId, req.params.id, updates as Parameters<typeof storage.updateProposal>[2], phases);
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       res.json(proposal);
     } catch (error: any) {
