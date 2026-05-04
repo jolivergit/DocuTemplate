@@ -1037,6 +1037,293 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upsert field value by name (for invoice doc pre-population)
+  app.post("/api/field-values/upsert-by-name", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { name, value } = req.body;
+      if (!name || !value) return res.status(400).json({ error: "name and value are required" });
+      const existing = await storage.getFieldValueByName(userId, name);
+      if (existing) {
+        const updated = await storage.updateFieldValue(userId, existing.id, { name, value });
+        return res.json(updated);
+      }
+      const created = await storage.createFieldValue(userId, { name, value });
+      res.json(created);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Proposals ──────────────────────────────────────────────────────────────
+
+  app.get("/api/leads/:leadId/proposals", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const leadId = parseInt(req.params.leadId, 10);
+      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
+      const result = await storage.getProposals(userId, leadId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/proposals/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const proposal = await storage.getProposalById(userId, req.params.id);
+      if (!proposal) return res.status(404).json({ error: "Proposal not found" });
+      res.json(proposal);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/leads/:leadId/proposals", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const leadId = parseInt(req.params.leadId, 10);
+      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
+      const { phases, ...proposalRaw } = req.body;
+      const proposal = await storage.createProposal(userId, { ...proposalRaw, leadId }, phases || []);
+      res.json(proposal);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/proposals/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { phases, ...updates } = req.body;
+      const proposal = await storage.updateProposal(userId, req.params.id, updates, phases);
+      if (!proposal) return res.status(404).json({ error: "Proposal not found" });
+      res.json(proposal);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/proposals/:id/sign", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const proposal = await storage.signProposal(userId, req.params.id);
+      if (!proposal) return res.status(404).json({ error: "Proposal not found" });
+      res.json(proposal);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/proposals/:id/decline", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const proposal = await storage.updateProposal(userId, req.params.id, { status: "Declined" });
+      if (!proposal) return res.status(404).json({ error: "Proposal not found" });
+      res.json(proposal);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/proposals/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const success = await storage.deleteProposal(userId, req.params.id);
+      if (!success) return res.status(404).json({ error: "Proposal not found" });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Invoices ────────────────────────────────────────────────────────────────
+
+  app.get("/api/leads/:leadId/invoices", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const leadId = parseInt(req.params.leadId, 10);
+      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
+      const result = await storage.getInvoices(userId, leadId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/invoices/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const invoice = await storage.getInvoiceById(userId, req.params.id);
+      if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+      res.json(invoice);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/leads/:leadId/invoices", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const leadId = parseInt(req.params.leadId, 10);
+      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
+      const { proposalId, feeLineInputs = [], hoursInputs = [], expenseInputs = [], notes } = req.body;
+      if (!proposalId) return res.status(400).json({ error: "proposalId is required" });
+      const invoice = await storage.createInvoice(userId, leadId, proposalId, feeLineInputs, hoursInputs, expenseInputs, notes);
+      res.json(invoice);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/invoices/:id/status", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { status } = req.body;
+      if (!status) return res.status(400).json({ error: "status is required" });
+      const invoice = await storage.updateInvoiceStatus(userId, req.params.id, status);
+      if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+      res.json(invoice);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/invoices/:id/doc-url", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { docUrl } = req.body;
+      if (!docUrl) return res.status(400).json({ error: "docUrl is required" });
+      const invoice = await storage.updateInvoiceDocUrl(userId, req.params.id, docUrl);
+      if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+      res.json(invoice);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/invoices/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const success = await storage.deleteInvoice(userId, req.params.id);
+      if (!success) return res.status(404).json({ error: "Invoice not found" });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Hours entries
+  app.post("/api/invoices/:id/hours", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const invoice = await storage.getInvoiceById(userId, req.params.id);
+      if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+      const entry = await storage.createHoursEntry(userId, req.params.id, invoice.leadId, req.body);
+      res.json(entry);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/hours/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const entry = await storage.updateHoursEntry(userId, req.params.id, req.body);
+      if (!entry) return res.status(404).json({ error: "Hours entry not found" });
+      res.json(entry);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/hours/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const success = await storage.deleteHoursEntry(userId, req.params.id);
+      if (!success) return res.status(404).json({ error: "Hours entry not found" });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Expense entries
+  app.post("/api/invoices/:id/expenses", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const invoice = await storage.getInvoiceById(userId, req.params.id);
+      if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+      const entry = await storage.createExpenseEntry(userId, req.params.id, invoice.leadId, req.body);
+      res.json(entry);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/expenses/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const entry = await storage.updateExpenseEntry(userId, req.params.id, req.body);
+      if (!entry) return res.status(404).json({ error: "Expense entry not found" });
+      res.json(entry);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/expenses/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const success = await storage.deleteExpenseEntry(userId, req.params.id);
+      if (!success) return res.status(404).json({ error: "Expense entry not found" });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Project comments
+  app.get("/api/leads/:leadId/comments", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const leadId = parseInt(req.params.leadId, 10);
+      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
+      const comments = await storage.getProjectComments(userId, leadId);
+      res.json(comments);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/leads/:leadId/comments", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const leadId = parseInt(req.params.leadId, 10);
+      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ error: "Content is required" });
+      const comment = await storage.createProjectComment(userId, leadId, content.trim());
+      res.json(comment);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/leads/:leadId/comments/:commentId", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const leadId = parseInt(req.params.leadId, 10);
+      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
+      const success = await storage.deleteProjectComment(userId, req.params.commentId, leadId);
+      if (!success) return res.status(404).json({ error: "Comment not found" });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

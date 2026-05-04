@@ -4,9 +4,9 @@
 DocBuilder is a full project pipeline manager with three stages: **Lead → Proposal → Project**. It also includes an integrated Google Docs template builder for generating client documents.
 
 ### Pipeline Stages
-- **Lead Management** (Task #1 — Complete): Track opportunities with status, probability, potential fee, square footage, and 6 associated company roles per lead
-- **Proposal Management** (Task #2 — Planned): Generate proposals from Google Docs templates using lead data
-- **Project & Invoice Management** (Task #3 — Planned): Manage active projects and generate invoices
+- **Lead Management** (Complete): Track opportunities with status, probability, potential fee, square footage, and 6 associated company roles per lead
+- **Proposal Management** (Complete): Create multi-phase proposals with fee breakdown by service category and discipline. Mark as Signed to advance lead to Active Project.
+- **Project & Invoice Management** (Complete): Track invoices built on top of signed proposals, with hours entries, expense entries, and a project comments log.
 
 ### Doc Builder
 Generate Google Documents from customizable templates. Templates support:
@@ -19,7 +19,7 @@ Generate Google Documents from customizable templates. Templates support:
 - React with TypeScript
 - Wouter for routing
 - TanStack Query for data fetching
-- Tailwind CSS + Shadcn UI (sidebar, collapsible, resizable, etc.)
+- Tailwind CSS + Shadcn UI (sidebar, tabs, collapsible, dialogs, etc.)
 - Dark mode support
 
 ### Backend Stack
@@ -36,10 +36,18 @@ Generate Google Documents from customizable templates. Templates support:
 - **profiles** — Legacy (kept for migration)
 - **leads** — Project opportunities (serial PK for project numbers)
 - **leadCompanies** — 6 typed company associations per lead (ContractHolder, Client, MEP, Structural, EquipmentVendor, FurnitureVendor)
+- **proposals** — Proposals linked to leads (statuses: Draft, Sent, Revision, Signed, Declined)
+- **proposalPhases** — Phases within a proposal (Phase 1, Phase 2 for Add Services, etc.)
+- **proposalFeeLines** — Fee lines per phase: service category × discipline × feeType (Fixed/Hourly) × amount
+- **invoices** — Invoices for active projects, linked to signed proposals (statuses: Draft, Sent, Paid)
+- **invoiceFeeLineSnapshots** — Snapshot of each fee line at invoice time: % complete, earned, previous billing, current billing
+- **hoursEntries** — Additional time tracking entries per invoice
+- **expenseEntries** — Expense entries per invoice (Mileage, Parking, Shipping, Printing)
+- **projectComments** — Chronological comments log per project (lead)
 
 ### Key Routes
 - `/` → Leads list page (pipeline dashboard)
-- `/leads/:id` → Lead detail page (company info, status management)
+- `/leads/:id` → Lead detail page with tabs: Overview | Proposals | Project
 - `/doc-builder` → Google Docs template builder
 
 ## Lead Management
@@ -48,80 +56,76 @@ Generate Google Documents from customizable templates. Templates support:
 - `id` — Serial integer (the project number)
 - `projectName`, `description`
 - `squareFootage`, `potentialFee`
-- `probability` — LOW / MEDIUM / HIGH
-- `status` — Lead → Proposal → Active Project → Completed | Lost
+- `probability` — LOW | MEDIUM | HIGH
+- `status` — Lead | Proposal | Active Project | Completed | Lost
 
-### Company Roles (6 per Lead)
-Each role has: company name, full address, and a primary contact (name, title, phone, email)
-- Contract Holder
-- Client
-- MEP Engineering
-- Structural Engineering
-- Equipment Vendor
-- Furniture Vendor
+### Lead Companies
+Each lead can have up to 6 companies by role: ContractHolder, Client, MEP, Structural, EquipmentVendor, FurnitureVendor. Each has: companyName, address, contactFullName, contactTitle, contactPhone, contactEmail.
+
+## Proposal Management
+
+### Proposal Structure
+- A lead can have multiple proposals (e.g., base scope + add services)
+- Each proposal has: name, description, status, docUrl, dateSent, dateSigned
+- **Fee Breakdown**: structured as Phase → Service Category → Discipline
+  - Service Categories: Documentation | Bid & Permit | Construction Administration
+  - Disciplines: Interior Design | MEP & FP | Structural
+  - Each discipline line: feeType (Fixed or Hourly) and amount
+- Signing a proposal automatically advances the parent lead to "Active Project"
+
+### Proposal Statuses
+Draft → Sent → Revision → Signed / Declined
+
+## Project & Invoice Management
+
+### Invoice Structure
+- Invoices are linked to the signed proposal and capture a snapshot of percent-complete per fee line
+- For Fixed fee lines: percentComplete → earned = baseFee × pct, previousBilling (from prior invoices), currentBilling = earned - previous
+- For Hourly fee lines: hoursWorked × ratePerHour
+- Additional hours entries (date, description, hours, rate) and expense entries (date, type, amount/miles) per invoice
+- Invoice statuses: Draft → Sent → Paid
+
+### Expense Types
+- **Mileage**: miles × rate/mile (default $0.67/mile)
+- **Parking, Shipping, Printing**: direct dollar amount
+
+### Doc Builder Integration
+Invoice detail page has a "Load to Doc Builder" button that pre-populates field values (invoice_number, invoice_date, project_name, client_company, invoice_grand_total, etc.) so the user can generate an invoice document from their template library.
 
 ## API Endpoints
 
-### Leads
-- `GET /api/leads` — List all leads with companies
-- `GET /api/leads/:id` — Get single lead with companies
-- `POST /api/leads` — Create lead (with nested companies)
-- `PATCH /api/leads/:id` — Update lead (with optional company upsert)
-- `DELETE /api/leads/:id` — Delete lead
+### Proposals
+- `GET /api/leads/:leadId/proposals` — List all proposals for a lead
+- `POST /api/leads/:leadId/proposals` — Create a proposal (with phases and fee lines)
+- `GET /api/proposals/:id` — Get proposal with all phases and fee lines
+- `PATCH /api/proposals/:id` — Update proposal (optionally replaces phases)
+- `POST /api/proposals/:id/sign` — Sign proposal (advances lead to Active Project)
+- `POST /api/proposals/:id/decline` — Decline proposal
+- `DELETE /api/proposals/:id` — Delete proposal
 
-### Categories
-- `GET /api/categories`, `POST`, `PATCH /:id`, `DELETE /:id`
+### Invoices
+- `GET /api/leads/:leadId/invoices` — List invoices for a project
+- `POST /api/leads/:leadId/invoices` — Create invoice with fee snapshots, hours, expenses
+- `GET /api/invoices/:id` — Get full invoice with all nested data
+- `PATCH /api/invoices/:id/status` — Update invoice status
+- `PATCH /api/invoices/:id/doc-url` — Save generated doc URL to invoice
+- `DELETE /api/invoices/:id` — Delete invoice
 
-### Content Snippets
-- `GET /api/content-snippets`, `POST`, `PATCH /:id`, `DELETE /:id`
+### Hours & Expenses
+- `POST /api/invoices/:id/hours` — Add hours entry
+- `PATCH /api/hours/:id`, `DELETE /api/hours/:id`
+- `POST /api/invoices/:id/expenses` — Add expense entry
+- `PATCH /api/expenses/:id`, `DELETE /api/expenses/:id`
+
+### Comments
+- `GET /api/leads/:leadId/comments` — Get project comments
+- `POST /api/leads/:leadId/comments` — Add comment
+- `DELETE /api/leads/:leadId/comments/:commentId` — Delete comment
 
 ### Field Values
-- `GET /api/field-values`, `POST`, `PATCH /:id`, `DELETE /:id`
+- `POST /api/field-values/upsert-by-name` — Upsert field value by name (used for invoice doc pre-population)
 
-### Google Drive & Docs
-- `GET /api/google-drive/files` — List Google Docs from Drive
-- `POST /api/templates/parse` — Parse template and extract tags
-- `POST /api/documents/generate` — Generate final document
-
-## Key Files
-
-### Frontend
-- `client/src/App.tsx` — SidebarProvider layout, AuthGate, routing
-- `client/src/components/app-sidebar.tsx` — Navigation sidebar
-- `client/src/pages/leads.tsx` — Leads list with search/filter
-- `client/src/pages/lead-detail.tsx` — Lead detail with company sections, status progression
-- `client/src/components/lead-form-dialog.tsx` — Create/edit lead dialog (all 6 company sections)
-- `client/src/pages/home.tsx` — Doc Builder page (template tags + content library)
-
-### Backend
-- `server/routes.ts` — All API endpoints
-- `server/storage.ts` — Database operations (DatabaseStorage class)
-- `server/google-drive-client.ts` — Google Drive integration
-- `server/google-docs-client.ts` — Google Docs integration
-- `server/html-to-google-docs.ts` — HTML to Docs API conversion
-
-### Shared
-- `shared/schema.ts` — All database models, enums, and TypeScript types
-
-## Running the Project
-```bash
-npm run dev
-```
-Starts Express + Vite on port 5000.
-
-## Database Notes
-- Tables created directly via SQL (drizzle-kit push is interactive and not used)
-- Use `executeSql` in code_execution for schema changes
-- All data is user-isolated (userId foreign key on every table)
-
-## Design System
-- Warm neutral color palette, Outfit font, terracotta accent
-- Shadcn UI components throughout (sidebar, card, badge, collapsible, etc.)
-- All interactive elements have `data-testid` attributes
-- Dark mode supported
-
-## Google Docs API Notes
-- Template is copied (Drive `files.copy()`) to preserve formatting
-- Field tags use `replaceAllText` (inherits surrounding styles)
-- Content tags convert HTML to Docs API batch requests
-- Google Docs API has no `updateListProperties` — nested list styles use separate-list workaround
+## Authentication
+- Google OAuth via Passport.js
+- Session stored in PostgreSQL (connect-pg-simple)
+- All API routes protected by `requireAuth` middleware

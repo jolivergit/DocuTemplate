@@ -39,8 +39,8 @@ export type Category = typeof categories.$inferSelect;
 // Field values - simple key/value pairs for field tags
 export const fieldValues = pgTable("field_values", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(), // The field name (e.g., "company_name")
-  value: text("value").notNull(), // The value (e.g., "Acme Corp")
+  name: text("name").notNull(),
+  value: text("value").notNull(),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -84,7 +84,7 @@ export const contentSnippets = pgTable("content_snippets", {
   categoryId: varchar("category_id").references(() => categories.id, { onDelete: "set null" }),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   usageCount: integer("usage_count").notNull().default(0),
-  embeddedFields: text("embedded_fields").array().default([]), // Field tags found in content (e.g., {{customer_name}})
+  embeddedFields: text("embedded_fields").array().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -93,7 +93,7 @@ export const insertContentSnippetSchema = createInsertSchema(contentSnippets).om
   id: true,
   userId: true,
   usageCount: true,
-  embeddedFields: true, // Auto-computed from content
+  embeddedFields: true,
   createdAt: true,
   updatedAt: true,
 });
@@ -128,7 +128,6 @@ export const COMPANY_ROLE_LABELS: Record<CompanyRole, string> = {
   FurnitureVendor: "Furniture Vendor",
 };
 
-// Leads table — the core pipeline record
 export const leads = pgTable("leads", {
   id: serial("id").primaryKey(),
   projectName: text("project_name").notNull(),
@@ -157,11 +156,6 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
 export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
 
-// Lead companies — 6 typed company associations per lead.
-// Contact data (name/title/phone/email) is stored directly on each company row rather than
-// a separate contacts table. This is an intentional design choice: each company role has
-// exactly one primary contact, so the 1:1 relationship adds no value as a separate table.
-// The unique constraint on (lead_id, company_role) enforces one company per role per lead.
 export const leadCompanies = pgTable("lead_companies", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
@@ -184,16 +178,165 @@ export const insertLeadCompanySchema = createInsertSchema(leadCompanies).omit({
   companyRole: z.enum(COMPANY_ROLES),
 });
 
-// Schema for API input — leadId is injected server-side, not sent by clients
 export const insertLeadCompanyInputSchema = insertLeadCompanySchema.omit({ leadId: true });
 
 export type InsertLeadCompany = z.infer<typeof insertLeadCompanySchema>;
 export type InsertLeadCompanyInput = z.infer<typeof insertLeadCompanyInputSchema>;
 export type LeadCompany = typeof leadCompanies.$inferSelect;
 
-// Full lead with nested companies (API response shape)
 export interface LeadWithCompanies extends Lead {
   companies: LeadCompany[];
+}
+
+// ─── Proposals ──────────────────────────────────────────────────────────────────
+
+export const PROPOSAL_STATUSES = ["Draft", "Sent", "Revision", "Signed", "Declined"] as const;
+export type ProposalStatus = typeof PROPOSAL_STATUSES[number];
+
+export const FEE_TYPES = ["Fixed", "Hourly"] as const;
+export type FeeType = typeof FEE_TYPES[number];
+
+export const SERVICE_CATEGORIES = ["Documentation", "Bid & Permit", "Construction Administration"] as const;
+export type ServiceCategory = typeof SERVICE_CATEGORIES[number];
+
+export const DISCIPLINES = ["Interior Design", "MEP & FP", "Structural"] as const;
+export type Discipline = typeof DISCIPLINES[number];
+
+export const proposals = pgTable("proposals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("Draft"),
+  docUrl: text("doc_url"),
+  dateSent: timestamp("date_sent"),
+  dateSigned: timestamp("date_signed"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertProposalSchema = createInsertSchema(proposals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  status: z.enum(PROPOSAL_STATUSES).optional(),
+  dateSent: z.string().optional().nullable(),
+  dateSigned: z.string().optional().nullable(),
+});
+
+export type InsertProposal = z.infer<typeof insertProposalSchema>;
+export type Proposal = typeof proposals.$inferSelect;
+
+export const proposalPhases = pgTable("proposal_phases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  proposalId: varchar("proposal_id").references(() => proposals.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export type ProposalPhase = typeof proposalPhases.$inferSelect;
+
+export const proposalFeeLines = pgTable("proposal_fee_lines", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phaseId: varchar("phase_id").references(() => proposalPhases.id, { onDelete: "cascade" }).notNull(),
+  serviceCategory: text("service_category").notNull(),
+  discipline: text("discipline").notNull(),
+  feeType: text("fee_type").notNull().default("Fixed"),
+  amount: numeric("amount", { precision: 12, scale: 2 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export type ProposalFeeLine = typeof proposalFeeLines.$inferSelect;
+
+export interface ProposalPhaseWithLines extends ProposalPhase {
+  feeLines: ProposalFeeLine[];
+}
+
+export interface ProposalWithPhases extends Proposal {
+  phases: ProposalPhaseWithLines[];
+}
+
+// ─── Invoices ───────────────────────────────────────────────────────────────────
+
+export const INVOICE_STATUSES = ["Draft", "Sent", "Paid"] as const;
+export type InvoiceStatus = typeof INVOICE_STATUSES[number];
+
+export const invoices = pgTable("invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
+  proposalId: varchar("proposal_id").references(() => proposals.id, { onDelete: "set null" }),
+  invoiceNumber: integer("invoice_number").notNull(),
+  status: text("status").notNull().default("Draft"),
+  docUrl: text("doc_url"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type Invoice = typeof invoices.$inferSelect;
+
+export const invoiceFeeLineSnapshots = pgTable("invoice_fee_line_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: varchar("invoice_id").references(() => invoices.id, { onDelete: "cascade" }).notNull(),
+  proposalFeeLineId: varchar("proposal_fee_line_id").notNull(),
+  serviceCategory: text("service_category").notNull(),
+  discipline: text("discipline").notNull(),
+  feeType: text("fee_type").notNull(),
+  baseFee: numeric("base_fee", { precision: 12, scale: 2 }),
+  percentComplete: numeric("percent_complete", { precision: 5, scale: 2 }),
+  earned: numeric("earned", { precision: 12, scale: 2 }),
+  previousBilling: numeric("previous_billing", { precision: 12, scale: 2 }),
+  currentBilling: numeric("current_billing", { precision: 12, scale: 2 }),
+  hoursWorked: numeric("hours_worked", { precision: 10, scale: 2 }),
+  ratePerHour: numeric("rate_per_hour", { precision: 10, scale: 2 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export type InvoiceFeeLineSnapshot = typeof invoiceFeeLineSnapshots.$inferSelect;
+
+export const EXPENSE_TYPES = ["Mileage", "Parking", "Shipping", "Printing"] as const;
+export type ExpenseType = typeof EXPENSE_TYPES[number];
+
+export const hoursEntries = pgTable("hours_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: varchar("invoice_id").references(() => invoices.id, { onDelete: "cascade" }).notNull(),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
+  date: text("date").notNull(),
+  description: text("description").notNull(),
+  hours: numeric("hours", { precision: 10, scale: 2 }).notNull(),
+  ratePerHour: numeric("rate_per_hour", { precision: 10, scale: 2 }).notNull(),
+});
+
+export type HoursEntry = typeof hoursEntries.$inferSelect;
+
+export const expenseEntries = pgTable("expense_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: varchar("invoice_id").references(() => invoices.id, { onDelete: "cascade" }).notNull(),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
+  date: text("date").notNull(),
+  expenseType: text("expense_type").notNull(),
+  billedDate: text("billed_date"),
+  milesTraveled: numeric("miles_traveled", { precision: 10, scale: 2 }),
+  ratePerMile: numeric("rate_per_mile", { precision: 10, scale: 4 }),
+  amount: numeric("amount", { precision: 12, scale: 2 }),
+});
+
+export type ExpenseEntry = typeof expenseEntries.$inferSelect;
+
+export const projectComments = pgTable("project_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type ProjectComment = typeof projectComments.$inferSelect;
+
+export interface InvoiceWithDetails extends Invoice {
+  feeLineSnapshots: InvoiceFeeLineSnapshot[];
+  hoursEntries: HoursEntry[];
+  expenseEntries: ExpenseEntry[];
 }
 
 // ─── Template / Doc Builder types (not stored in DB) ──────────────────────────
@@ -203,7 +346,7 @@ export type TagType = 'field' | 'content';
 export interface TemplateTag {
   type: string;
   name: string;
-  tagType: TagType; // 'field' for {{...}}, 'content' for <<...>>
+  tagType: TagType;
   startIndex: number;
   endIndex: number;
 }
@@ -224,13 +367,12 @@ export interface ParsedTemplate {
   allTags: TemplateTag[];
 }
 
-// Tag mapping for document generation
 export interface TagMapping {
   tagName: string;
-  tagType: TagType; // 'field' for {{...}}, 'content' for <<...>>
+  tagType: TagType;
   snippetId: string | null;
   customContent: string | null;
-  fieldValueId: string | null; // Simple field value reference
+  fieldValueId: string | null;
 }
 
 export interface GenerateDocumentRequest {
@@ -238,7 +380,7 @@ export interface GenerateDocumentRequest {
   templateName: string;
   outputName: string;
   tagMappings: TagMapping[];
-  sectionOrder: string[]; // Array of section IDs in desired order
+  sectionOrder: string[];
 }
 
 export const generateDocumentRequestSchema = z.object({
