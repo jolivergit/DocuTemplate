@@ -623,8 +623,6 @@ export default function LeadDetailPage({ params }: Props) {
   const companyMap = new Map(lead.companies.map((c) => [c.companyRole, c]));
   const isProject = lead.status === "Active Project" || lead.status === "Completed";
 
-  const defaultTab = isProject ? "overview" : "overview";
-
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="max-w-3xl mx-auto w-full p-6 space-y-6">

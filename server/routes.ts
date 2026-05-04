@@ -13,6 +13,8 @@ import {
   insertFieldValueSchema,
   insertLeadSchema,
   insertLeadCompanyInputSchema,
+  INVOICE_STATUSES,
+  EXPENSE_TYPES,
   generateDocumentRequestSchema,
   type ParsedTemplate,
   type TemplateSection,
@@ -1198,6 +1200,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as User).id;
       const { status } = req.body;
       if (!status) return res.status(400).json({ error: "status is required" });
+      if (!(INVOICE_STATUSES as readonly string[]).includes(status)) {
+        return res.status(400).json({ error: `Invalid status. Must be one of: ${INVOICE_STATUSES.join(", ")}` });
+      }
       const invoice = await storage.updateInvoiceStatus(userId, req.params.id, status);
       if (!invoice) return res.status(404).json({ error: "Invoice not found" });
       res.json(invoice);
