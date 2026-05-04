@@ -401,8 +401,19 @@ function ProjectTab({ leadId, lead }: { leadId: number; lead: LeadWithCompanies 
     );
   }
 
-  // Invoice totals helper
-  const getInvoiceTotal = (inv: Invoice & { feeLineSnapshots?: unknown[] }) => "—";
+  // Invoice totals helper - sum currentBilling from snapshots if available (InvoiceWithDetails), fall back to "—"
+  const getInvoiceTotal = (inv: Invoice) => {
+    const withDetails = inv as Invoice & { feeLineSnapshots?: { currentBilling: string | null }[]; hoursEntries?: { hours: string; ratePerHour: string }[]; expenseEntries?: { expenseType: string; amount?: string | null; milesTraveled?: string | null; ratePerMile?: string | null }[] };
+    if (!withDetails.feeLineSnapshots) return "—";
+    const fees = withDetails.feeLineSnapshots.reduce((s, f) => s + parseFloat(f.currentBilling || "0"), 0);
+    const hours = (withDetails.hoursEntries || []).reduce((s, h) => s + parseFloat(h.hours) * parseFloat(h.ratePerHour), 0);
+    const expenses = (withDetails.expenseEntries || []).reduce((s, e) => {
+      if (e.expenseType === "Mileage") return s + (parseFloat(e.milesTraveled || "0") * parseFloat(e.ratePerMile || "0"));
+      return s + parseFloat(e.amount || "0");
+    }, 0);
+    const total = fees + hours + expenses;
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(total);
+  };
 
   return (
     <div className="space-y-6">

@@ -577,8 +577,8 @@ export class DatabaseStorage implements IStorage {
         .from(invoiceFeeLineSnapshots)
         .where(inArray(invoiceFeeLineSnapshots.invoiceId, priorInvoiceIds));
       for (const snap of priorSnapshots) {
-        const earned = parseFloat(snap.earned || '0');
-        previousBillingMap.set(snap.proposalFeeLineId, (previousBillingMap.get(snap.proposalFeeLineId) || 0) + earned);
+        const billed = parseFloat(snap.currentBilling || '0');
+        previousBillingMap.set(snap.proposalFeeLineId, (previousBillingMap.get(snap.proposalFeeLineId) || 0) + billed);
       }
     }
 
@@ -766,6 +766,29 @@ export class DatabaseStorage implements IStorage {
     const owned = await this.verifyLeadOwnership(userId, leadId);
     if (!owned) return [];
     return db.select().from(projectComments).where(eq(projectComments.leadId, leadId)).orderBy(projectComments.createdAt);
+  }
+
+  async getProposalBillingSummary(userId: string, proposalId: string): Promise<Record<string, number>> {
+    const [proposal] = await db.select({ leadId: proposals.leadId }).from(proposals).where(eq(proposals.id, proposalId));
+    if (!proposal) return {};
+    const owned = await this.verifyLeadOwnership(userId, proposal.leadId);
+    if (!owned) return {};
+
+    const allInvoices = await db.select({ id: invoices.id }).from(invoices).where(eq(invoices.proposalId, proposalId));
+    if (allInvoices.length === 0) return {};
+
+    const allInvoiceIds = allInvoices.map(i => i.id);
+    const snapshots = await db
+      .select({ proposalFeeLineId: invoiceFeeLineSnapshots.proposalFeeLineId, currentBilling: invoiceFeeLineSnapshots.currentBilling })
+      .from(invoiceFeeLineSnapshots)
+      .where(inArray(invoiceFeeLineSnapshots.invoiceId, allInvoiceIds));
+
+    const summary: Record<string, number> = {};
+    for (const snap of snapshots) {
+      const billed = parseFloat(snap.currentBilling || '0');
+      summary[snap.proposalFeeLineId] = (summary[snap.proposalFeeLineId] || 0) + billed;
+    }
+    return summary;
   }
 
   async createProjectComment(userId: string, leadId: number, content: string): Promise<ProjectComment> {

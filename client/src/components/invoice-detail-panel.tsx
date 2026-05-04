@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ExternalLink, ArrowLeft, Trash2, FileText } from "lucide-react";
+import { ExternalLink, ArrowLeft, Trash2, FileText, Link } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
@@ -18,7 +18,6 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { InvoiceWithDetails, InvoiceStatus, LeadWithCompanies } from "@shared/schema";
-import { SERVICE_CATEGORIES } from "@shared/schema";
 
 const STATUS_COLORS: Record<InvoiceStatus, string> = {
   Draft: "bg-secondary text-secondary-foreground",
@@ -53,6 +52,8 @@ interface Props {
 export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
   const { toast } = useToast();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDocUrlInput, setShowDocUrlInput] = useState(false);
+  const [docUrlDraft, setDocUrlDraft] = useState("");
 
   const { data: invoice, isLoading } = useQuery<InvoiceWithDetails>({
     queryKey: ["/api/invoices", invoiceId],
@@ -75,6 +76,20 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
     },
   });
 
+  const docUrlMutation = useMutation({
+    mutationFn: (docUrl: string) => apiRequest("PATCH", `/api/invoices/${invoiceId}/doc-url`, { docUrl }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "invoices"] });
+      setShowDocUrlInput(false);
+      setDocUrlDraft("");
+      toast({ title: "Document linked to invoice" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to link document", description: err.message, variant: "destructive" });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: () => apiRequest("DELETE", `/api/invoices/${invoiceId}`),
     onSuccess: () => {
@@ -89,7 +104,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
 
   const generateFieldValues = async () => {
     if (!invoice) return;
-    const client = lead.companies.find((c) => c.companyRole === "Client" || c.companyRole === "ContractHolder");
+    const clientCompany = lead.companies.find((c) => c.companyRole === "Client" || c.companyRole === "ContractHolder");
     const feeTotal = invoice.feeLineSnapshots.reduce((sum, s) => sum + (parseFloat(s.currentBilling || "0")), 0);
     const hoursTotal = invoice.hoursEntries.reduce((sum, h) => sum + (parseFloat(h.hours) * parseFloat(h.ratePerHour)), 0);
     const expenseTotal = invoice.expenseEntries.reduce((sum, e) => {
@@ -98,29 +113,79 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
     }, 0);
     const grandTotal = feeTotal + hoursTotal + expenseTotal;
 
-    const fieldMappings = [
+    // Top-level invoice field values
+    const fieldMappings: { name: string; value: string }[] = [
       { name: "invoice_number", value: String(invoice.invoiceNumber) },
       { name: "invoice_date", value: fmtDate(invoice.createdAt) },
       { name: "invoice_status", value: invoice.status },
       { name: "project_name", value: lead.projectName },
-      { name: "client_company", value: client?.companyName || "" },
-      { name: "client_contact", value: client?.contactFullName || "" },
+      { name: "client_company", value: clientCompany?.companyName || "" },
+      { name: "client_contact", value: clientCompany?.contactFullName || "" },
+      { name: "client_address", value: [clientCompany?.addressLine1, clientCompany?.city, clientCompany?.state].filter(Boolean).join(", ") },
       { name: "invoice_fee_total", value: fmt(feeTotal) },
       { name: "invoice_hours_total", value: fmt(hoursTotal) },
       { name: "invoice_expense_total", value: fmt(expenseTotal) },
       { name: "invoice_grand_total", value: fmt(grandTotal) },
     ];
 
+    // Line-level fee snapshot fields (up to 20 lines)
+    invoice.feeLineSnapshots.forEach((s, i) => {
+      const prefix = `fee_line_${i + 1}`;
+      fieldMappings.push(
+        { name: `${prefix}_discipline`, value: s.discipline },
+        { name: `${prefix}_category`, value: s.serviceCategory },
+        { name: `${prefix}_type`, value: s.feeType },
+        { name: `${prefix}_base_fee`, value: s.feeType === "Fixed" ? fmt(s.baseFee) : "" },
+        { name: `${prefix}_pct_complete`, value: s.feeType === "Fixed" ? `${parseFloat(s.percentComplete || "0").toFixed(0)}%` : "" },
+        { name: `${prefix}_hours`, value: s.feeType === "Hourly" ? (s.hoursWorked || "0") : "" },
+        { name: `${prefix}_rate`, value: s.feeType === "Hourly" ? fmt(s.ratePerHour) : "" },
+        { name: `${prefix}_earned`, value: fmt(s.earned) },
+        { name: `${prefix}_prev_billed`, value: fmt(s.previousBilling) },
+        { name: `${prefix}_current`, value: fmt(s.currentBilling) },
+      );
+    });
+
+    // Hours entries
+    invoice.hoursEntries.forEach((h, i) => {
+      const prefix = `hours_entry_${i + 1}`;
+      const amt = parseFloat(h.hours) * parseFloat(h.ratePerHour);
+      fieldMappings.push(
+        { name: `${prefix}_date`, value: h.date },
+        { name: `${prefix}_description`, value: h.description },
+        { name: `${prefix}_hours`, value: h.hours },
+        { name: `${prefix}_rate`, value: fmt(h.ratePerHour) },
+        { name: `${prefix}_amount`, value: fmt(amt) },
+      );
+    });
+
+    // Expense entries
+    invoice.expenseEntries.forEach((e, i) => {
+      const prefix = `expense_entry_${i + 1}`;
+      const amt = e.expenseType === "Mileage"
+        ? (parseFloat(e.milesTraveled || "0") * parseFloat(e.ratePerMile || "0"))
+        : parseFloat(e.amount || "0");
+      fieldMappings.push(
+        { name: `${prefix}_date`, value: e.date },
+        { name: `${prefix}_type`, value: e.expenseType },
+        { name: `${prefix}_detail`, value: e.expenseType === "Mileage" ? `${e.milesTraveled} mi @ $${e.ratePerMile}/mi` : "" },
+        { name: `${prefix}_amount`, value: fmt(amt) },
+      );
+    });
+
     try {
-      for (const fv of fieldMappings) {
-        await fetch("/api/field-values/upsert-by-name", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(fv),
-        });
-      }
-      toast({ title: "Invoice data loaded into Doc Builder", description: "Open the Doc Builder to generate your invoice document." });
-    } catch (e) {
+      await Promise.all(
+        fieldMappings.map((fv) =>
+          fetch("/api/field-values/upsert-by-name", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(fv),
+          })
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: ["/api/field-values"] });
+      toast({ title: "Invoice data loaded into Doc Builder", description: "Open Doc Builder to generate your invoice document, then paste the link back here." });
+      setShowDocUrlInput(true);
+    } catch {
       toast({ title: "Failed to load field values", variant: "destructive" });
     }
   };
@@ -142,7 +207,6 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
   const status = invoice.status as InvoiceStatus;
   const nextStatus = NEXT_STATUS[status];
 
-  // Compute totals
   const feeCurrentTotal = invoice.feeLineSnapshots.reduce((sum, s) => sum + parseFloat(s.currentBilling || "0"), 0);
   const feePrevTotal = invoice.feeLineSnapshots.reduce((sum, s) => sum + parseFloat(s.previousBilling || "0"), 0);
   const hoursTotal = invoice.hoursEntries.reduce((sum, h) => sum + (parseFloat(h.hours) * parseFloat(h.ratePerHour)), 0);
@@ -152,11 +216,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
   }, 0);
   const grandTotal = feeCurrentTotal + hoursTotal + expenseTotal;
 
-  // Group snapshots by phase (using service categories as proxy grouping)
-  const grouped = SERVICE_CATEGORIES.map((cat) => ({
-    cat,
-    lines: invoice.feeLineSnapshots.filter((s) => s.serviceCategory === cat),
-  })).filter((g) => g.lines.length > 0);
+  const hasPriorBilling = feePrevTotal > 0;
 
   return (
     <div className="space-y-4">
@@ -180,11 +240,44 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
               Load to Doc Builder
             </Button>
           )}
+          {invoice.docUrl && (
+            <Button variant="ghost" size="sm" onClick={() => setShowDocUrlInput(true)} data-testid="button-change-doc-url">
+              <Link className="w-4 h-4" />
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(true)} data-testid="button-delete-invoice">
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
         </div>
       </div>
+
+      {/* Paste doc URL after generation */}
+      {showDocUrlInput && (
+        <div className="rounded-md border bg-card p-4 space-y-2">
+          <p className="text-sm font-medium">Link Generated Document</p>
+          <p className="text-xs text-muted-foreground">After generating your document in Doc Builder, paste the Google Doc URL below to link it to this invoice.</p>
+          <div className="flex gap-2">
+            <Input
+              value={docUrlDraft}
+              onChange={(e) => setDocUrlDraft(e.target.value)}
+              placeholder="https://docs.google.com/document/d/..."
+              className="text-sm"
+              data-testid="input-doc-url"
+            />
+            <Button
+              size="sm"
+              onClick={() => docUrlMutation.mutate(docUrlDraft)}
+              disabled={!docUrlDraft.startsWith("http") || docUrlMutation.isPending}
+              data-testid="button-save-doc-url"
+            >
+              {docUrlMutation.isPending ? "Saving…" : "Save"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setShowDocUrlInput(false)} data-testid="button-cancel-doc-url">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Invoice header card */}
       <div className="rounded-md border bg-card p-5 space-y-4">
@@ -201,7 +294,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
           <div className="text-right">
             <p className="text-xs text-muted-foreground">This Invoice</p>
             <p className="text-xl font-semibold" data-testid="text-invoice-grand-total">{fmt(grandTotal)}</p>
-            {feePrevTotal > 0 && (
+            {hasPriorBilling && (
               <p className="text-xs text-muted-foreground">Prior Billed: {fmt(feePrevTotal)}</p>
             )}
           </div>
@@ -253,7 +346,9 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Base Fee</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">% / Hrs</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Earned</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Prev Billed</th>
+                  {hasPriorBilling && (
+                    <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Prev Billed</th>
+                  )}
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">This Invoice</th>
                 </tr>
               </thead>
@@ -272,14 +367,16 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
                       }
                     </td>
                     <td className="px-4 py-2.5 text-right">{fmt(s.earned)}</td>
-                    <td className="px-4 py-2.5 text-right text-muted-foreground">{fmt(s.previousBilling)}</td>
+                    {hasPriorBilling && (
+                      <td className="px-4 py-2.5 text-right text-muted-foreground">{fmt(s.previousBilling)}</td>
+                    )}
                     <td className="px-4 py-2.5 text-right font-medium">{fmt(s.currentBilling)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t bg-muted/10">
-                  <td colSpan={6} className="px-4 py-2.5 text-sm font-medium text-right">Fee Subtotal</td>
+                  <td colSpan={hasPriorBilling ? 6 : 5} className="px-4 py-2.5 text-sm font-medium text-right">Fee Subtotal</td>
                   <td className="px-4 py-2.5 text-right font-semibold">{fmt(feeCurrentTotal)}</td>
                 </tr>
               </tfoot>

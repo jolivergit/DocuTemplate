@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus, Trash2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -106,6 +106,16 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
   const [expenseRows, setExpenseRows] = useState<ExpenseInput[]>([]);
   const [notes, setNotes] = useState("");
 
+  // Fetch prior billing summary so we can show Previous Billing and Current Billing per line
+  const { data: billingSummary = {} } = useQuery<Record<string, number>>({
+    queryKey: ["/api/proposals", proposal.id, "billing-summary"],
+    queryFn: async () => {
+      const r = await fetch(`/api/proposals/${proposal.id}/billing-summary`);
+      if (!r.ok) return {};
+      return r.json();
+    },
+  });
+
   const updateSnapshot = (feeLineId: string, field: keyof SnapshotInput, value: string) => {
     setSnapshots((prev) =>
       prev.map((s) => (s.proposalFeeLineId === feeLineId ? { ...s, [field]: value } : s))
@@ -120,10 +130,12 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
     setExpenseRows((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: value } : e)));
   };
 
-  // Totals
+  // Totals — based on currentBilling (earned minus prior) for Fixed, raw for Hourly
   const feeSubtotal = snapshots.reduce((sum, s) => {
     if (s.feeType === "Fixed") {
-      return sum + Math.max(0, calcEarned(s.baseFee, s.percentComplete));
+      const earned = calcEarned(s.baseFee, s.percentComplete);
+      const prev = billingSummary[s.proposalFeeLineId] || 0;
+      return sum + Math.max(0, earned - prev);
     } else {
       const h = parseFloat(s.hoursWorked) || 0;
       const r = parseFloat(s.ratePerHour) || 0;
@@ -198,6 +210,8 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
     ),
   }));
 
+  const hasPriorBilling = Object.values(billingSummary).some((v) => v > 0);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -207,7 +221,7 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
           Project
         </Button>
         <div className="text-right">
-          <p className="text-xs text-muted-foreground">Invoice Total</p>
+          <p className="text-xs text-muted-foreground">This Invoice Total</p>
           <p className="text-xl font-semibold" data-testid="text-invoice-total">{fmt(grandTotal)}</p>
         </div>
       </div>
@@ -221,97 +235,125 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
       <div className="rounded-md border bg-card">
         <div className="px-4 py-3 border-b">
           <h3 className="text-sm font-semibold">Fee Lines</h3>
-          <p className="text-xs text-muted-foreground">Enter percent complete for fixed-fee lines, or hours & rate for hourly lines</p>
+          <p className="text-xs text-muted-foreground">
+            {hasPriorBilling
+              ? "Previous billing shown for each line. Current billing = Earned − Previous."
+              : "Enter percent complete for fixed-fee lines, or hours & rate for hourly lines."}
+          </p>
         </div>
-        <div className="divide-y">
-          {phaseGroups.map(({ phase, snapshots: phaseSnaps }) => (
-            <div key={phase.id}>
-              <div className="px-4 py-2 bg-muted/20 flex items-center justify-between">
-                <span className="text-sm font-medium">{phase.name}</span>
-              </div>
-              <div className="divide-y">
-                {phaseSnaps.map((s) => {
-                  const earned = s.feeType === "Fixed"
-                    ? calcEarned(s.baseFee, s.percentComplete)
-                    : (parseFloat(s.hoursWorked) || 0) * (parseFloat(s.ratePerHour) || 0);
-                  return (
-                    <div key={s.proposalFeeLineId} className="px-4 py-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-sm font-medium">{s.discipline}</span>
-                        <span className="text-xs text-muted-foreground">{s.serviceCategory}</span>
-                        <Badge variant="secondary" className="text-xs ml-auto">{s.feeType}</Badge>
-                        {s.feeType === "Fixed" && s.baseFee && (
-                          <span className="text-xs text-muted-foreground">Base: {fmt(s.baseFee)}</span>
-                        )}
-                      </div>
-                      {s.feeType === "Fixed" ? (
-                        <div className="flex items-center gap-4 flex-wrap">
-                          <div className="flex items-center gap-2">
-                            <Label className="text-xs whitespace-nowrap">% Complete</Label>
-                            <Input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="5"
-                              value={s.percentComplete}
-                              onChange={(e) => updateSnapshot(s.proposalFeeLineId, "percentComplete", e.target.value)}
-                              className="h-8 w-20 text-sm"
-                              data-testid={`input-pct-${s.proposalFeeLineId}`}
-                            />
-                            <span className="text-xs text-muted-foreground">%</span>
-                          </div>
-                          {earned > 0 && (
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <span>Earned:</span>
-                              <span className="font-medium text-foreground">{fmt(earned)}</span>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/30">
+                <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Discipline / Category</th>
+                <th className="text-center px-3 py-2 font-medium text-muted-foreground text-xs w-24">Type</th>
+                <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs">Base Fee</th>
+                <th className="text-center px-3 py-2 font-medium text-muted-foreground text-xs">% / Hours</th>
+                <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs">Earned</th>
+                {hasPriorBilling && (
+                  <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs">Prev Billed</th>
+                )}
+                <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">This Invoice</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {phaseGroups.map(({ phase, snapshots: phaseSnaps }) => (
+                <>
+                  <tr key={`phase-${phase.id}`} className="bg-muted/10">
+                    <td colSpan={hasPriorBilling ? 7 : 6} className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      {phase.name}
+                    </td>
+                  </tr>
+                  {phaseSnaps.map((s) => {
+                    const prevBilled = billingSummary[s.proposalFeeLineId] || 0;
+                    let earned = 0;
+                    let currentBilling = 0;
+                    if (s.feeType === "Fixed") {
+                      earned = calcEarned(s.baseFee, s.percentComplete);
+                      currentBilling = Math.max(0, earned - prevBilled);
+                    } else {
+                      const h = parseFloat(s.hoursWorked) || 0;
+                      const r = parseFloat(s.ratePerHour) || 0;
+                      earned = h * r;
+                      currentBilling = earned;
+                    }
+                    return (
+                      <tr key={s.proposalFeeLineId}>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-sm">{s.discipline}</p>
+                          <p className="text-xs text-muted-foreground">{s.serviceCategory}</p>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <Badge variant="secondary" className="text-xs">{s.feeType}</Badge>
+                        </td>
+                        <td className="px-3 py-3 text-right text-muted-foreground text-xs">
+                          {s.feeType === "Fixed" ? fmt(s.baseFee) : <span className="italic">—</span>}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          {s.feeType === "Fixed" ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="5"
+                                value={s.percentComplete}
+                                onChange={(e) => updateSnapshot(s.proposalFeeLineId, "percentComplete", e.target.value)}
+                                className="h-8 w-16 text-sm text-center"
+                                data-testid={`input-pct-${s.proposalFeeLineId}`}
+                              />
+                              <span className="text-xs text-muted-foreground">%</span>
                             </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-4 flex-wrap">
-                          <div className="flex items-center gap-2">
-                            <Label className="text-xs">Hours</Label>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.5"
-                              value={s.hoursWorked}
-                              onChange={(e) => updateSnapshot(s.proposalFeeLineId, "hoursWorked", e.target.value)}
-                              className="h-8 w-20 text-sm"
-                              data-testid={`input-hours-${s.proposalFeeLineId}`}
-                            />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Label className="text-xs">Rate</Label>
-                            <div className="relative">
-                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                value={s.hoursWorked}
+                                onChange={(e) => updateSnapshot(s.proposalFeeLineId, "hoursWorked", e.target.value)}
+                                className="h-8 w-16 text-sm text-center"
+                                data-testid={`input-hours-${s.proposalFeeLineId}`}
+                                placeholder="hrs"
+                              />
+                              <span className="text-xs text-muted-foreground">@</span>
                               <Input
                                 type="number"
                                 min="0"
                                 step="5"
                                 value={s.ratePerHour}
                                 onChange={(e) => updateSnapshot(s.proposalFeeLineId, "ratePerHour", e.target.value)}
-                                className="h-8 w-24 pl-5 text-sm"
+                                className="h-8 w-20 text-sm text-center"
                                 data-testid={`input-rate-${s.proposalFeeLineId}`}
+                                placeholder="rate"
                               />
                             </div>
-                            <span className="text-xs text-muted-foreground">/hr</span>
-                          </div>
-                          {earned > 0 && (
-                            <span className="text-xs font-medium">{fmt(earned)}</span>
                           )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="px-4 py-3 border-t flex justify-between items-center bg-muted/10">
-          <span className="text-sm font-medium">Fee Subtotal</span>
-          <span className="text-sm font-semibold">{fmt(feeSubtotal)}</span>
+                        </td>
+                        <td className="px-3 py-3 text-right text-xs">
+                          {earned > 0 ? fmt(earned) : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        {hasPriorBilling && (
+                          <td className="px-3 py-3 text-right text-xs text-muted-foreground">
+                            {prevBilled > 0 ? fmt(prevBilled) : "—"}
+                          </td>
+                        )}
+                        <td className="px-4 py-3 text-right font-medium text-sm">
+                          {currentBilling > 0 ? fmt(currentBilling) : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t bg-muted/10">
+                <td colSpan={hasPriorBilling ? 6 : 5} className="px-4 py-2.5 text-sm font-medium text-right">Fee Subtotal (This Invoice)</td>
+                <td className="px-4 py-2.5 text-right font-semibold">{fmt(feeSubtotal)}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
 
@@ -552,28 +594,27 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
       {/* Summary + submit */}
       <div className="rounded-md border bg-card p-4 space-y-3">
         <h3 className="text-sm font-semibold">Invoice Summary</h3>
-        <div className="space-y-1.5 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Fee Lines</span>
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Fee Services</span>
             <span>{fmt(feeSubtotal)}</span>
           </div>
           {hoursSubtotal > 0 && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Hours</span>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Additional Hours</span>
               <span>{fmt(hoursSubtotal)}</span>
             </div>
           )}
           {expenseSubtotal > 0 && (
-            <div className="flex justify-between">
+            <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Expenses</span>
               <span>{fmt(expenseSubtotal)}</span>
             </div>
           )}
-          <Separator />
-          <div className="flex justify-between font-semibold">
-            <span>Total</span>
-            <span>{fmt(grandTotal)}</span>
-          </div>
+        </div>
+        <div className="flex justify-between items-center pt-2 border-t font-semibold">
+          <span>Invoice Total</span>
+          <span data-testid="text-invoice-summary-total">{fmt(grandTotal)}</span>
         </div>
         <Button
           className="w-full"

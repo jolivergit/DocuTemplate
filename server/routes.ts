@@ -1080,6 +1080,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/proposals/:id/billing-summary", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const summary = await storage.getProposalBillingSummary(userId, req.params.id);
+      res.json(summary);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/leads/:leadId/proposals", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
