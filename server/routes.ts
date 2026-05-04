@@ -1203,6 +1203,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!(INVOICE_STATUSES as readonly string[]).includes(status)) {
         return res.status(400).json({ error: `Invalid status. Must be one of: ${INVOICE_STATUSES.join(", ")}` });
       }
+      // Enforce forward-only status transitions
+      const current = await storage.getInvoiceById(userId, req.params.id);
+      if (!current) return res.status(404).json({ error: "Invoice not found" });
+      const ORDER = { Draft: 0, Sent: 1, Paid: 2 } as Record<string, number>;
+      if ((ORDER[status] ?? -1) < (ORDER[current.status] ?? 0)) {
+        return res.status(400).json({ error: `Cannot revert status from ${current.status} to ${status}` });
+      }
       const invoice = await storage.updateInvoiceStatus(userId, req.params.id, status);
       if (!invoice) return res.status(404).json({ error: "Invoice not found" });
       res.json(invoice);
@@ -1274,6 +1281,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/invoices/:id/expenses", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
+      const { expenseType } = req.body;
+      if (expenseType && !(EXPENSE_TYPES as readonly string[]).includes(expenseType)) {
+        return res.status(400).json({ error: `Invalid expenseType. Must be one of: ${EXPENSE_TYPES.join(", ")}` });
+      }
       const invoice = await storage.getInvoiceById(userId, req.params.id);
       if (!invoice) return res.status(404).json({ error: "Invoice not found" });
       const entry = await storage.createExpenseEntry(userId, req.params.id, invoice.leadId, req.body);
