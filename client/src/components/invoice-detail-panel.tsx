@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ExternalLink, ArrowLeft, Trash2, FileText, Link } from "lucide-react";
+import { ExternalLink, ArrowLeft, Trash2, FileText, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { InvoiceWithDetails, InvoiceStatus, LeadWithCompanies } from "@shared/schema";
+import type { InvoiceWithDetails, InvoiceStatus, LeadWithCompanies, FieldValue } from "@shared/schema";
 
 const STATUS_COLORS: Record<InvoiceStatus, string> = {
   Draft: "bg-secondary text-secondary-foreground",
@@ -42,6 +48,16 @@ function fmtDate(d: string | Date | null | undefined): string {
   return new Date(d as string).toLocaleDateString();
 }
 
+interface DriveFile {
+  id: string;
+  name: string;
+}
+
+interface ParsedTag {
+  name: string;
+  tagType: "field" | "content";
+}
+
 interface Props {
   invoiceId: string;
   leadId: number;
@@ -52,8 +68,9 @@ interface Props {
 export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
   const { toast } = useToast();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showDocUrlInput, setShowDocUrlInput] = useState(false);
-  const [docUrlDraft, setDocUrlDraft] = useState("");
+  const [showGeneratePanel, setShowGeneratePanel] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const { data: invoice, isLoading } = useQuery<InvoiceWithDetails>({
     queryKey: ["/api/invoices", invoiceId],
@@ -62,6 +79,17 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       if (!r.ok) throw new Error("Failed to load invoice");
       return r.json();
     },
+  });
+
+  const { data: templates = [], isLoading: templatesLoading } = useQuery<DriveFile[]>({
+    queryKey: ["/api/google-drive/files"],
+    queryFn: async () => {
+      const r = await fetch("/api/google-drive/files");
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: showGeneratePanel,
+    staleTime: 60_000,
   });
 
   const statusMutation = useMutation({
@@ -73,20 +101,6 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
     },
     onError: (err: Error) => {
       toast({ title: "Failed to update status", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const docUrlMutation = useMutation({
-    mutationFn: (docUrl: string) => apiRequest("PATCH", `/api/invoices/${invoiceId}/doc-url`, { docUrl }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/invoices", invoiceId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "invoices"] });
-      setShowDocUrlInput(false);
-      setDocUrlDraft("");
-      toast({ title: "Document linked to invoice" });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Failed to link document", description: err.message, variant: "destructive" });
     },
   });
 
@@ -102,22 +116,20 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
     },
   });
 
-  const generateFieldValues = async () => {
-    if (!invoice) return;
+  const buildInvoiceFieldMappings = (inv: InvoiceWithDetails): { name: string; value: string }[] => {
     const clientCompany = lead.companies.find((c) => c.companyRole === "Client" || c.companyRole === "ContractHolder");
-    const feeTotal = invoice.feeLineSnapshots.reduce((sum, s) => sum + (parseFloat(s.currentBilling || "0")), 0);
-    const hoursTotal = invoice.hoursEntries.reduce((sum, h) => sum + (parseFloat(h.hours) * parseFloat(h.ratePerHour)), 0);
-    const expenseTotal = invoice.expenseEntries.reduce((sum, e) => {
-      if (e.expenseType === "Mileage") return sum + (parseFloat(e.milesTraveled || "0") * parseFloat(e.ratePerMile || "0"));
+    const feeTotal = inv.feeLineSnapshots.reduce((sum, s) => sum + parseFloat(s.currentBilling || "0"), 0);
+    const hoursTotal = inv.hoursEntries.reduce((sum, h) => sum + parseFloat(h.hours) * parseFloat(h.ratePerHour), 0);
+    const expenseTotal = inv.expenseEntries.reduce((sum, e) => {
+      if (e.expenseType === "Mileage") return sum + parseFloat(e.milesTraveled || "0") * parseFloat(e.ratePerMile || "0");
       return sum + parseFloat(e.amount || "0");
     }, 0);
     const grandTotal = feeTotal + hoursTotal + expenseTotal;
 
-    // Top-level invoice field values
-    const fieldMappings: { name: string; value: string }[] = [
-      { name: "invoice_number", value: String(invoice.invoiceNumber) },
-      { name: "invoice_date", value: fmtDate(invoice.createdAt) },
-      { name: "invoice_status", value: invoice.status },
+    const fields: { name: string; value: string }[] = [
+      { name: "invoice_number", value: String(inv.invoiceNumber) },
+      { name: "invoice_date", value: fmtDate(inv.createdAt) },
+      { name: "invoice_status", value: inv.status },
       { name: "project_name", value: lead.projectName },
       { name: "client_company", value: clientCompany?.companyName || "" },
       { name: "client_contact", value: clientCompany?.contactFullName || "" },
@@ -128,10 +140,9 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       { name: "invoice_grand_total", value: fmt(grandTotal) },
     ];
 
-    // Line-level fee snapshot fields (up to 20 lines)
-    invoice.feeLineSnapshots.forEach((s, i) => {
+    inv.feeLineSnapshots.forEach((s, i) => {
       const prefix = `fee_line_${i + 1}`;
-      fieldMappings.push(
+      fields.push(
         { name: `${prefix}_discipline`, value: s.discipline },
         { name: `${prefix}_category`, value: s.serviceCategory },
         { name: `${prefix}_type`, value: s.feeType },
@@ -145,11 +156,10 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       );
     });
 
-    // Hours entries
-    invoice.hoursEntries.forEach((h, i) => {
+    inv.hoursEntries.forEach((h, i) => {
       const prefix = `hours_entry_${i + 1}`;
       const amt = parseFloat(h.hours) * parseFloat(h.ratePerHour);
-      fieldMappings.push(
+      fields.push(
         { name: `${prefix}_date`, value: h.date },
         { name: `${prefix}_description`, value: h.description },
         { name: `${prefix}_hours`, value: h.hours },
@@ -158,13 +168,12 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       );
     });
 
-    // Expense entries
-    invoice.expenseEntries.forEach((e, i) => {
+    inv.expenseEntries.forEach((e, i) => {
       const prefix = `expense_entry_${i + 1}`;
       const amt = e.expenseType === "Mileage"
-        ? (parseFloat(e.milesTraveled || "0") * parseFloat(e.ratePerMile || "0"))
+        ? parseFloat(e.milesTraveled || "0") * parseFloat(e.ratePerMile || "0")
         : parseFloat(e.amount || "0");
-      fieldMappings.push(
+      fields.push(
         { name: `${prefix}_date`, value: e.date },
         { name: `${prefix}_type`, value: e.expenseType },
         { name: `${prefix}_detail`, value: e.expenseType === "Mileage" ? `${e.milesTraveled} mi @ $${e.ratePerMile}/mi` : "" },
@@ -172,8 +181,19 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       );
     });
 
+    return fields;
+  };
+
+  const handleGenerate = async () => {
+    if (!invoice || !selectedTemplateId) return;
+    const template = templates.find((t) => t.id === selectedTemplateId);
+    if (!template) return;
+
+    setIsGenerating(true);
     try {
-      const results = await Promise.all(
+      // Step 1: Upsert all invoice field values
+      const fieldMappings = buildInvoiceFieldMappings(invoice);
+      const upsertResults = await Promise.all(
         fieldMappings.map((fv) =>
           fetch("/api/field-values/upsert-by-name", {
             method: "POST",
@@ -182,16 +202,84 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
           })
         )
       );
-      const failed = results.find((r) => !r.ok);
-      if (failed) {
-        const err = await failed.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error || `HTTP ${failed.status}`);
+      const failedUpsert = upsertResults.find((r) => !r.ok);
+      if (failedUpsert) {
+        const err = await failedUpsert.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || `Upsert failed: HTTP ${failedUpsert.status}`);
       }
+
+      // Step 2: Fetch all current field values (now includes the freshly upserted ones)
+      const fvRes = await fetch("/api/field-values");
+      if (!fvRes.ok) throw new Error("Failed to fetch field values");
+      const allFieldValues: FieldValue[] = await fvRes.json();
+      const fvByName = new Map(allFieldValues.map((fv) => [fv.name, fv]));
+
+      // Step 3: Parse template to discover its tags
+      const parseRes = await fetch("/api/templates/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileId: selectedTemplateId }),
+      });
+      if (!parseRes.ok) throw new Error("Failed to parse template");
+      const parsed = await parseRes.json() as { tags: ParsedTag[] };
+
+      // Step 4: Build tagMappings — map each template tag to its stored field value (or empty custom content)
+      const tagMappings = parsed.tags.map((tag: ParsedTag) => {
+        if (tag.tagType === "field") {
+          const fv = fvByName.get(tag.name);
+          return {
+            tagName: tag.name,
+            tagType: "field" as const,
+            snippetId: null,
+            customContent: fv ? null : "",
+            fieldValueId: fv?.id ?? null,
+          };
+        }
+        return {
+          tagName: tag.name,
+          tagType: "content" as const,
+          snippetId: null,
+          customContent: "",
+          fieldValueId: null,
+        };
+      });
+
+      // Step 5: Generate the document
+      const outputName = `Invoice_${invoice.invoiceNumber}_${lead.projectName.replace(/\s+/g, "_")}`;
+      const genRes = await fetch("/api/documents/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId: selectedTemplateId,
+          templateName: template.name,
+          outputName,
+          tagMappings,
+          sectionOrder: [],
+        }),
+      });
+      if (!genRes.ok) {
+        const err = await genRes.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || "Document generation failed");
+      }
+      const { documentUrl } = await genRes.json() as { documentUrl: string };
+
+      // Step 6: Auto-save the document URL to this invoice
+      const saveRes = await fetch(`/api/invoices/${invoiceId}/doc-url`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docUrl: documentUrl }),
+      });
+      if (!saveRes.ok) throw new Error("Failed to save document URL to invoice");
+
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "invoices"] });
       queryClient.invalidateQueries({ queryKey: ["/api/field-values"] });
-      toast({ title: "Invoice data loaded into Doc Builder", description: "Open Doc Builder to generate your invoice document, then paste the link back here." });
-      setShowDocUrlInput(true);
+      setShowGeneratePanel(false);
+      toast({ title: "Invoice document generated", description: "The document has been linked to this invoice." });
     } catch (e: unknown) {
-      toast({ title: "Failed to load field values", description: e instanceof Error ? e.message : undefined, variant: "destructive" });
+      toast({ title: "Document generation failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -214,13 +302,12 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
 
   const feeCurrentTotal = invoice.feeLineSnapshots.reduce((sum, s) => sum + parseFloat(s.currentBilling || "0"), 0);
   const feePrevTotal = invoice.feeLineSnapshots.reduce((sum, s) => sum + parseFloat(s.previousBilling || "0"), 0);
-  const hoursTotal = invoice.hoursEntries.reduce((sum, h) => sum + (parseFloat(h.hours) * parseFloat(h.ratePerHour)), 0);
+  const hoursTotal = invoice.hoursEntries.reduce((sum, h) => sum + parseFloat(h.hours) * parseFloat(h.ratePerHour), 0);
   const expenseTotal = invoice.expenseEntries.reduce((sum, e) => {
-    if (e.expenseType === "Mileage") return sum + (parseFloat(e.milesTraveled || "0") * parseFloat(e.ratePerMile || "0"));
+    if (e.expenseType === "Mileage") return sum + parseFloat(e.milesTraveled || "0") * parseFloat(e.ratePerMile || "0");
     return sum + parseFloat(e.amount || "0");
   }, 0);
   const grandTotal = feeCurrentTotal + hoursTotal + expenseTotal;
-
   const hasPriorBilling = feePrevTotal > 0;
 
   return (
@@ -239,45 +326,63 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
                 View Doc
               </Button>
             </a>
-          ) : (
-            <Button variant="outline" size="sm" onClick={generateFieldValues} data-testid="button-generate-invoice-doc">
-              <FileText className="w-4 h-4" />
-              Load to Doc Builder
-            </Button>
-          )}
-          {invoice.docUrl && (
-            <Button variant="ghost" size="sm" onClick={() => setShowDocUrlInput(true)} data-testid="button-change-doc-url">
-              <Link className="w-4 h-4" />
-            </Button>
-          )}
+          ) : null}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowGeneratePanel((v) => !v)}
+            data-testid="button-generate-invoice-doc"
+          >
+            <FileText className="w-4 h-4" />
+            {invoice.docUrl ? "Regenerate Doc" : "Generate Doc"}
+            <ChevronDown className="w-3 h-3 ml-1" />
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(true)} data-testid="button-delete-invoice">
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
         </div>
       </div>
 
-      {/* Paste doc URL after generation */}
-      {showDocUrlInput && (
-        <div className="rounded-md border bg-card p-4 space-y-2">
-          <p className="text-sm font-medium">Link Generated Document</p>
-          <p className="text-xs text-muted-foreground">After generating your document in Doc Builder, paste the Google Doc URL below to link it to this invoice.</p>
-          <div className="flex gap-2">
-            <Input
-              value={docUrlDraft}
-              onChange={(e) => setDocUrlDraft(e.target.value)}
-              placeholder="https://docs.google.com/document/d/..."
-              className="text-sm"
-              data-testid="input-doc-url"
-            />
+      {/* Integrated doc generation panel */}
+      {showGeneratePanel && (
+        <div className="rounded-md border bg-card p-4 space-y-3">
+          <p className="text-sm font-medium">Generate Invoice Document</p>
+          <p className="text-xs text-muted-foreground">
+            Select a Google Docs template. Invoice data will be automatically mapped to template tags
+            (e.g. <code className="font-mono">{"{{invoice_number}}"}</code>, <code className="font-mono">{"{{invoice_grand_total}}"}</code>).
+            The generated document URL will be saved to this invoice.
+          </p>
+          <div className="flex gap-2 items-end flex-wrap">
+            <div className="flex-1 min-w-48 space-y-1">
+              <p className="text-xs text-muted-foreground">Template</p>
+              {templatesLoading ? (
+                <Skeleton className="h-9 w-full" />
+              ) : (
+                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                  <SelectTrigger className="text-sm" data-testid="select-invoice-template">
+                    <SelectValue placeholder="Select a template…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.length === 0 ? (
+                      <SelectItem value="_none" disabled>No Google Docs found</SelectItem>
+                    ) : (
+                      templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
             <Button
               size="sm"
-              onClick={() => docUrlMutation.mutate(docUrlDraft)}
-              disabled={!docUrlDraft.startsWith("http") || docUrlMutation.isPending}
-              data-testid="button-save-doc-url"
+              onClick={handleGenerate}
+              disabled={!selectedTemplateId || isGenerating}
+              data-testid="button-confirm-generate-doc"
             >
-              {docUrlMutation.isPending ? "Saving…" : "Save"}
+              {isGenerating ? "Generating…" : "Generate & Save"}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setShowDocUrlInput(false)} data-testid="button-cancel-doc-url">
+            <Button variant="ghost" size="sm" onClick={() => setShowGeneratePanel(false)} data-testid="button-cancel-generate">
               Cancel
             </Button>
           </div>
@@ -452,7 +557,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
               <tbody className="divide-y">
                 {invoice.expenseEntries.map((e) => {
                   const amt = e.expenseType === "Mileage"
-                    ? (parseFloat(e.milesTraveled || "0") * parseFloat(e.ratePerMile || "0"))
+                    ? parseFloat(e.milesTraveled || "0") * parseFloat(e.ratePerMile || "0")
                     : parseFloat(e.amount || "0");
                   return (
                     <tr key={e.id} data-testid={`row-expense-${e.id}`}>
