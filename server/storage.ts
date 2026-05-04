@@ -548,6 +548,11 @@ export class DatabaseStorage implements IStorage {
     const owned = await this.verifyLeadOwnership(userId, leadId);
     if (!owned) throw new Error('Lead not found or access denied');
 
+    // Validate: proposal must belong to this lead
+    const [proposalRow] = await db.select({ leadId: proposals.leadId, status: proposals.status }).from(proposals).where(eq(proposals.id, proposalId));
+    if (!proposalRow || proposalRow.leadId !== leadId) throw new Error('Proposal not found or does not belong to this lead');
+    if (proposalRow.status !== 'Signed') throw new Error('Invoices can only be created against a signed proposal');
+
     // Calculate next invoice number for this lead
     const existingInvoices = await db.select({ num: invoices.invoiceNumber }).from(invoices).where(eq(invoices.leadId, leadId));
     const nextNumber = existingInvoices.length > 0 ? Math.max(...existingInvoices.map(i => i.num)) + 1 : 1;
@@ -557,11 +562,22 @@ export class DatabaseStorage implements IStorage {
       .values({ leadId, proposalId, invoiceNumber: nextNumber, notes: notes || null })
       .returning();
 
-    // Fetch proposal fee lines for snapshot
+    // Fetch proposal fee lines for snapshot — only lines that actually belong to this proposal
     const proposalFeeLineIds = feeLineInputs.map(f => f.proposalFeeLineId);
-    const feeLineRows = proposalFeeLineIds.length > 0
+    const allProposalFeeLines = proposalFeeLineIds.length > 0
       ? await db.select().from(proposalFeeLines).where(inArray(proposalFeeLines.id, proposalFeeLineIds))
       : [];
+
+    // Validate: all submitted fee line IDs must belong to phases within this proposal
+    if (allProposalFeeLines.length > 0) {
+      const phaseIds = allProposalFeeLines.map(fl => fl.phaseId);
+      const validPhases = await db.select({ id: proposalPhases.id }).from(proposalPhases).where(and(inArray(proposalPhases.id, phaseIds), eq(proposalPhases.proposalId, proposalId)));
+      const validPhaseIds = new Set(validPhases.map(p => p.id));
+      const invalidLine = allProposalFeeLines.find(fl => !validPhaseIds.has(fl.phaseId));
+      if (invalidLine) throw new Error('One or more fee lines do not belong to this proposal');
+    }
+
+    const feeLineRows = allProposalFeeLines;
 
     // Calculate previous billing per fee line from prior invoices
     const previousBillingMap = new Map<string, number>();
