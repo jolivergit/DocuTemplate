@@ -331,13 +331,13 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
       if (isEditing) {
         queryClient.invalidateQueries({ queryKey: ["/api/leads", lead!.id] });
       }
-      toast({ title: isEditing ? "Lead updated" : "Lead created" });
+      toast({ title: isEditing ? "Project updated" : "Project created" });
       onOpenChange(false);
       if (!isEditing) form.reset();
     },
     onError: (err: Error) => {
       toast({
-        title: isEditing ? "Failed to update lead" : "Failed to create lead",
+        title: isEditing ? "Failed to update project" : "Failed to create project",
         description: err.message,
         variant: "destructive",
       });
@@ -350,7 +350,7 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
-          <DialogTitle>{isEditing ? "Edit Lead" : "New Lead"}</DialogTitle>
+          <DialogTitle>{isEditing ? "Edit Project" : "New Project"}</DialogTitle>
         </DialogHeader>
 
         <ScrollArea className="flex-1">
@@ -490,7 +490,7 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
                   disabled={mutation.isPending}
                   data-testid="button-submit-lead"
                 >
-                  {mutation.isPending ? "Saving..." : isEditing ? "Save Changes" : "Create Lead"}
+                  {mutation.isPending ? "Saving..." : isEditing ? "Save Changes" : "Create Project"}
                 </Button>
               </div>
             </form>

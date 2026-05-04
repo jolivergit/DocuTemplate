@@ -78,10 +78,10 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-semibold" data-testid="text-dashboard-title">Dashboard</h1>
             <p className="text-sm text-muted-foreground mt-0.5">Oliver Studios project pipeline overview</p>
           </div>
-          <Link href="/leads">
-            <Button size="sm" data-testid="button-go-to-leads">
+          <Link href="/projects">
+            <Button size="sm" data-testid="button-go-to-projects">
               <Briefcase className="w-4 h-4" />
-              All Leads &amp; Projects
+              All Projects
             </Button>
           </Link>
         </div>
@@ -158,9 +158,9 @@ export default function DashboardPage() {
         {/* Recent leads */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Recent Leads &amp; Projects</h2>
-            <Link href="/leads">
-              <Button variant="ghost" size="sm" data-testid="button-view-all-leads">
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Recent Projects</h2>
+            <Link href="/projects">
+              <Button variant="ghost" size="sm" data-testid="button-view-all-projects">
                 View all
                 <ChevronRight className="w-3 h-3" />
               </Button>
@@ -173,10 +173,10 @@ export default function DashboardPage() {
           ) : !stats?.recentLeads?.length ? (
             <Card>
               <CardContent className="py-10 text-center">
-                <p className="text-sm text-muted-foreground">No leads yet.</p>
-                <Link href="/leads">
-                  <Button size="sm" className="mt-4" data-testid="button-create-first-lead">
-                    Create your first lead
+                <p className="text-sm text-muted-foreground">No projects yet.</p>
+                <Link href="/projects">
+                  <Button size="sm" className="mt-4" data-testid="button-create-first-project">
+                    Create your first project
                   </Button>
                 </Link>
               </CardContent>
@@ -188,7 +188,7 @@ export default function DashboardPage() {
                   (c) => c.companyRole === "Client" || c.companyRole === "ContractHolder"
                 );
                 return (
-                  <Link key={lead.id} href={`/leads/${lead.id}`}>
+                  <Link key={lead.id} href={`/projects/${lead.id}`}>
                     <div
                       className="flex items-center justify-between gap-3 px-4 py-3 hover-elevate cursor-pointer flex-wrap"
                       data-testid={`row-recent-lead-${lead.id}`}

@@ -7,8 +7,9 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import Home from "@/pages/home";
 import DashboardPage from "@/pages/dashboard";
-import LeadsPage from "@/pages/leads";
-import LeadDetailPage from "@/pages/lead-detail";
+import ProjectsPage from "@/pages/projects";
+import ProjectDetailPage from "@/pages/project-detail";
+import ContactsPage from "@/pages/contacts";
 import NotFound from "@/pages/not-found";
 import { useQuery } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
@@ -115,8 +116,9 @@ function AppLayout() {
           <main className="flex-1 overflow-hidden">
             <Switch>
               <Route path="/" component={DashboardPage} />
-              <Route path="/leads" component={LeadsPage} />
-              <Route path="/leads/:id" component={LeadDetailPage} />
+              <Route path="/projects" component={ProjectsPage} />
+              <Route path="/projects/:id" component={ProjectDetailPage} />
+              <Route path="/contacts" component={ContactsPage} />
               <Route path="/doc-builder" component={Home} />
               <Route component={NotFound} />
             </Switch>
