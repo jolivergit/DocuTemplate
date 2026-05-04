@@ -42,7 +42,16 @@ import {
 import { db } from "./db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 
+export interface DashboardStats {
+  leadsByStatus: Record<string, number>;
+  sentInvoicesTotal: number;
+  paidInvoicesTotal: number;
+  recentLeads: LeadWithCompanies[];
+}
+
 export interface IStorage {
+  // Dashboard
+  getDashboardStats(userId: string): Promise<DashboardStats>;
   // Categories
   getCategories(userId: string): Promise<Category[]>;
   createCategory(userId: string, category: InsertCategory): Promise<Category>;
@@ -822,6 +831,48 @@ export class DatabaseStorage implements IStorage {
     if (!owned) return false;
     const result = await db.delete(projectComments).where(and(eq(projectComments.id, commentId), eq(projectComments.leadId, leadId)));
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async getDashboardStats(userId: string): Promise<DashboardStats> {
+    // Leads grouped by status
+    const allLeads = await this.getLeads(userId);
+    const leadsByStatus: Record<string, number> = {};
+    for (const lead of allLeads) {
+      leadsByStatus[lead.status] = (leadsByStatus[lead.status] ?? 0) + 1;
+    }
+
+    // Invoice financial totals — use correlated subqueries to avoid cross-join row inflation
+    const invoiceTotals = await db.execute(sql`
+      SELECT
+        i.status,
+        SUM(
+          (SELECT COALESCE(SUM(s.current_billing::numeric), 0)
+           FROM invoice_fee_line_snapshots s WHERE s.invoice_id = i.id)
+          + (SELECT COALESCE(SUM(h.hours::numeric * h.rate_per_hour::numeric), 0)
+             FROM hours_entries h WHERE h.invoice_id = i.id)
+          + (SELECT COALESCE(SUM(
+               CASE WHEN e.expense_type = 'Mileage'
+                    THEN e.miles_traveled::numeric * e.rate_per_mile::numeric
+                    ELSE e.amount::numeric END), 0)
+             FROM expense_entries e WHERE e.invoice_id = i.id)
+        ) AS total
+      FROM invoices i
+      WHERE i.user_id = ${userId}
+      GROUP BY i.status
+    `);
+
+    let sentInvoicesTotal = 0;
+    let paidInvoicesTotal = 0;
+    for (const row of invoiceTotals.rows as { status: string; total: string }[]) {
+      const amt = parseFloat(row.total) || 0;
+      if (row.status === "Sent") sentInvoicesTotal = amt;
+      if (row.status === "Paid") paidInvoicesTotal = amt;
+    }
+
+    // Recent 6 leads (already sorted by id desc via getLeads returning insertion order)
+    const recentLeads = allLeads.slice(0, 6);
+
+    return { leadsByStatus, sentInvoicesTotal, paidInvoicesTotal, recentLeads };
   }
 }
 

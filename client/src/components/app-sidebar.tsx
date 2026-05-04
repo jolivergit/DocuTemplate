@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { FileText, Briefcase } from "lucide-react";
+import { FileText, Briefcase, LayoutDashboard } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,16 +18,22 @@ import type { User } from "@shared/schema";
 
 const navItems = [
   {
-    title: "Leads",
+    title: "Dashboard",
     url: "/",
+    icon: LayoutDashboard,
+    exact: true,
+  },
+  {
+    title: "Leads & Projects",
+    url: "/leads",
     icon: Briefcase,
-    activePrefix: "/leads",
+    exact: false,
   },
   {
     title: "Doc Builder",
     url: "/doc-builder",
     icon: FileText,
-    activePrefix: "/doc-builder",
+    exact: false,
   },
 ];
 
@@ -42,8 +48,8 @@ export function AppSidebar({ user }: AppSidebarProps) {
     <Sidebar>
       <SidebarHeader className="p-4 border-b">
         <div className="flex items-center gap-2">
-          <FileText className="w-5 h-5 text-primary flex-shrink-0" />
-          <span className="font-semibold text-base">DocBuilder</span>
+          <LayoutDashboard className="w-5 h-5 text-primary flex-shrink-0" />
+          <span className="font-semibold text-base">Studio PM</span>
         </div>
       </SidebarHeader>
 
@@ -53,10 +59,9 @@ export function AppSidebar({ user }: AppSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
-                const isActive =
-                  location === item.url ||
-                  location === "" && item.url === "/" ||
-                  (item.activePrefix && location.startsWith(item.activePrefix));
+                const isActive = item.exact
+                  ? location === item.url || location === ""
+                  : location.startsWith(item.url);
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild data-active={isActive}>

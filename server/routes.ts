@@ -960,6 +960,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── Dashboard ──────────────────────────────────────────────────────────────
+
+  app.get("/api/dashboard", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const stats = await storage.getDashboardStats(userId);
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ─── Leads ─────────────────────────────────────────────────────────────────
 
   app.get("/api/leads", requireAuth, async (req, res) => {

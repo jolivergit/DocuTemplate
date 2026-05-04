@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import Home from "@/pages/home";
+import DashboardPage from "@/pages/dashboard";
 import LeadsPage from "@/pages/leads";
 import LeadDetailPage from "@/pages/lead-detail";
 import NotFound from "@/pages/not-found";
@@ -40,17 +41,16 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         <header className="h-14 border-b flex items-center justify-between px-6 flex-shrink-0">
           <div className="flex items-center gap-3">
             <FileText className="w-5 h-5 text-primary" />
-            <h1 className="text-lg font-semibold">DocBuilder</h1>
+            <h1 className="text-lg font-semibold">Studio PM</h1>
           </div>
           <ThemeToggle />
         </header>
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-md px-6">
             <FileText className="w-16 h-16 mx-auto mb-6 text-primary" data-testid="icon-login-logo" />
-            <h2 className="text-2xl font-semibold mb-3" data-testid="text-login-title">Welcome to DocBuilder</h2>
+            <h2 className="text-2xl font-semibold mb-3" data-testid="text-login-title">Welcome to Studio PM</h2>
             <p className="text-sm text-muted-foreground mb-8" data-testid="text-login-description">
-              Build Google Documents from customizable templates with ease. Sign in with your Google account
-              to access your Drive files and start creating.
+              Oliver Studios' project pipeline manager. Track every lead, proposal, project, and invoice from one place.
             </p>
             <Button
               variant="default"
@@ -114,7 +114,8 @@ function AppLayout() {
           </header>
           <main className="flex-1 overflow-hidden">
             <Switch>
-              <Route path="/" component={LeadsPage} />
+              <Route path="/" component={DashboardPage} />
+              <Route path="/leads" component={LeadsPage} />
               <Route path="/leads/:id" component={LeadDetailPage} />
               <Route path="/doc-builder" component={Home} />
               <Route component={NotFound} />

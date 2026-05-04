@@ -561,7 +561,7 @@ export default function LeadDetailPage({ params }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       toast({ title: "Lead deleted" });
-      navigate("/");
+      navigate("/leads");
     },
     onError: (err: Error) => {
       toast({ title: "Failed to delete lead", description: err.message, variant: "destructive" });
@@ -615,7 +615,7 @@ export default function LeadDetailPage({ params }: Props) {
       <div className="max-w-3xl mx-auto w-full p-6 space-y-6">
         {/* Back + actions header */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <Link href="/">
+          <Link href="/leads">
             <Button variant="ghost" size="sm" data-testid="button-back">
               <ChevronLeft className="w-4 h-4" />
               Leads
