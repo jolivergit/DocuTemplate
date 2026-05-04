@@ -173,7 +173,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
     });
 
     try {
-      await Promise.all(
+      const results = await Promise.all(
         fieldMappings.map((fv) =>
           fetch("/api/field-values/upsert-by-name", {
             method: "POST",
@@ -182,11 +182,16 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
           })
         )
       );
+      const failed = results.find((r) => !r.ok);
+      if (failed) {
+        const err = await failed.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || `HTTP ${failed.status}`);
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/field-values"] });
       toast({ title: "Invoice data loaded into Doc Builder", description: "Open Doc Builder to generate your invoice document, then paste the link back here." });
       setShowDocUrlInput(true);
-    } catch {
-      toast({ title: "Failed to load field values", variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Failed to load field values", description: e instanceof Error ? e.message : undefined, variant: "destructive" });
     }
   };
 

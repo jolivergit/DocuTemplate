@@ -1042,7 +1042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = (req.user as User).id;
       const { name, value } = req.body;
-      if (!name || !value) return res.status(400).json({ error: "name and value are required" });
+      if (!name || value === undefined || value === null) return res.status(400).json({ error: "name is required and value must be provided" });
       const existing = await storage.getFieldValueByName(userId, name);
       if (existing) {
         const updated = await storage.updateFieldValue(userId, existing.id, { name, value });
