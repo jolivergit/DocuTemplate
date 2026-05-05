@@ -1,15 +1,30 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Search, Users, Mail, Phone, Building2 } from "lucide-react";
+import { Search, Users, Mail, Phone, Building2, Plus, Pencil, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { LeadWithCompanies } from "@shared/schema";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ContactFormDialog } from "@/components/contact-form-dialog";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import type { Contact, LeadWithCompanies } from "@shared/schema";
 import { COMPANY_ROLE_LABELS } from "@shared/schema";
 
-interface ContactEntry {
-  contactFullName: string | null;
+interface ProjectContactEntry {
+  source: "project";
+  contactFullName: string;
   contactTitle: string | null;
   contactPhone: string | null;
   contactEmail: string | null;
@@ -19,29 +34,71 @@ interface ContactEntry {
   projectName: string;
 }
 
+interface StandaloneContactEntry {
+  source: "standalone";
+  contact: Contact;
+}
+
+type ContactEntry = ProjectContactEntry | StandaloneContactEntry;
+
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
+  const { toast } = useToast();
 
-  const { data: leads = [], isLoading } = useQuery<LeadWithCompanies[]>({
+  const { data: standaloneContacts = [], isLoading: loadingContacts } = useQuery<Contact[]>({
+    queryKey: ["/api/contacts"],
+  });
+
+  const { data: leads = [], isLoading: loadingLeads } = useQuery<LeadWithCompanies[]>({
     queryKey: ["/api/leads"],
   });
 
-  const contacts: ContactEntry[] = [];
-  const seen = new Set<string>();
+  const isLoading = loadingContacts || loadingLeads;
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/contacts/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      toast({ title: "Contact deleted" });
+      setDeletingContact(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to delete contact", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Build project-derived contacts (de-duped by email if they match a standalone contact)
+  const standaloneEmails = new Set(
+    standaloneContacts
+      .map((c) => c.email?.toLowerCase())
+      .filter(Boolean) as string[]
+  );
+
+  const projectEntries: ProjectContactEntry[] = [];
+  const seenProjectKeys = new Set<string>();
 
   for (const lead of leads) {
     for (const company of lead.companies) {
       if (!company.contactFullName && !company.companyName) continue;
 
-      const key = company.contactEmail
-        ? company.contactEmail.toLowerCase()
+      const emailKey = company.contactEmail?.toLowerCase();
+      if (emailKey && standaloneEmails.has(emailKey)) continue;
+
+      const dedupeKey = emailKey
+        ? emailKey
         : `${company.contactFullName || ""}::${company.companyName || ""}::${lead.id}`;
 
-      if (seen.has(key)) continue;
-      seen.add(key);
+      if (seenProjectKeys.has(dedupeKey)) continue;
+      seenProjectKeys.add(dedupeKey);
 
-      contacts.push({
-        contactFullName: company.contactFullName,
+      projectEntries.push({
+        source: "project",
+        contactFullName: company.contactFullName || "",
         contactTitle: company.contactTitle,
         contactPhone: company.contactPhone,
         contactEmail: company.contactEmail,
@@ -53,16 +110,42 @@ export default function ContactsPage() {
     }
   }
 
-  const filtered = contacts.filter((c) => {
-    const q = search.toLowerCase();
-    return (
-      (c.contactFullName || "").toLowerCase().includes(q) ||
-      (c.companyName || "").toLowerCase().includes(q) ||
-      (c.contactEmail || "").toLowerCase().includes(q) ||
-      (c.contactPhone || "").toLowerCase().includes(q) ||
-      c.projectName.toLowerCase().includes(q)
-    );
+  const allEntries: ContactEntry[] = [
+    ...standaloneContacts.map((c): StandaloneContactEntry => ({ source: "standalone", contact: c })),
+    ...projectEntries,
+  ];
+
+  const q = search.toLowerCase();
+  const filtered = allEntries.filter((entry) => {
+    if (entry.source === "standalone") {
+      const c = entry.contact;
+      return (
+        c.fullName.toLowerCase().includes(q) ||
+        (c.companyName || "").toLowerCase().includes(q) ||
+        (c.email || "").toLowerCase().includes(q) ||
+        (c.phone || "").toLowerCase().includes(q) ||
+        (c.title || "").toLowerCase().includes(q)
+      );
+    } else {
+      return (
+        entry.contactFullName.toLowerCase().includes(q) ||
+        (entry.companyName || "").toLowerCase().includes(q) ||
+        (entry.contactEmail || "").toLowerCase().includes(q) ||
+        (entry.contactPhone || "").toLowerCase().includes(q) ||
+        entry.projectName.toLowerCase().includes(q)
+      );
+    }
   });
+
+  function openCreate() {
+    setEditingContact(null);
+    setFormOpen(true);
+  }
+
+  function openEdit(contact: Contact) {
+    setEditingContact(contact);
+    setFormOpen(true);
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -70,8 +153,12 @@ export default function ContactsPage() {
       <div className="border-b px-6 py-4 flex items-center justify-between gap-4 flex-wrap flex-shrink-0 bg-background">
         <div>
           <h1 className="text-xl font-semibold" data-testid="text-page-title">Contacts</h1>
-          <p className="text-sm text-muted-foreground">Companies and contacts across all projects</p>
+          <p className="text-sm text-muted-foreground">All contacts across your address book and projects</p>
         </div>
+        <Button onClick={openCreate} data-testid="button-new-contact">
+          <Plus className="w-4 h-4 mr-2" />
+          New Contact
+        </Button>
       </div>
 
       {/* Search */}
@@ -102,97 +189,219 @@ export default function ContactsPage() {
             <h3 className="text-sm font-medium mb-1" data-testid="text-no-contacts-title">
               {search ? "No matching contacts" : "No contacts yet"}
             </h3>
-            <p className="text-xs text-muted-foreground" data-testid="text-no-contacts-description">
+            <p className="text-xs text-muted-foreground mb-4" data-testid="text-no-contacts-description">
               {search
                 ? "Try adjusting your search"
-                : "Add company and contact information to your projects to see them here"}
+                : "Create standalone contacts or add company info to your projects"}
             </p>
+            {!search && (
+              <Button size="sm" onClick={openCreate} data-testid="button-new-contact-empty">
+                <Plus className="w-4 h-4 mr-2" />
+                New Contact
+              </Button>
+            )}
           </div>
         ) : (
           <div className="p-6 space-y-3">
-            {filtered.map((contact, i) => (
-              <div
-                key={i}
-                className="rounded-md border bg-card p-4 flex items-start gap-4"
-                data-testid={`card-contact-${i}`}
-              >
-                {/* Icon */}
-                <div className="flex-shrink-0 mt-0.5">
-                  <Building2 className="w-4 h-4 text-muted-foreground" />
-                </div>
+            {filtered.map((entry, i) => {
+              if (entry.source === "standalone") {
+                const c = entry.contact;
+                return (
+                  <div
+                    key={`standalone-${c.id}`}
+                    className="rounded-md border bg-card p-4 flex items-start gap-4"
+                    data-testid={`card-contact-${i}`}
+                  >
+                    <div className="flex-shrink-0 mt-0.5">
+                      <Building2 className="w-4 h-4 text-muted-foreground" />
+                    </div>
 
-                {/* Main info */}
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {contact.contactFullName && (
-                      <span className="text-sm font-semibold" data-testid={`text-contact-name-${i}`}>
-                        {contact.contactFullName}
-                      </span>
-                    )}
-                    {contact.contactTitle && (
-                      <span className="text-xs text-muted-foreground">{contact.contactTitle}</span>
-                    )}
-                    <Badge variant="secondary" className="text-xs" data-testid={`badge-contact-role-${i}`}>
-                      {COMPANY_ROLE_LABELS[contact.companyRole as keyof typeof COMPANY_ROLE_LABELS] || contact.companyRole}
-                    </Badge>
-                  </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold" data-testid={`text-contact-name-${i}`}>
+                          {c.fullName}
+                        </span>
+                        {c.title && (
+                          <span className="text-xs text-muted-foreground">{c.title}</span>
+                        )}
+                        <Badge variant="secondary" className="text-xs">
+                          Address Book
+                        </Badge>
+                      </div>
 
-                  {contact.companyName && (
-                    <p className="text-sm text-muted-foreground" data-testid={`text-contact-company-${i}`}>
-                      {contact.companyName}
-                    </p>
-                  )}
+                      {c.companyName && (
+                        <p className="text-sm text-muted-foreground" data-testid={`text-contact-company-${i}`}>
+                          {c.companyName}
+                        </p>
+                      )}
 
-                  <div className="flex flex-wrap gap-4 pt-1">
-                    {contact.contactEmail && (
-                      <a
-                        href={`mailto:${contact.contactEmail}`}
-                        className="flex items-center gap-1.5 text-xs text-primary"
-                        data-testid={`link-contact-email-${i}`}
+                      <div className="flex flex-wrap gap-4 pt-1">
+                        {c.email && (
+                          <a
+                            href={`mailto:${c.email}`}
+                            className="flex items-center gap-1.5 text-xs text-primary"
+                            data-testid={`link-contact-email-${i}`}
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                            {c.email}
+                          </a>
+                        )}
+                        {c.phone && (
+                          <a
+                            href={`tel:${c.phone}`}
+                            className="flex items-center gap-1.5 text-xs text-primary"
+                            data-testid={`link-contact-phone-${i}`}
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                            {c.phone}
+                          </a>
+                        )}
+                      </div>
+
+                      {c.notes && (
+                        <p className="text-xs text-muted-foreground pt-1 line-clamp-2">{c.notes}</p>
+                      )}
+                    </div>
+
+                    <div className="flex-shrink-0 flex items-center gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openEdit(c)}
+                        data-testid={`button-edit-contact-${i}`}
                       >
-                        <Mail className="w-3.5 h-3.5" />
-                        {contact.contactEmail}
-                      </a>
-                    )}
-                    {contact.contactPhone && (
-                      <a
-                        href={`tel:${contact.contactPhone}`}
-                        className="flex items-center gap-1.5 text-xs text-primary"
-                        data-testid={`link-contact-phone-${i}`}
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setDeletingContact(c)}
+                        data-testid={`button-delete-contact-${i}`}
                       >
-                        <Phone className="w-3.5 h-3.5" />
-                        {contact.contactPhone}
-                      </a>
-                    )}
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                );
+              } else {
+                return (
+                  <div
+                    key={`project-${i}`}
+                    className="rounded-md border bg-card p-4 flex items-start gap-4"
+                    data-testid={`card-contact-${i}`}
+                  >
+                    <div className="flex-shrink-0 mt-0.5">
+                      <Building2 className="w-4 h-4 text-muted-foreground" />
+                    </div>
 
-                {/* Project link */}
-                <div className="flex-shrink-0 text-right">
-                  <p className="text-xs text-muted-foreground mb-1">Project</p>
-                  <Link href={`/projects/${contact.projectId}`}>
-                    <span
-                      className="text-xs text-primary hover:underline cursor-pointer"
-                      data-testid={`link-contact-project-${i}`}
-                    >
-                      {contact.projectName}
-                    </span>
-                  </Link>
-                </div>
-              </div>
-            ))}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {entry.contactFullName && (
+                          <span className="text-sm font-semibold" data-testid={`text-contact-name-${i}`}>
+                            {entry.contactFullName}
+                          </span>
+                        )}
+                        {entry.contactTitle && (
+                          <span className="text-xs text-muted-foreground">{entry.contactTitle}</span>
+                        )}
+                        <Badge variant="secondary" className="text-xs" data-testid={`badge-contact-role-${i}`}>
+                          {COMPANY_ROLE_LABELS[entry.companyRole as keyof typeof COMPANY_ROLE_LABELS] || entry.companyRole}
+                        </Badge>
+                      </div>
+
+                      {entry.companyName && (
+                        <p className="text-sm text-muted-foreground" data-testid={`text-contact-company-${i}`}>
+                          {entry.companyName}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap gap-4 pt-1">
+                        {entry.contactEmail && (
+                          <a
+                            href={`mailto:${entry.contactEmail}`}
+                            className="flex items-center gap-1.5 text-xs text-primary"
+                            data-testid={`link-contact-email-${i}`}
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                            {entry.contactEmail}
+                          </a>
+                        )}
+                        {entry.contactPhone && (
+                          <a
+                            href={`tel:${entry.contactPhone}`}
+                            className="flex items-center gap-1.5 text-xs text-primary"
+                            data-testid={`link-contact-phone-${i}`}
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                            {entry.contactPhone}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex-shrink-0 text-right">
+                      <p className="text-xs text-muted-foreground mb-1">Project</p>
+                      <Link href={`/projects/${entry.projectId}`}>
+                        <span
+                          className="text-xs text-primary hover:underline cursor-pointer"
+                          data-testid={`link-contact-project-${i}`}
+                        >
+                          {entry.projectName}
+                        </span>
+                      </Link>
+                    </div>
+                  </div>
+                );
+              }
+            })}
           </div>
         )}
       </div>
 
       {/* Footer count */}
-      {!isLoading && contacts.length > 0 && (
+      {!isLoading && allEntries.length > 0 && (
         <div className="border-t px-6 py-2 flex-shrink-0 bg-background">
           <p className="text-xs text-muted-foreground" data-testid="text-contacts-count">
-            {filtered.length} of {contacts.length} contacts
+            {filtered.length} of {allEntries.length} contacts
+            {standaloneContacts.length > 0 && (
+              <span className="ml-2 text-muted-foreground/70">
+                ({standaloneContacts.length} in address book)
+              </span>
+            )}
           </p>
         </div>
       )}
+
+      <ContactFormDialog
+        open={formOpen}
+        onOpenChange={(v) => {
+          setFormOpen(v);
+          if (!v) setEditingContact(null);
+        }}
+        contact={editingContact}
+      />
+
+      <AlertDialog open={!!deletingContact} onOpenChange={(v) => !v && setDeletingContact(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Contact</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete{" "}
+              <strong>{deletingContact?.fullName}</strong>? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-contact">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingContact && deleteMutation.mutate(deletingContact.id)}
+              disabled={deleteMutation.isPending}
+              data-testid="button-confirm-delete-contact"
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

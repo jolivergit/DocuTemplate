@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -24,11 +24,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Building2, ChevronDown, ChevronRight } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, BookUser } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -42,6 +55,7 @@ import {
   type LeadStatus,
   type LeadWithCompanies,
   type CompanyRole,
+  type Contact,
 } from "@shared/schema";
 
 const companySchema = z.object({
@@ -89,6 +103,66 @@ function buildDefaultCompanies(existing?: LeadWithCompanies["companies"]) {
   });
 }
 
+function ContactPicker({
+  onSelect,
+}: {
+  onSelect: (contact: Contact) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const { data: contacts = [] } = useQuery<Contact[]>({
+    queryKey: ["/api/contacts"],
+  });
+
+  if (contacts.length === 0) return null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="button-pick-contact"
+        >
+          <BookUser className="w-3.5 h-3.5 mr-1.5" />
+          Pick from contacts
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search contacts…" data-testid="input-contact-picker-search" />
+          <CommandList>
+            <CommandEmpty>No contacts found.</CommandEmpty>
+            <CommandGroup>
+              {contacts.map((c) => (
+                <CommandItem
+                  key={c.id}
+                  value={`${c.fullName} ${c.companyName || ""} ${c.email || ""}`}
+                  onSelect={() => {
+                    onSelect(c);
+                    setOpen(false);
+                  }}
+                  data-testid={`item-contact-${c.id}`}
+                >
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium truncate">{c.fullName}</span>
+                    {(c.companyName || c.title) && (
+                      <span className="text-xs text-muted-foreground truncate">
+                        {[c.title, c.companyName].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function CompanyFields({
   index,
   role,
@@ -102,6 +176,16 @@ function CompanyFields({
   const companyName = form.watch(`companies.${index}.companyName`);
   const contactName = form.watch(`companies.${index}.contactFullName`);
   const hasData = companyName || contactName;
+
+  function applyContact(contact: Contact) {
+    form.setValue(`companies.${index}.contactFullName`, contact.fullName);
+    form.setValue(`companies.${index}.contactTitle`, contact.title || "");
+    form.setValue(`companies.${index}.contactPhone`, contact.phone || "");
+    form.setValue(`companies.${index}.contactEmail`, contact.email || "");
+    if (contact.companyName && !form.getValues(`companies.${index}.companyName`)) {
+      form.setValue(`companies.${index}.companyName`, contact.companyName);
+    }
+  }
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -213,7 +297,11 @@ function CompanyFields({
           </div>
 
           <Separator />
-          <p className="text-xs font-medium text-muted-foreground">Primary Contact</p>
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Primary Contact</p>
+            <ContactPicker onSelect={applyContact} />
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <FormField

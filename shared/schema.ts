@@ -339,6 +339,29 @@ export interface InvoiceWithDetails extends Invoice {
   expenseEntries: ExpenseEntry[];
 }
 
+// ─── Contacts ────────────────────────────────────────────────────────────────
+
+export const contacts = pgTable("contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  fullName: text("full_name").notNull(),
+  title: text("title"),
+  phone: text("phone"),
+  email: text("email"),
+  companyName: text("company_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertContactSchema = createInsertSchema(contacts).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+});
+
+export type InsertContact = z.infer<typeof insertContactSchema>;
+export type Contact = typeof contacts.$inferSelect;
+
 // ─── Template / Doc Builder types (not stored in DB) ──────────────────────────
 
 export type TagType = 'field' | 'content';

@@ -36,6 +36,7 @@ Generate Google Documents from customizable templates. Templates support:
 - **profiles** — Legacy (kept for migration)
 - **leads** — Project opportunities (serial PK for project numbers)
 - **leadCompanies** — 6 typed company associations per lead (ContractHolder, Client, MEP, Structural, EquipmentVendor, FurnitureVendor)
+- **contacts** — Standalone address book entries (fullName, title, phone, email, companyName, notes). Independent from projects; shown in Contacts page alongside project-derived contacts.
 - **proposals** — Proposals linked to leads (statuses: Draft, Sent, Revision, Signed, Declined)
 - **proposalPhases** — Phases within a proposal (Phase 1, Phase 2 for Add Services, etc.)
 - **proposalFeeLines** — Fee lines per phase: service category × discipline × feeType (Fixed/Hourly) × amount
@@ -46,8 +47,10 @@ Generate Google Documents from customizable templates. Templates support:
 - **projectComments** — Chronological comments log per project (lead)
 
 ### Key Routes
-- `/` → Leads list page (pipeline dashboard)
-- `/leads/:id` → Lead detail page with tabs: Overview | Proposals | Project
+- `/` → Dashboard
+- `/projects` → Projects list (pipeline)
+- `/projects/:id` → Project detail page with tabs: Overview | Proposals | Project
+- `/contacts` → Contacts page (address book + project-derived contacts)
 - `/doc-builder` → Google Docs template builder
 
 ## Lead Management

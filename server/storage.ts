@@ -13,6 +13,7 @@ import {
   hoursEntries,
   expenseEntries,
   projectComments,
+  contacts,
   type Category,
   type InsertCategory,
   type ContentSnippet,
@@ -37,6 +38,8 @@ import {
   type ExpenseEntry,
   type ProjectComment,
   type InvoiceWithDetails,
+  type Contact,
+  type InsertContact,
   COMPANY_ROLES,
 } from "@shared/schema";
 import { db } from "./db";
@@ -116,6 +119,13 @@ export interface IStorage {
   getProjectComments(userId: string, leadId: number): Promise<ProjectComment[]>;
   createProjectComment(userId: string, leadId: number, content: string): Promise<ProjectComment>;
   deleteProjectComment(userId: string, commentId: string, leadId: number): Promise<boolean>;
+
+  // Contacts
+  getContacts(userId: string): Promise<Contact[]>;
+  getContactById(userId: string, id: string): Promise<Contact | undefined>;
+  createContact(userId: string, contact: InsertContact): Promise<Contact>;
+  updateContact(userId: string, id: string, contact: Partial<InsertContact>): Promise<Contact | undefined>;
+  deleteContact(userId: string, id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -873,6 +883,48 @@ export class DatabaseStorage implements IStorage {
     const recentLeads = allLeads.slice(0, 6);
 
     return { leadsByStatus, sentInvoicesTotal, paidInvoicesTotal, recentLeads };
+  }
+
+  // ─── Contacts ────────────────────────────────────────────────────────────────
+
+  async getContacts(userId: string): Promise<Contact[]> {
+    return await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.userId, userId))
+      .orderBy(contacts.fullName);
+  }
+
+  async getContactById(userId: string, id: string): Promise<Contact | undefined> {
+    const [contact] = await db
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.id, id), eq(contacts.userId, userId)));
+    return contact || undefined;
+  }
+
+  async createContact(userId: string, contact: InsertContact): Promise<Contact> {
+    const [created] = await db
+      .insert(contacts)
+      .values({ ...contact, userId })
+      .returning();
+    return created;
+  }
+
+  async updateContact(userId: string, id: string, contact: Partial<InsertContact>): Promise<Contact | undefined> {
+    const [updated] = await db
+      .update(contacts)
+      .set(contact)
+      .where(and(eq(contacts.id, id), eq(contacts.userId, userId)))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteContact(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(contacts)
+      .where(and(eq(contacts.id, id), eq(contacts.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
   }
 }
 

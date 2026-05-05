@@ -13,6 +13,7 @@ import {
   insertFieldValueSchema,
   insertLeadSchema,
   insertLeadCompanyInputSchema,
+  insertContactSchema,
   INVOICE_STATUSES,
   EXPENSE_TYPES,
   generateDocumentRequestSchema,
@@ -1362,6 +1363,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
       const success = await storage.deleteProjectComment(userId, req.params.commentId, leadId);
       if (!success) return res.status(404).json({ error: "Comment not found" });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Contacts ────────────────────────────────────────────────────────────────
+
+  app.get("/api/contacts", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const result = await storage.getContacts(userId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/contacts", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const validated = insertContactSchema.parse(req.body);
+      const contact = await storage.createContact(userId, validated);
+      res.json(contact);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/contacts/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const validated = insertContactSchema.partial().parse(req.body);
+      const contact = await storage.updateContact(userId, req.params.id, validated);
+      if (!contact) return res.status(404).json({ error: "Contact not found" });
+      res.json(contact);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/contacts/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const success = await storage.deleteContact(userId, req.params.id);
+      if (!success) return res.status(404).json({ error: "Contact not found" });
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
