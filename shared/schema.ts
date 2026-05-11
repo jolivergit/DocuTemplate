@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, serial, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, serial, numeric, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -169,7 +169,9 @@ export const contactCompanies = pgTable("contact_companies", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   contactId: varchar("contact_id").references(() => contacts.id, { onDelete: "cascade" }).notNull(),
   companyId: varchar("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
-});
+}, (t) => ({
+  uniqueContactCompany: uniqueIndex("contact_companies_contact_company_idx").on(t.contactId, t.companyId),
+}));
 
 export type ContactCompany = typeof contactCompanies.$inferSelect;
 
@@ -271,8 +273,13 @@ export type InsertLeadCompany = z.infer<typeof insertLeadCompanySchema>;
 export type InsertLeadCompanyInput = z.infer<typeof insertLeadCompanyInputSchema>;
 export type LeadCompany = typeof leadCompanies.$inferSelect;
 
+export interface LeadCompanyWithLinked extends LeadCompany {
+  linkedCompany?: Company | null;
+  linkedContact?: Contact | null;
+}
+
 export interface LeadWithCompanies extends Lead {
-  companies: LeadCompany[];
+  companies: LeadCompanyWithLinked[];
 }
 
 // ─── Proposals ──────────────────────────────────────────────────────────────────

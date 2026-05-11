@@ -42,7 +42,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Building2, ChevronDown, ChevronRight, BookUser, Plus, Trash2, ChevronsUpDown } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, BookUser, Plus, Trash2, ChevronsUpDown, Link2, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -55,10 +55,13 @@ import {
   type LeadStatus,
   type LeadWithCompanies,
   type ContactWithCompanies,
+  type CompanyWithContacts,
 } from "@shared/schema";
 
 const companySchema = z.object({
   companyRole: z.string().min(1, "Role is required"),
+  companyId: z.string().optional().nullable(),
+  contactId: z.string().optional().nullable(),
   companyName: z.string().optional(),
   addressLine1: z.string().optional(),
   addressLine2: z.string().optional(),
@@ -87,6 +90,8 @@ function buildDefaultCompanies(existing?: LeadWithCompanies["companies"]): FormV
   if (!existing || existing.length === 0) return [];
   return existing.map((c) => ({
     companyRole: c.companyRole,
+    companyId: c.companyId || null,
+    contactId: c.contactId || null,
     companyName: c.companyName || "",
     addressLine1: c.addressLine1 || "",
     addressLine2: c.addressLine2 || "",
@@ -160,7 +165,66 @@ function RoleSuggestionPicker({ value, onChange }: { value: string; onChange: (v
   );
 }
 
-function ContactPicker({ onSelect }: { onSelect: (contact: ContactWithCompanies) => void }) {
+function CompanyAddressBookPicker({
+  onSelect,
+}: {
+  onSelect: (company: CompanyWithContacts) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const { data: addressBookCompanies = [] } = useQuery<CompanyWithContacts[]>({
+    queryKey: ["/api/companies"],
+  });
+
+  if (addressBookCompanies.length === 0) return null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="sm" data-testid="button-pick-address-book-company">
+          <Link2 className="w-3.5 h-3.5 mr-1.5" />
+          Pick company
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search address book…" data-testid="input-company-picker-search" />
+          <CommandList>
+            <CommandEmpty>No companies found.</CommandEmpty>
+            <CommandGroup>
+              {addressBookCompanies.map((c) => (
+                <CommandItem
+                  key={c.id}
+                  value={`${c.name} ${c.city || ""} ${c.email || ""}`}
+                  onSelect={() => {
+                    onSelect(c);
+                    setOpen(false);
+                  }}
+                  data-testid={`item-company-${c.id}`}
+                >
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium truncate">{c.name}</span>
+                    {(c.city || c.state) && (
+                      <span className="text-xs text-muted-foreground truncate">
+                        {[c.city, c.state].filter(Boolean).join(", ")}
+                      </span>
+                    )}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ContactPicker({
+  onSelect,
+}: {
+  onSelect: (contact: ContactWithCompanies) => void;
+}) {
   const [open, setOpen] = useState(false);
 
   const { data: contacts = [] } = useQuery<ContactWithCompanies[]>({
@@ -224,9 +288,25 @@ function CompanyEntry({
   const companyName = form.watch(`companies.${index}.companyName`);
   const contactName = form.watch(`companies.${index}.contactFullName`);
   const role = form.watch(`companies.${index}.companyRole`);
+  const linkedCompanyId = form.watch(`companies.${index}.companyId`);
   const hasData = !!(companyName || contactName);
 
+  function applyCompany(company: CompanyWithContacts) {
+    form.setValue(`companies.${index}.companyId`, company.id);
+    form.setValue(`companies.${index}.companyName`, company.name);
+    form.setValue(`companies.${index}.addressLine1`, company.addressLine1 || "");
+    form.setValue(`companies.${index}.addressLine2`, company.addressLine2 || "");
+    form.setValue(`companies.${index}.city`, company.city || "");
+    form.setValue(`companies.${index}.state`, company.state || "");
+    form.setValue(`companies.${index}.zip`, company.zip || "");
+  }
+
+  function clearCompanyLink() {
+    form.setValue(`companies.${index}.companyId`, null);
+  }
+
   function applyContact(contact: ContactWithCompanies) {
+    form.setValue(`companies.${index}.contactId`, contact.id);
     form.setValue(`companies.${index}.contactFullName`, contact.fullName);
     form.setValue(`companies.${index}.contactTitle`, contact.title || "");
     form.setValue(`companies.${index}.contactPhone`, contact.phone || "");
@@ -252,6 +332,12 @@ function CompanyEntry({
                 {hasData && (
                   <Badge variant="secondary" className="text-xs">
                     {companyName || contactName}
+                  </Badge>
+                )}
+                {linkedCompanyId && (
+                  <Badge variant="outline" className="text-xs gap-1">
+                    <Link2 className="w-2.5 h-2.5" />
+                    Linked
                   </Badge>
                 )}
               </div>
@@ -296,6 +382,24 @@ function CompanyEntry({
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
+            </div>
+
+            {/* Company address-book link row */}
+            <div className="flex items-center gap-2">
+              <CompanyAddressBookPicker onSelect={applyCompany} />
+              {linkedCompanyId && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={clearCompanyLink}
+                  data-testid={`button-clear-company-link-${index}`}
+                  title="Remove address book link"
+                >
+                  <X className="w-3.5 h-3.5 mr-1" />
+                  Clear link
+                </Button>
+              )}
             </div>
 
             <FormField
@@ -471,8 +575,10 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const companies = values.companies.map((c) => ({
+      const companiesPayload = values.companies.map((c) => ({
         companyRole: c.companyRole,
+        companyId: c.companyId || null,
+        contactId: c.contactId || null,
         companyName: c.companyName || null,
         addressLine1: c.addressLine1 || null,
         addressLine2: c.addressLine2 || null,
@@ -492,7 +598,7 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
         probability: values.probability,
         potentialFee: values.potentialFee || null,
         status: values.status,
-        companies,
+        companies: companiesPayload,
       };
 
       if (isEditing) {
@@ -523,6 +629,8 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
   function addCompany() {
     append({
       companyRole: "",
+      companyId: null,
+      contactId: null,
       companyName: "",
       addressLine1: "",
       addressLine2: "",
@@ -651,13 +759,11 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
                 </div>
               </div>
 
-              <Separator />
-
-              {/* Companies */}
+              {/* Companies section */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                    Associated Companies
+                    Companies
                   </h3>
                   <Button
                     type="button"
@@ -666,56 +772,37 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
                     onClick={addCompany}
                     data-testid="button-add-company"
                   >
-                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    <Plus className="w-3.5 h-3.5 mr-1.5" />
                     Add Company
                   </Button>
                 </div>
 
-                {fields.length === 0 ? (
-                  <div className="rounded-md border border-dashed px-4 py-6 text-center">
-                    <Building2 className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">No companies added yet</p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addCompany}
-                      className="mt-3"
-                      data-testid="button-add-first-company"
-                    >
-                      <Plus className="w-3.5 h-3.5 mr-1" />
-                      Add Company
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {fields.map((field, index) => (
-                      <CompanyEntry
-                        key={field.id}
-                        index={index}
-                        form={form}
-                        onRemove={() => remove(index)}
-                      />
-                    ))}
-                  </div>
+                {fields.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-4 border rounded-md">
+                    No companies added yet. Click "Add Company" to get started.
+                  </p>
                 )}
+
+                {fields.map((field, index) => (
+                  <CompanyEntry
+                    key={field.id}
+                    index={index}
+                    form={form}
+                    onRemove={() => remove(index)}
+                  />
+                ))}
               </div>
 
-              {/* Submit */}
               <div className="flex justify-end gap-2 pt-2 pb-2">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  data-testid="button-cancel-form"
+                  onClick={() => { onOpenChange(false); if (!isEditing) form.reset(); }}
+                  data-testid="button-cancel-lead"
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={mutation.isPending}
-                  data-testid="button-submit-lead"
-                >
+                <Button type="submit" disabled={mutation.isPending} data-testid="button-submit-lead">
                   {mutation.isPending ? "Saving..." : isEditing ? "Save Changes" : "Create Project"}
                 </Button>
               </div>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Search, Building2, Plus, Pencil, Trash2, Phone, Mail, Globe,
-  MapPin, Users, ChevronDown, ChevronRight, Link2, Unlink,
+  MapPin, Users, ChevronDown, ChevronRight, Unlink, UserPlus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,14 +31,30 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Textarea } from "@/components/ui/textarea";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { insertCompanySchema, type CompanyWithContacts, type Contact } from "@shared/schema";
+import {
+  insertCompanySchema,
+  type CompanyWithContacts,
+  type ContactWithCompanies,
+} from "@shared/schema";
 
 const formSchema = insertCompanySchema.extend({
   name: z.string().min(1, "Company name is required"),
@@ -264,6 +280,79 @@ function CompanyFormDialog({
   );
 }
 
+function LinkContactPicker({
+  companyId,
+  linkedContactIds,
+}: {
+  companyId: string;
+  linkedContactIds: Set<string>;
+}) {
+  const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+
+  const { data: allContacts = [] } = useQuery<ContactWithCompanies[]>({
+    queryKey: ["/api/contacts"],
+    enabled: open,
+  });
+
+  const linkMutation = useMutation({
+    mutationFn: async (contactId: string) =>
+      apiRequest("POST", `/api/companies/${companyId}/contacts/${contactId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      toast({ title: "Contact linked" });
+      setOpen(false);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to link contact", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const available = allContacts.filter((c) => !linkedContactIds.has(c.id));
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`button-link-contact-${companyId}`}>
+          <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+          Link Contact
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search contacts…" data-testid="input-link-contact-search" />
+          <CommandList>
+            <CommandEmpty>
+              {allContacts.length === 0 ? "No contacts in address book." : "No unlinked contacts found."}
+            </CommandEmpty>
+            <CommandGroup>
+              {available.map((c) => (
+                <CommandItem
+                  key={c.id}
+                  value={`${c.fullName} ${c.email || ""} ${c.companyName || ""}`}
+                  onSelect={() => linkMutation.mutate(c.id)}
+                  disabled={linkMutation.isPending}
+                  data-testid={`item-link-contact-${c.id}`}
+                >
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium truncate">{c.fullName}</span>
+                    {(c.title || c.email) && (
+                      <span className="text-xs text-muted-foreground truncate">
+                        {[c.title, c.email].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function CompanyCard({
   company,
   onEdit,
@@ -277,9 +366,8 @@ function CompanyCard({
   const { toast } = useToast();
 
   const unlinkMutation = useMutation({
-    mutationFn: async ({ companyId, contactId }: { companyId: string; contactId: string }) => {
-      return apiRequest("DELETE", `/api/companies/${companyId}/contacts/${contactId}`);
-    },
+    mutationFn: async ({ companyId, contactId }: { companyId: string; contactId: string }) =>
+      apiRequest("DELETE", `/api/companies/${companyId}/contacts/${contactId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
@@ -291,6 +379,7 @@ function CompanyCard({
   });
 
   const location = [company.city, company.state].filter(Boolean).join(", ");
+  const linkedContactIds = new Set(company.contacts.map((c) => c.id));
 
   return (
     <div className="rounded-md border bg-card" data-testid={`card-company-${company.id}`}>
@@ -335,16 +424,14 @@ function CompanyCard({
           </div>
         </div>
         <div className="flex-shrink-0 flex items-center gap-1">
-          {company.contacts.length > 0 && (
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setExpanded(!expanded)}
-              data-testid={`button-expand-company-${company.id}`}
-            >
-              {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            </Button>
-          )}
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setExpanded(!expanded)}
+            data-testid={`button-expand-company-${company.id}`}
+          >
+            {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </Button>
           <Button size="icon" variant="ghost" onClick={() => onEdit(company)} data-testid={`button-edit-company-${company.id}`}>
             <Pencil className="w-4 h-4" />
           </Button>
@@ -354,31 +441,38 @@ function CompanyCard({
         </div>
       </div>
 
-      {expanded && company.contacts.length > 0 && (
+      {expanded && (
         <div className="border-t px-4 py-3 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Linked Contacts</p>
-          {company.contacts.map((contact) => (
-            <div key={contact.id} className="flex items-center justify-between gap-2 py-1">
-              <div className="min-w-0">
-                <span className="text-sm font-medium">{contact.fullName}</span>
-                {(contact.title || contact.email) && (
-                  <span className="text-xs text-muted-foreground ml-2">
-                    {[contact.title, contact.email].filter(Boolean).join(" · ")}
-                  </span>
-                )}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-muted-foreground">Linked Contacts</p>
+            <LinkContactPicker companyId={company.id} linkedContactIds={linkedContactIds} />
+          </div>
+          {company.contacts.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-1">No contacts linked yet.</p>
+          ) : (
+            company.contacts.map((contact) => (
+              <div key={contact.id} className="flex items-center justify-between gap-2 py-1">
+                <div className="min-w-0">
+                  <span className="text-sm font-medium">{contact.fullName}</span>
+                  {(contact.title || contact.email) && (
+                    <span className="text-xs text-muted-foreground ml-2">
+                      {[contact.title, contact.email].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => unlinkMutation.mutate({ companyId: company.id, contactId: contact.id })}
+                  disabled={unlinkMutation.isPending}
+                  data-testid={`button-unlink-contact-${contact.id}`}
+                  title="Unlink contact"
+                >
+                  <Unlink className="w-3.5 h-3.5" />
+                </Button>
               </div>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => unlinkMutation.mutate({ companyId: company.id, contactId: contact.id })}
-                disabled={unlinkMutation.isPending}
-                data-testid={`button-unlink-contact-${contact.id}`}
-                title="Unlink contact"
-              >
-                <Unlink className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       )}
     </div>

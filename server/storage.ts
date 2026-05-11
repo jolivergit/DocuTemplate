@@ -26,6 +26,7 @@ import {
   type Lead,
   type InsertLead,
   type LeadCompany,
+  type LeadCompanyWithLinked,
   type InsertLeadCompany,
   type LeadWithCompanies,
   type Company,
@@ -373,13 +374,33 @@ export class DatabaseStorage implements IStorage {
   private async attachCompanies(leadRows: Lead[]): Promise<LeadWithCompanies[]> {
     if (leadRows.length === 0) return [];
     const ids = leadRows.map(l => l.id);
-    const allCompanies = await db
+    const allLeadCompanies = await db
       .select()
       .from(leadCompanies)
       .where(inArray(leadCompanies.leadId, ids));
+
+    // Collect unique FK IDs to join address-book records
+    const linkedCompanyIds = Array.from(new Set(allLeadCompanies.map(c => c.companyId).filter(Boolean) as string[]));
+    const linkedContactIds = Array.from(new Set(allLeadCompanies.map(c => c.contactId).filter(Boolean) as string[]));
+
+    const [linkedCompanyRows, linkedContactRows] = await Promise.all([
+      linkedCompanyIds.length > 0
+        ? db.select().from(companies).where(inArray(companies.id, linkedCompanyIds))
+        : Promise.resolve([] as Company[]),
+      linkedContactIds.length > 0
+        ? db.select().from(contacts).where(inArray(contacts.id, linkedContactIds))
+        : Promise.resolve([] as Contact[]),
+    ]);
+
     return leadRows.map(lead => ({
       ...lead,
-      companies: allCompanies.filter(c => c.leadId === lead.id),
+      companies: allLeadCompanies
+        .filter(c => c.leadId === lead.id)
+        .map((c): LeadCompanyWithLinked => ({
+          ...c,
+          linkedCompany: c.companyId ? (linkedCompanyRows.find(co => co.id === c.companyId) || null) : null,
+          linkedContact: c.contactId ? (linkedContactRows.find(ct => ct.id === c.contactId) || null) : null,
+        })),
     }));
   }
 
@@ -943,14 +964,28 @@ export class DatabaseStorage implements IStorage {
       const sentAndPaid = allInvoices.filter(i => i.status === 'Sent' || i.status === 'Paid');
       if (sentAndPaid.length > 0) {
         const invoiceIds = sentAndPaid.map(i => i.id);
-        const allSnapshots = await db
-          .select()
-          .from(invoiceFeeLineSnapshots)
-          .where(inArray(invoiceFeeLineSnapshots.invoiceId, invoiceIds));
+        const [allSnapshots, allHours, allExpenses] = await Promise.all([
+          db.select().from(invoiceFeeLineSnapshots).where(inArray(invoiceFeeLineSnapshots.invoiceId, invoiceIds)),
+          db.select().from(hoursEntries).where(inArray(hoursEntries.invoiceId, invoiceIds)),
+          db.select().from(expenseEntries).where(inArray(expenseEntries.invoiceId, invoiceIds)),
+        ]);
 
         for (const invoice of sentAndPaid) {
           const snaps = allSnapshots.filter(s => s.invoiceId === invoice.id);
-          const total = snaps.reduce((sum, s) => sum + parseFloat(s.currentBilling || '0'), 0);
+          const feeTotal = snaps.reduce((sum, s) => sum + parseFloat(s.currentBilling || '0'), 0);
+
+          const hoursTotal = allHours
+            .filter(h => h.invoiceId === invoice.id)
+            .reduce((sum, h) => sum + parseFloat(h.hours || '0') * parseFloat(h.ratePerHour || '0'), 0);
+
+          const expenseTotal = allExpenses
+            .filter(e => e.invoiceId === invoice.id)
+            .reduce((sum, e) => {
+              if (e.milesTraveled) return sum + parseFloat(e.milesTraveled) * parseFloat(e.ratePerMile || '0.67');
+              return sum + parseFloat(e.amount || '0');
+            }, 0);
+
+          const total = feeTotal + hoursTotal + expenseTotal;
           if (invoice.status === 'Sent') sentInvoicesTotal += total;
           if (invoice.status === 'Paid') paidInvoicesTotal += total;
         }
@@ -1005,15 +1040,27 @@ export class DatabaseStorage implements IStorage {
     return withCompanies;
   }
 
+  private async verifyCompanyOwnership(userId: string, companyIds: string[]): Promise<string[]> {
+    if (companyIds.length === 0) return [];
+    const owned = await db
+      .select({ id: companies.id })
+      .from(companies)
+      .where(and(inArray(companies.id, companyIds), eq(companies.userId, userId)));
+    return owned.map(c => c.id);
+  }
+
   async createContact(userId: string, data: InsertContact, companyIds?: string[]): Promise<ContactWithCompanies> {
     const [contact] = await db
       .insert(contacts)
       .values({ ...data, userId })
       .returning();
     if (companyIds && companyIds.length > 0) {
-      await db.insert(contactCompanies).values(
-        companyIds.map(companyId => ({ contactId: contact.id, companyId }))
-      ).onConflictDoNothing();
+      const validIds = await this.verifyCompanyOwnership(userId, companyIds);
+      if (validIds.length > 0) {
+        await db.insert(contactCompanies).values(
+          validIds.map(companyId => ({ contactId: contact.id, companyId }))
+        ).onConflictDoNothing();
+      }
     }
     const [withCompanies] = await this.attachCompaniesToContacts([contact]);
     return withCompanies;
@@ -1027,11 +1074,11 @@ export class DatabaseStorage implements IStorage {
       .returning();
     if (!contact) return undefined;
     if (companyIds !== undefined) {
-      // Replace all company links
+      const validIds = await this.verifyCompanyOwnership(userId, companyIds);
       await db.delete(contactCompanies).where(eq(contactCompanies.contactId, id));
-      if (companyIds.length > 0) {
+      if (validIds.length > 0) {
         await db.insert(contactCompanies).values(
-          companyIds.map(companyId => ({ contactId: id, companyId }))
+          validIds.map(companyId => ({ contactId: id, companyId }))
         ).onConflictDoNothing();
       }
     }
