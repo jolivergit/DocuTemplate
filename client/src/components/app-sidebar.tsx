@@ -1,11 +1,10 @@
 import { Link, useLocation } from "wouter";
-import { FileText, Briefcase, LayoutDashboard, Users, Building2, Settings } from "lucide-react";
+import { FileText, Briefcase, LayoutDashboard, Users, Building2 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -17,42 +16,11 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import type { User } from "@shared/schema";
 
 const navItems = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: LayoutDashboard,
-    exact: true,
-  },
-  {
-    title: "Projects",
-    url: "/projects",
-    icon: Briefcase,
-    exact: false,
-  },
-  {
-    title: "Companies",
-    url: "/companies",
-    icon: Building2,
-    exact: false,
-  },
-  {
-    title: "Contacts",
-    url: "/contacts",
-    icon: Users,
-    exact: false,
-  },
-  {
-    title: "Doc Builder",
-    url: "/doc-builder",
-    icon: FileText,
-    exact: false,
-  },
-  {
-    title: "Profile",
-    url: "/profile",
-    icon: Settings,
-    exact: false,
-  },
+  { title: "Dashboard", url: "/", icon: LayoutDashboard, exact: true },
+  { title: "Projects", url: "/projects", icon: Briefcase, exact: false },
+  { title: "Companies", url: "/companies", icon: Building2, exact: false },
+  { title: "Contacts", url: "/contacts", icon: Users, exact: false },
+  { title: "Doc Builder", url: "/doc-builder", icon: FileText, exact: false },
 ];
 
 interface AppSidebarProps {
@@ -61,6 +29,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({ user }: AppSidebarProps) {
   const [location] = useLocation();
+  const profileActive = location.startsWith("/profile");
 
   return (
     <Sidebar>
@@ -98,17 +67,17 @@ export function AppSidebar({ user }: AppSidebarProps) {
       <SidebarFooter className="p-4 border-t">
         <div className="flex items-center justify-between gap-2">
           {user && (
-            <div className="flex items-center gap-2 min-w-0">
-              <Avatar className="h-7 w-7 flex-shrink-0">
+            <Link href="/profile" className="flex items-center gap-2 min-w-0 flex-1">
+              <Avatar className={`h-7 w-7 flex-shrink-0 ring-1 transition-all ${profileActive ? "ring-foreground" : "ring-transparent"}`}>
                 <AvatarImage src={user.picture || undefined} alt={user.name} />
                 <AvatarFallback className="text-xs">
                   {user.name?.charAt(0).toUpperCase() || "U"}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm text-muted-foreground truncate" data-testid="text-sidebar-user">
+              <span className="text-sm text-muted-foreground truncate hover:text-foreground transition-colors" data-testid="text-sidebar-user">
                 {user.name}
               </span>
-            </div>
+            </Link>
           )}
           <ThemeToggle />
         </div>
