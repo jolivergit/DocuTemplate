@@ -168,19 +168,20 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
                 )}
               />
 
-              <div className="grid grid-cols-3 gap-3">
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Title</FormLabel>
-                      <FormControl>
-                        <Input {...field} value={field.value ?? ""} placeholder="Manager" data-testid="input-contact-title" />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value ?? ""} placeholder="Project Manager" data-testid="input-contact-title" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="phone"
@@ -188,7 +189,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
                     <FormItem>
                       <FormLabel>Phone</FormLabel>
                       <FormControl>
-                        <Input {...field} value={field.value ?? ""} type="tel" placeholder="(555) 000-0000" data-testid="input-contact-phone" />
+                        <Input {...field} value={field.value ?? ""} type="tel" placeholder="(555) 123-4567" data-testid="input-contact-phone" />
                       </FormControl>
                     </FormItem>
                   )}
@@ -200,7 +201,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input {...field} value={field.value ?? ""} type="email" placeholder="jane@co.com" data-testid="input-contact-email" />
+                        <Input {...field} value={field.value ?? ""} type="email" placeholder="jane@acme.com" data-testid="input-contact-email" />
                       </FormControl>
                     </FormItem>
                   )}

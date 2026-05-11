@@ -55,6 +55,7 @@ type ContactEntry = ProjectContactEntry | StandaloneContactEntry;
 
 function LinkCompanyPicker({ contactId, linkedCompanyIds }: { contactId: string; linkedCompanyIds: Set<string> }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const { toast } = useToast();
 
   const { data: allCompanies = [] } = useQuery<CompanyWithContacts[]>({
@@ -88,17 +89,25 @@ function LinkCompanyPicker({ contactId, linkedCompanyIds }: { contactId: string;
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search companies…" />
+          <CommandInput
+            placeholder="Search companies…"
+            value={search}
+            onValueChange={setSearch}
+          />
           <CommandList>
             <CommandEmpty>
-              {allCompanies.length === 0 ? "No companies in address book." : "All companies already linked."}
+              {allCompanies.length === 0
+                ? "No companies in address book."
+                : available.length === 0
+                ? "All companies already linked."
+                : "No companies found."}
             </CommandEmpty>
             <CommandGroup>
               {available.map((c) => (
                 <CommandItem
                   key={c.id}
                   value={c.name}
-                  onSelect={() => linkMutation.mutate(c.id)}
+                  onSelect={() => { linkMutation.mutate(c.id); setSearch(""); }}
                   disabled={linkMutation.isPending}
                   data-testid={`item-link-company-${c.id}`}
                 >
