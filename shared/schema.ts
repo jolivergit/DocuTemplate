@@ -56,7 +56,7 @@ export const insertFieldValueSchema = createInsertSchema(fieldValues).omit({
 export type InsertFieldValue = z.infer<typeof insertFieldValueSchema>;
 export type FieldValue = typeof fieldValues.$inferSelect;
 
-// Legacy profiles table - kept for migration, no longer used
+// User profile — firm/studio info used in proposals and doc generation
 export const profiles = pgTable("profiles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -74,6 +74,14 @@ export const profiles = pgTable("profiles", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const insertProfileSchema = createInsertSchema(profiles).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+}).partial();
+
+export type InsertProfile = z.infer<typeof insertProfileSchema>;
 export type Profile = typeof profiles.$inferSelect;
 
 // Content snippets - reusable text pieces

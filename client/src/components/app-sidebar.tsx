@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { FileText, Briefcase, LayoutDashboard, Users, Building2 } from "lucide-react";
+import { FileText, Briefcase, LayoutDashboard, Users, Building2, Settings } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -45,6 +45,12 @@ const navItems = [
     title: "Doc Builder",
     url: "/doc-builder",
     icon: FileText,
+    exact: false,
+  },
+  {
+    title: "Profile",
+    url: "/profile",
+    icon: Settings,
     exact: false,
   },
 ];

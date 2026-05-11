@@ -15,6 +15,7 @@ import {
   insertLeadCompanyInputSchema,
   insertContactSchema,
   insertCompanySchema,
+  insertProfileSchema,
   INVOICE_STATUSES,
   EXPENSE_TYPES,
   generateDocumentRequestSchema,
@@ -1494,6 +1495,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── User Profile ─────────────────────────────────────────────────────────────
+
+  app.get("/api/profile", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const profile = await storage.getMyProfile(userId);
+      if (!profile) return res.status(404).json({ error: "No profile yet" });
+      res.json(profile);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/profile", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const data = insertProfileSchema.parse(req.body);
+      const profile = await storage.upsertProfile(userId, data);
+      res.json(profile);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
     }
   });
 

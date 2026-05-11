@@ -206,7 +206,7 @@ function CompanySection({ role, company }: { role: CompanyRole; company?: { comp
 
 // ─── Proposals Tab ─────────────────────────────────────────────────────────────
 
-function ProposalsTab({ leadId }: { leadId: number }) {
+function ProposalsTab({ leadId, projectName }: { leadId: number; projectName: string }) {
   const { toast } = useToast();
   const [showNew, setShowNew] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<ProposalWithPhases | null>(null);
@@ -226,6 +226,7 @@ function ProposalsTab({ leadId }: { leadId: number }) {
       <ProposalDetailPanel
         proposal={current}
         leadId={leadId}
+        projectName={projectName}
         onBack={() => setSelectedProposal(null)}
       />
     );
@@ -721,7 +722,7 @@ export default function ProjectDetailPage({ params }: Props) {
           </TabsContent>
 
           <TabsContent value="proposals" className="mt-6">
-            <ProposalsTab leadId={leadId} />
+            <ProposalsTab leadId={leadId} projectName={lead.projectName} />
           </TabsContent>
 
           {isProject && (

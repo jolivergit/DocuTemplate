@@ -83,9 +83,9 @@ export interface IStorage {
   updateFieldValue(userId: string, id: string, fieldValue: Partial<InsertFieldValue>): Promise<FieldValue | undefined>;
   deleteFieldValue(userId: string, id: string): Promise<boolean>;
 
-  // Legacy Profiles
-  getProfiles(userId: string): Promise<Profile[]>;
-  getProfileById(userId: string, id: string): Promise<Profile | undefined>;
+  // User Profile (firm info)
+  getMyProfile(userId: string): Promise<Profile | undefined>;
+  upsertProfile(userId: string, data: Partial<Profile>): Promise<Profile>;
 
   // Companies
   getCompanies(userId: string): Promise<CompanyWithContacts[]>;
@@ -272,12 +272,31 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(profiles).where(eq(profiles.userId, userId));
   }
 
-  async getProfileById(userId: string, id: string): Promise<Profile | undefined> {
+  async getMyProfile(userId: string): Promise<Profile | undefined> {
     const [profile] = await db
       .select()
       .from(profiles)
-      .where(and(eq(profiles.id, id), eq(profiles.userId, userId)));
+      .where(eq(profiles.userId, userId))
+      .limit(1);
     return profile || undefined;
+  }
+
+  async upsertProfile(userId: string, data: Partial<Profile>): Promise<Profile> {
+    const existing = await this.getMyProfile(userId);
+    if (existing) {
+      const [updated] = await db
+        .update(profiles)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(profiles.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(profiles)
+        .values({ name: data.name || "My Profile", ...data, userId, updatedAt: new Date() })
+        .returning();
+      return created;
+    }
   }
 
   // ─── Companies ────────────────────────────────────────────────────────────────

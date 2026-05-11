@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { ExternalLink, Check, X, Edit, Trash2, ArrowLeft } from "lucide-react";
+import { useLocation } from "wouter";
+import { ExternalLink, Check, X, Edit, Trash2, ArrowLeft, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -26,10 +27,10 @@ import {
 
 const STATUS_COLORS: Record<ProposalStatus, string> = {
   Draft: "bg-secondary text-secondary-foreground",
-  Sent: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  Revision: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-  Signed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  Declined: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  Sent: "bg-muted text-muted-foreground",
+  Revision: "bg-muted text-muted-foreground",
+  Signed: "bg-foreground text-background",
+  Declined: "bg-muted text-muted-foreground",
 };
 
 function fmt(value: string | null | undefined): string {
@@ -57,14 +58,17 @@ function phaseTotal(phase: ProposalWithPhases["phases"][0]): number {
 interface Props {
   proposal: ProposalWithPhases;
   leadId: number;
+  projectName?: string;
   onBack: () => void;
 }
 
-export function ProposalDetailPanel({ proposal, leadId, onBack }: Props) {
+export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: Props) {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [showEdit, setShowEdit] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSignConfirm, setShowSignConfirm] = useState(false);
+  const [isLoadingDocBuilder, setIsLoadingDocBuilder] = useState(false);
 
   const signMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/proposals/${proposal.id}/sign`),
@@ -101,6 +105,56 @@ export function ProposalDetailPanel({ proposal, leadId, onBack }: Props) {
     },
   });
 
+  const handleLoadToDocBuilder = async () => {
+    setIsLoadingDocBuilder(true);
+    try {
+      const grandTotal = proposal.phases.reduce((sum, ph) => sum + phaseTotal(ph), 0);
+
+      // Fetch firm profile (may not exist yet — gracefully handle 404)
+      const profileRes = await fetch("/api/profile");
+      const profile = profileRes.ok ? await profileRes.json() : null;
+
+      const fieldMappings: { name: string; value: string }[] = [
+        { name: "project_name", value: projectName || "" },
+        { name: "proposal_name", value: proposal.name },
+        { name: "proposal_total", value: grandTotal > 0 ? `$${grandTotal.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "" },
+        { name: "proposal_date", value: proposal.dateSent ? new Date(proposal.dateSent).toLocaleDateString() : new Date().toLocaleDateString() },
+        // Firm info from profile
+        ...(profile ? [
+          { name: "firm_name", value: profile.name || "" },
+          { name: "firm_contact_name", value: profile.contactName || "" },
+          { name: "firm_contact_title", value: profile.contactTitle || "" },
+          { name: "firm_address", value: [profile.addressLine1, profile.addressLine2].filter(Boolean).join(", ") },
+          { name: "firm_city", value: profile.city || "" },
+          { name: "firm_state", value: profile.state || "" },
+          { name: "firm_zip", value: profile.zip || "" },
+          { name: "firm_phone", value: profile.phone || "" },
+          { name: "firm_email", value: profile.email || "" },
+        ] : []),
+      ];
+
+      await Promise.all(
+        fieldMappings
+          .filter((f) => f.value)
+          .map((f) =>
+            fetch("/api/field-values/upsert-by-name", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(f),
+            })
+          )
+      );
+
+      queryClient.invalidateQueries({ queryKey: ["/api/field-values"] });
+      toast({ title: "Loaded to Doc Builder", description: "Proposal and firm info pre-filled as field values." });
+      setLocation("/doc-builder");
+    } catch (e: unknown) {
+      toast({ title: "Failed to load to Doc Builder", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setIsLoadingDocBuilder(false);
+    }
+  };
+
   const grandTotal = proposal.phases.reduce((sum, ph) => sum + phaseTotal(ph), 0);
   const isActionable = proposal.status !== "Signed" && proposal.status !== "Declined";
 
@@ -113,6 +167,16 @@ export function ProposalDetailPanel({ proposal, leadId, onBack }: Props) {
           Proposals
         </Button>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLoadToDocBuilder}
+            disabled={isLoadingDocBuilder}
+            data-testid="button-load-proposal-to-doc-builder"
+          >
+            <FileText className="w-4 h-4" />
+            {isLoadingDocBuilder ? "Loading..." : "Load to Doc Builder"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowEdit(true)} data-testid="button-edit-proposal">
             <Edit className="w-4 h-4" />
             Edit
@@ -182,7 +246,6 @@ export function ProposalDetailPanel({ proposal, leadId, onBack }: Props) {
               onClick={() => setShowSignConfirm(true)}
               disabled={signMutation.isPending}
               data-testid="button-sign-proposal"
-              className="text-green-700 border-green-300 dark:text-green-400 dark:border-green-800"
             >
               <Check className="w-3.5 h-3.5" />
               Mark as Signed
