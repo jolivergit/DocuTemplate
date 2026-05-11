@@ -32,9 +32,10 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   company?: CompanyWithContacts | null;
+  onCreated?: (company: CompanyWithContacts) => void;
 }
 
-export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
+export function CompanyFormDialog({ open, onOpenChange, company, onCreated }: Props) {
   const { toast } = useToast();
   const isEditing = !!company;
 
@@ -88,11 +89,14 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
       }
       return apiRequest("POST", "/api/companies", payload);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
       toast({ title: isEditing ? "Company updated" : "Company created" });
       onOpenChange(false);
-      if (!isEditing) form.reset();
+      if (!isEditing) {
+        form.reset();
+        onCreated?.(result as CompanyWithContacts);
+      }
     },
     onError: (err: Error) => {
       toast({ title: "Failed to save company", description: err.message, variant: "destructive" });

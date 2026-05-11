@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Plus, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { CompanyFormDialog } from "@/components/company-form-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { insertContactSchema, type ContactWithCompanies, type CompanyWithContacts } from "@shared/schema";
 import { z } from "zod";
@@ -59,6 +60,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
     contact?.companies.map((c) => c.id) || initialCompanyIds || []
   );
   const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
+  const [companyCreateOpen, setCompanyCreateOpen] = useState(false);
 
   const { data: allCompanies = [] } = useQuery<CompanyWithContacts[]>({
     queryKey: ["/api/companies"],
@@ -271,8 +273,25 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
                           </CommandGroup>
                         </CommandList>
                       </Command>
+                      {/* Outside CommandList so it is never filtered by search */}
+                      <div className="border-t p-1">
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-medium hover-elevate"
+                          onClick={() => { setCompanyPickerOpen(false); setCompanyCreateOpen(true); }}
+                          data-testid="button-create-company-inline"
+                        >
+                          <Plus className="w-3.5 h-3.5 flex-shrink-0" />
+                          Create new company
+                        </button>
+                      </div>
                     </PopoverContent>
                   </Popover>
+                  <CompanyFormDialog
+                    open={companyCreateOpen}
+                    onOpenChange={setCompanyCreateOpen}
+                    onCreated={(c) => setSelectedCompanyIds((prev) => [...prev, c.id])}
+                  />
                 </div>
 
                 {selectedCompanies.length > 0 ? (
