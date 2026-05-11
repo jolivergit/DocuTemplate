@@ -79,7 +79,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
                     <SidebarMenuButton asChild data-active={isActive}>
                       <Link href={item.url}>
                         <item.icon className="w-4 h-4" />
-                        <span className="tracking-wide">{item.title}</span>
+                        <span className="tracking-wide uppercase">{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
