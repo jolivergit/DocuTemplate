@@ -50,13 +50,14 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contact?: ContactWithCompanies | null;
+  initialCompanyIds?: string[];
 }
 
-export function ContactFormDialog({ open, onOpenChange, contact }: Props) {
+export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyIds }: Props) {
   const { toast } = useToast();
   const isEditing = !!contact;
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>(
-    contact?.companies.map((c) => c.id) || []
+    contact?.companies.map((c) => c.id) || initialCompanyIds || []
   );
   const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
 
@@ -85,7 +86,7 @@ export function ContactFormDialog({ open, onOpenChange, contact }: Props) {
       companyName: contact?.companyName || "",
       notes: contact?.notes || "",
     });
-    setSelectedCompanyIds(contact?.companies.map((c) => c.id) || []);
+    setSelectedCompanyIds(contact?.companies.map((c) => c.id) || initialCompanyIds || []);
   }, [contact?.id]);
 
   const mutation = useMutation({

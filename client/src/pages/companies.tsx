@@ -50,6 +50,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ContactFormDialog } from "@/components/contact-form-dialog";
 import {
   insertCompanySchema,
   type CompanyWithContacts,
@@ -303,6 +304,7 @@ function LinkContactPicker({
   linkedContactIds: Set<string>;
 }) {
   const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const { toast } = useToast();
 
   const { data: allContacts = [] } = useQuery<ContactWithCompanies[]>({
@@ -327,44 +329,62 @@ function LinkContactPicker({
   const available = allContacts.filter((c) => !linkedContactIds.has(c.id));
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button size="sm" variant="outline" data-testid={`button-link-contact-${companyId}`}>
-          <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-          Link Contact
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search contacts…" data-testid="input-link-contact-search" />
-          <CommandList>
-            <CommandEmpty>
-              {allContacts.length === 0 ? "No contacts in address book." : "No unlinked contacts found."}
-            </CommandEmpty>
-            <CommandGroup>
-              {available.map((c) => (
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button size="sm" variant="outline" data-testid={`button-link-contact-${companyId}`}>
+            <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+            Link Contact
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72 p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Search contacts…" data-testid="input-link-contact-search" />
+            <CommandList>
+              <CommandEmpty>
+                {allContacts.length === 0 ? "No contacts in address book." : "No unlinked contacts found."}
+              </CommandEmpty>
+              <CommandGroup>
+                {available.map((c) => (
+                  <CommandItem
+                    key={c.id}
+                    value={`${c.fullName} ${c.email || ""} ${c.companyName || ""}`}
+                    onSelect={() => linkMutation.mutate(c.id)}
+                    disabled={linkMutation.isPending}
+                    data-testid={`item-link-contact-${c.id}`}
+                  >
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-medium truncate">{c.fullName}</span>
+                      {(c.title || c.email) && (
+                        <span className="text-xs text-muted-foreground truncate">
+                          {[c.title, c.email].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+              <CommandGroup>
                 <CommandItem
-                  key={c.id}
-                  value={`${c.fullName} ${c.email || ""} ${c.companyName || ""}`}
-                  onSelect={() => linkMutation.mutate(c.id)}
-                  disabled={linkMutation.isPending}
-                  data-testid={`item-link-contact-${c.id}`}
+                  value="__create_new_contact__"
+                  onSelect={() => { setOpen(false); setCreateOpen(true); }}
+                  data-testid={`button-create-contact-${companyId}`}
                 >
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-medium truncate">{c.fullName}</span>
-                    {(c.title || c.email) && (
-                      <span className="text-xs text-muted-foreground truncate">
-                        {[c.title, c.email].filter(Boolean).join(" · ")}
-                      </span>
-                    )}
-                  </div>
+                  <Plus className="w-3.5 h-3.5 mr-2 flex-shrink-0" />
+                  <span className="font-medium">Create new contact</span>
                 </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      <ContactFormDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        initialCompanyIds={[companyId]}
+      />
+    </>
   );
 }
 
