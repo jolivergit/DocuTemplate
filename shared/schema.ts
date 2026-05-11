@@ -349,6 +349,11 @@ export const contacts = pgTable("contacts", {
   phone: text("phone"),
   email: text("email"),
   companyName: text("company_name"),
+  addressLine1: text("address_line_1"),
+  addressLine2: text("address_line_2"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
