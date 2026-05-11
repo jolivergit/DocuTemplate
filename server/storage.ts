@@ -373,22 +373,23 @@ export class DatabaseStorage implements IStorage {
 
   private async attachCompanies(leadRows: Lead[]): Promise<LeadWithCompanies[]> {
     if (leadRows.length === 0) return [];
+    const userId = leadRows[0].userId;
     const ids = leadRows.map(l => l.id);
     const allLeadCompanies = await db
       .select()
       .from(leadCompanies)
       .where(inArray(leadCompanies.leadId, ids));
 
-    // Collect unique FK IDs to join address-book records
+    // Collect unique FK IDs to join address-book records (scoped to userId to prevent cross-tenant leakage)
     const linkedCompanyIds = Array.from(new Set(allLeadCompanies.map(c => c.companyId).filter(Boolean) as string[]));
     const linkedContactIds = Array.from(new Set(allLeadCompanies.map(c => c.contactId).filter(Boolean) as string[]));
 
     const [linkedCompanyRows, linkedContactRows] = await Promise.all([
       linkedCompanyIds.length > 0
-        ? db.select().from(companies).where(inArray(companies.id, linkedCompanyIds))
+        ? db.select().from(companies).where(and(inArray(companies.id, linkedCompanyIds), eq(companies.userId, userId)))
         : Promise.resolve([] as Company[]),
       linkedContactIds.length > 0
-        ? db.select().from(contacts).where(inArray(contacts.id, linkedContactIds))
+        ? db.select().from(contacts).where(and(inArray(contacts.id, linkedContactIds), eq(contacts.userId, userId)))
         : Promise.resolve([] as Contact[]),
     ]);
 
@@ -423,12 +424,37 @@ export class DatabaseStorage implements IStorage {
     return enriched;
   }
 
+  // Strip any companyId/contactId values that don't belong to this user to prevent cross-tenant injection
+  private async sanitizeLeadCompanyFKs(userId: string, companiesData: Omit<InsertLeadCompany, 'leadId'>[]): Promise<Omit<InsertLeadCompany, 'leadId'>[]> {
+    const companyIds = Array.from(new Set(companiesData.map(c => c.companyId).filter(Boolean) as string[]));
+    const contactIds = Array.from(new Set(companiesData.map(c => c.contactId).filter(Boolean) as string[]));
+
+    const [ownedCompanies, ownedContacts] = await Promise.all([
+      companyIds.length > 0
+        ? db.select({ id: companies.id }).from(companies).where(and(inArray(companies.id, companyIds), eq(companies.userId, userId)))
+        : Promise.resolve([] as { id: string }[]),
+      contactIds.length > 0
+        ? db.select({ id: contacts.id }).from(contacts).where(and(inArray(contacts.id, contactIds), eq(contacts.userId, userId)))
+        : Promise.resolve([] as { id: string }[]),
+    ]);
+
+    const ownedCompanySet = new Set(ownedCompanies.map(c => c.id));
+    const ownedContactSet = new Set(ownedContacts.map(c => c.id));
+
+    return companiesData.map(c => ({
+      ...c,
+      companyId: c.companyId && ownedCompanySet.has(c.companyId) ? c.companyId : null,
+      contactId: c.contactId && ownedContactSet.has(c.contactId) ? c.contactId : null,
+    }));
+  }
+
   async createLead(userId: string, leadData: InsertLead, companiesData: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadWithCompanies> {
+    const sanitized = await this.sanitizeLeadCompanyFKs(userId, companiesData);
     const [lead] = await db.insert(leads).values({ ...leadData, userId }).returning();
-    if (companiesData.length > 0) {
+    if (sanitized.length > 0) {
       await db
         .insert(leadCompanies)
-        .values(companiesData.map(c => ({ ...c, leadId: lead.id })));
+        .values(sanitized.map(c => ({ ...c, leadId: lead.id })));
     }
     const [enriched] = await this.attachCompanies([lead]);
     return enriched;
@@ -450,11 +476,13 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(leads.id, leadId), eq(leads.userId, userId)));
     if (!existingLead) throw new Error(`Lead not found or access denied`);
 
+    const sanitized = await this.sanitizeLeadCompanyFKs(userId, companiesData);
+
     await db.delete(leadCompanies).where(eq(leadCompanies.leadId, leadId));
-    if (companiesData.length === 0) return [];
+    if (sanitized.length === 0) return [];
     return await db
       .insert(leadCompanies)
-      .values(companiesData.map(c => ({ ...c, leadId })))
+      .values(sanitized.map(c => ({ ...c, leadId })))
       .returning();
   }
 
@@ -1097,9 +1125,9 @@ export class DatabaseStorage implements IStorage {
     if (userLeads.length === 0) return { companiesCreated: 0, contactsCreated: 0, rowsUpdated: 0 };
 
     const leadIds = userLeads.map(l => l.id);
-    // Only process rows that don't already have a companyId set
     const rows = await db.select().from(leadCompanies).where(inArray(leadCompanies.leadId, leadIds));
-    const unlinked = rows.filter(r => !r.companyId);
+    // Process any row that is missing at least one FK — allows reruns to complete partial rows
+    const unlinked = rows.filter(r => !r.companyId || !r.contactId);
 
     let companiesCreated = 0;
     let contactsCreated = 0;
@@ -1120,11 +1148,12 @@ export class DatabaseStorage implements IStorage {
     }
 
     for (const row of unlinked) {
-      let companyId: string | null = null;
-      let contactId: string | null = null;
+      // Preserve FKs that are already set — only backfill the missing ones
+      let companyId: string | null = row.companyId ?? null;
+      let contactId: string | null = row.contactId ?? null;
 
-      // Find or create company by name (case-insensitive)
-      if (row.companyName) {
+      // Find or create company by name (case-insensitive) — only if not already linked
+      if (!companyId && row.companyName) {
         const key = row.companyName.toLowerCase();
         if (companyCache.has(key)) {
           companyId = companyCache.get(key)!;
@@ -1144,8 +1173,8 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      // Find or create contact: prefer email match, fallback to name match
-      if (row.contactFullName) {
+      // Find or create contact: prefer email match, fallback to name match — only if not already linked
+      if (!contactId && row.contactFullName) {
         // 1) Try email match first (most reliable dedup key)
         if (row.contactEmail) {
           const emailKey = row.contactEmail.toLowerCase();
