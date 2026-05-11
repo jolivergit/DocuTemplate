@@ -146,12 +146,12 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogContent className="max-w-md flex flex-col p-0 max-h-[80vh]">
+      <DialogContent className="max-w-md flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
           <DialogTitle>{isEditing ? "Edit Contact" : "New Contact"}</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea className="max-h-[60vh]">
           <Form {...form}>
             <form id="contact-form" onSubmit={form.handleSubmit(onSubmit)} className="px-6 py-4 pb-8 space-y-4">
               <FormField
