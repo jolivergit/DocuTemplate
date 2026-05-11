@@ -153,7 +153,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
 
         <ScrollArea className="flex-1 min-h-0">
           <Form {...form}>
-            <form id="contact-form" onSubmit={form.handleSubmit(onSubmit)} className="px-6 py-4 space-y-4">
+            <form id="contact-form" onSubmit={form.handleSubmit(onSubmit)} className="px-6 py-4 pb-8 space-y-4">
               <FormField
                 control={form.control}
                 name="fullName"

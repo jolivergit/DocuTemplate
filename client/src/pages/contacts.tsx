@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Search, Users, Mail, Phone, Building2, Plus, Pencil, Trash2, User, LinkIcon, X } from "lucide-react";
+import { Search, Users, Mail, Phone, Building2, Plus, Pencil, Trash2, User, LinkIcon, ChevronRight, ChevronDown, Unlink } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -123,31 +123,151 @@ function LinkCompanyPicker({ contactId, linkedCompanyIds }: { contactId: string;
   );
 }
 
-function UnlinkCompanyButton({ contactId, companyId, companyName }: { contactId: string; companyId: string; companyName: string }) {
+function StandaloneContactCard({
+  c,
+  index,
+  onEdit,
+  onDelete,
+}: {
+  c: ContactWithCompanies;
+  index: number;
+  onEdit: (c: ContactWithCompanies) => void;
+  onDelete: (c: ContactWithCompanies) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
   const { toast } = useToast();
 
   const unlinkMutation = useMutation({
-    mutationFn: async () => apiRequest("DELETE", `/api/companies/${companyId}/contacts/${contactId}`),
+    mutationFn: async (companyId: string) =>
+      apiRequest("DELETE", `/api/companies/${companyId}/contacts/${c.id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
-      toast({ title: `Unlinked from ${companyName}` });
+      toast({ title: "Company unlinked" });
     },
     onError: (err: Error) => {
       toast({ title: "Failed to unlink", description: err.message, variant: "destructive" });
     },
   });
 
+  const linkedCompanyIds = new Set(c.companies.map((co) => co.id));
+
   return (
-    <button
-      type="button"
-      className="ml-0.5 rounded-sm opacity-60 hover:opacity-100"
-      onClick={(e) => { e.stopPropagation(); unlinkMutation.mutate(); }}
-      disabled={unlinkMutation.isPending}
-      data-testid={`button-unlink-company-${companyId}`}
-    >
-      <X className="w-3 h-3" />
-    </button>
+    <div className="rounded-md border bg-card" data-testid={`card-contact-${index}`}>
+      <div className="p-4 flex items-start gap-4">
+        <div className="flex-shrink-0 mt-0.5">
+          <User className="w-4 h-4 text-muted-foreground" />
+        </div>
+
+        <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold" data-testid={`text-contact-name-${index}`}>
+              {c.fullName}
+            </span>
+            {c.title && (
+              <span className="text-xs text-muted-foreground">{c.title}</span>
+            )}
+            {c.companies.length > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                <Building2 className="w-3 h-3 mr-1" />
+                {c.companies.length} {c.companies.length === 1 ? "company" : "companies"}
+              </Badge>
+            )}
+          </div>
+
+          {c.companyName && (
+            <p className="text-sm text-muted-foreground" data-testid={`text-contact-company-${index}`}>
+              {c.companyName}
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-4 pt-0.5">
+            {c.email && (
+              <a
+                href={`mailto:${c.email}`}
+                className="flex items-center gap-1.5 text-xs text-primary"
+                data-testid={`link-contact-email-${index}`}
+              >
+                <Mail className="w-3.5 h-3.5" />
+                {c.email}
+              </a>
+            )}
+            {c.phone && (
+              <a
+                href={`tel:${c.phone}`}
+                className="flex items-center gap-1.5 text-xs text-primary"
+                data-testid={`link-contact-phone-${index}`}
+              >
+                <Phone className="w-3.5 h-3.5" />
+                {c.phone}
+              </a>
+            )}
+          </div>
+
+          {c.notes && (
+            <p className="text-xs text-muted-foreground line-clamp-2">{c.notes}</p>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 flex items-center gap-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setExpanded(!expanded)}
+            data-testid={`button-expand-contact-${index}`}
+          >
+            {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => onEdit(c)}
+            data-testid={`button-edit-contact-${index}`}
+          >
+            <Pencil className="w-4 h-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => onDelete(c)}
+            data-testid={`button-delete-contact-${index}`}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="border-t px-4 py-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-muted-foreground">Linked Companies</p>
+            <LinkCompanyPicker contactId={c.id} linkedCompanyIds={linkedCompanyIds} />
+          </div>
+          {c.companies.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-1">No companies linked yet.</p>
+          ) : (
+            c.companies.map((co) => (
+              <div key={co.id} className="flex items-center justify-between gap-2 py-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <span className="text-sm font-medium truncate">{co.name}</span>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => unlinkMutation.mutate(co.id)}
+                  disabled={unlinkMutation.isPending}
+                  data-testid={`button-unlink-company-${co.id}`}
+                  title="Unlink company"
+                >
+                  <Unlink className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -317,98 +437,14 @@ export default function ContactsPage() {
           <div className="p-6 space-y-3">
             {filtered.map((entry, i) => {
               if (entry.source === "standalone") {
-                const c = entry.contact;
                 return (
-                  <div
-                    key={`standalone-${c.id}`}
-                    className="rounded-md border bg-card p-4 flex items-start gap-4"
-                    data-testid={`card-contact-${i}`}
-                  >
-                    <div className="flex-shrink-0 mt-0.5">
-                      <User className="w-4 h-4 text-muted-foreground" />
-                    </div>
-
-                    <div className="flex-1 min-w-0 space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-semibold" data-testid={`text-contact-name-${i}`}>
-                          {c.fullName}
-                        </span>
-                        {c.title && (
-                          <span className="text-xs text-muted-foreground">{c.title}</span>
-                        )}
-                      </div>
-
-                      {c.companyName && (
-                        <p className="text-sm text-muted-foreground" data-testid={`text-contact-company-${i}`}>
-                          {c.companyName}
-                        </p>
-                      )}
-
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {c.companies.map((co) => (
-                          <Badge key={co.id} variant="outline" className="text-xs gap-1 pr-1">
-                            <Building2 className="w-2.5 h-2.5 flex-shrink-0" />
-                            <span>{co.name}</span>
-                            <UnlinkCompanyButton
-                              contactId={c.id}
-                              companyId={co.id}
-                              companyName={co.name}
-                            />
-                          </Badge>
-                        ))}
-                        <LinkCompanyPicker
-                          contactId={c.id}
-                          linkedCompanyIds={new Set(c.companies.map((co) => co.id))}
-                        />
-                      </div>
-
-                      <div className="flex flex-wrap gap-4 pt-0.5">
-                        {c.email && (
-                          <a
-                            href={`mailto:${c.email}`}
-                            className="flex items-center gap-1.5 text-xs text-primary"
-                            data-testid={`link-contact-email-${i}`}
-                          >
-                            <Mail className="w-3.5 h-3.5" />
-                            {c.email}
-                          </a>
-                        )}
-                        {c.phone && (
-                          <a
-                            href={`tel:${c.phone}`}
-                            className="flex items-center gap-1.5 text-xs text-primary"
-                            data-testid={`link-contact-phone-${i}`}
-                          >
-                            <Phone className="w-3.5 h-3.5" />
-                            {c.phone}
-                          </a>
-                        )}
-                      </div>
-
-                      {c.notes && (
-                        <p className="text-xs text-muted-foreground line-clamp-2">{c.notes}</p>
-                      )}
-                    </div>
-
-                    <div className="flex-shrink-0 flex items-center gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => openEdit(c)}
-                        data-testid={`button-edit-contact-${i}`}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setDeletingContact(c)}
-                        data-testid={`button-delete-contact-${i}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
+                  <StandaloneContactCard
+                    key={`standalone-${entry.contact.id}`}
+                    c={entry.contact}
+                    index={i}
+                    onEdit={openEdit}
+                    onDelete={setDeletingContact}
+                  />
                 );
               } else {
                 return (
