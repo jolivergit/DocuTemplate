@@ -109,7 +109,7 @@ function AppLayout() {
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
               {pageTitle && (
-                <span className="text-sm font-medium uppercase tracking-widest" data-testid="text-page-title">
+                <span className="text-base font-semibold uppercase tracking-widest" data-testid="text-page-title">
                   {pageTitle}
                 </span>
               )}
