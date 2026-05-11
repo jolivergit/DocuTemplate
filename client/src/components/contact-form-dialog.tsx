@@ -33,7 +33,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Building2, Plus, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -146,12 +145,12 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogContent className="max-w-md flex flex-col p-0">
+      <DialogContent className="max-w-md flex flex-col p-0 max-h-[calc(100vh-4rem)]">
         <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
           <DialogTitle>{isEditing ? "Edit Contact" : "New Contact"}</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[60vh]">
+        <div className="overflow-y-auto flex-1 min-h-0">
           <Form {...form}>
             <form id="contact-form" onSubmit={form.handleSubmit(onSubmit)} className="px-6 py-4 pb-8 space-y-4">
               <FormField
@@ -304,7 +303,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
               </div>
             </form>
           </Form>
-        </ScrollArea>
+        </div>
 
         {/* Sticky footer — always visible outside the scroll area */}
         <div className="flex justify-end gap-2 px-6 py-4 border-t flex-shrink-0">
