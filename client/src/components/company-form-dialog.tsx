@@ -107,12 +107,13 @@ export function CompanyFormDialog({ open, onOpenChange, company, onCreated }: Pr
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) form.reset(); }}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[calc(100vh-4rem)] flex flex-col">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Company" : "New Company"}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+          <div className="overflow-y-auto flex-1 min-h-0 space-y-4 px-1">
             <FormField
               control={form.control}
               name="name"
@@ -249,14 +250,15 @@ export function CompanyFormDialog({ open, onOpenChange, company, onCreated }: Pr
               )}
             />
 
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-company">
-                Cancel
-              </Button>
-              <Button type="submit" disabled={mutation.isPending} data-testid="button-submit-company">
-                {mutation.isPending ? "Saving..." : isEditing ? "Save Changes" : "Create Company"}
-              </Button>
-            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t mt-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-company">
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending} data-testid="button-submit-company">
+              {mutation.isPending ? "Saving..." : isEditing ? "Save Changes" : "Create Company"}
+            </Button>
+          </div>
           </form>
         </Form>
       </DialogContent>
