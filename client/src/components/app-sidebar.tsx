@@ -60,8 +60,8 @@ export function AppSidebar({ user }: AppSidebarProps) {
     <Sidebar>
       <SidebarHeader className="p-4 border-b">
         <div className="flex items-center gap-2">
-          <LayoutDashboard className="w-5 h-5 text-primary flex-shrink-0" />
-          <span className="font-semibold text-base">Studio PM</span>
+          <LayoutDashboard className="w-4 h-4 text-primary flex-shrink-0" />
+          <span className="text-xs font-medium uppercase tracking-widest">Studio PM</span>
         </div>
       </SidebarHeader>
 
@@ -79,7 +79,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
                     <SidebarMenuButton asChild data-active={isActive}>
                       <Link href={item.url}>
                         <item.icon className="w-4 h-4" />
-                        <span>{item.title}</span>
+                        <span className="tracking-wide">{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
