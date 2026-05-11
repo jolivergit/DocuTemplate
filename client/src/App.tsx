@@ -11,7 +11,8 @@ import ProjectsPage from "@/pages/projects";
 import ProjectDetailPage from "@/pages/project-detail";
 import ContactsPage from "@/pages/contacts";
 import CompaniesPage from "@/pages/companies";
-import ProfilePage from "@/pages/profile";
+import FirmProfilePage from "@/pages/profile-firm";
+import ContactProfilePage from "@/pages/profile-contact";
 import NotFound from "@/pages/not-found";
 import { useQuery } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
@@ -123,7 +124,8 @@ function AppLayout() {
               <Route path="/companies" component={CompaniesPage} />
               <Route path="/contacts" component={ContactsPage} />
               <Route path="/doc-builder" component={Home} />
-              <Route path="/profile" component={ProfilePage} />
+              <Route path="/profile/firm" component={FirmProfilePage} />
+              <Route path="/profile/contact" component={ContactProfilePage} />
               <Route component={NotFound} />
             </Switch>
           </main>

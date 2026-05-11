@@ -1,19 +1,21 @@
 import { Link, useLocation } from "wouter";
-import { FileText, Briefcase, LayoutDashboard, Users, Building2 } from "lucide-react";
+import { FileText, Briefcase, LayoutDashboard, Users, Building2, User } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import type { User } from "@shared/schema";
+import type { User as UserType } from "@shared/schema";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, exact: true },
@@ -23,13 +25,17 @@ const navItems = [
   { title: "Doc Builder", url: "/doc-builder", icon: FileText, exact: false },
 ];
 
+const settingsItems = [
+  { title: "Firm", url: "/profile/firm", icon: Building2 },
+  { title: "Contact", url: "/profile/contact", icon: User },
+];
+
 interface AppSidebarProps {
-  user?: User | null;
+  user?: UserType | null;
 }
 
 export function AppSidebar({ user }: AppSidebarProps) {
   const [location] = useLocation();
-  const profileActive = location.startsWith("/profile");
 
   return (
     <Sidebar>
@@ -64,23 +70,51 @@ export function AppSidebar({ user }: AppSidebarProps) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t">
-        <div className="flex items-center justify-between gap-2">
-          {user && (
-            <Link href="/profile" className="flex items-center gap-2 min-w-0 flex-1">
-              <Avatar className={`h-7 w-7 flex-shrink-0 ring-1 transition-all ${profileActive ? "ring-foreground" : "ring-transparent"}`}>
-                <AvatarImage src={user.picture || undefined} alt={user.name} />
-                <AvatarFallback className="text-xs">
-                  {user.name?.charAt(0).toUpperCase() || "U"}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-sm text-muted-foreground truncate hover:text-foreground transition-colors" data-testid="text-sidebar-user">
-                {user.name}
-              </span>
-            </Link>
-          )}
-          <ThemeToggle />
-        </div>
+      <SidebarFooter className="pb-3">
+        <SidebarSeparator />
+
+        {/* Settings section */}
+        <SidebarGroup className="py-1">
+          <SidebarGroupLabel>Settings</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {settingsItems.map((item) => {
+                const isActive = location === item.url || location.startsWith(item.url);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild data-active={isActive}>
+                      <Link href={item.url}>
+                        <item.icon className="w-4 h-4" />
+                        <span className="tracking-wide uppercase">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* User identity */}
+        {user && (
+          <>
+            <SidebarSeparator />
+            <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <Avatar className="h-6 w-6 flex-shrink-0">
+                  <AvatarImage src={user.picture || undefined} alt={user.name} />
+                  <AvatarFallback className="text-xs">
+                    {user.name?.charAt(0).toUpperCase() || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-xs text-muted-foreground truncate" data-testid="text-sidebar-user">
+                  {user.name}
+                </span>
+              </div>
+              <ThemeToggle />
+            </div>
+          </>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
