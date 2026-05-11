@@ -1,11 +1,24 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Search, Users, Mail, Phone, Building2, Plus, Pencil, Trash2 } from "lucide-react";
+import { Search, Users, Mail, Phone, Building2, Plus, Pencil, Trash2, User, LinkIcon, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +32,7 @@ import {
 import { ContactFormDialog } from "@/components/contact-form-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { ContactWithCompanies, LeadWithCompanies } from "@shared/schema";
+import type { ContactWithCompanies, CompanyWithContacts, LeadWithCompanies } from "@shared/schema";
 
 interface ProjectContactEntry {
   source: "project";
@@ -39,6 +52,95 @@ interface StandaloneContactEntry {
 }
 
 type ContactEntry = ProjectContactEntry | StandaloneContactEntry;
+
+function LinkCompanyPicker({ contactId, linkedCompanyIds }: { contactId: string; linkedCompanyIds: Set<string> }) {
+  const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+
+  const { data: allCompanies = [] } = useQuery<CompanyWithContacts[]>({
+    queryKey: ["/api/companies"],
+    enabled: open,
+  });
+
+  const linkMutation = useMutation({
+    mutationFn: async (companyId: string) =>
+      apiRequest("POST", `/api/companies/${companyId}/contacts/${contactId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      toast({ title: "Company linked" });
+      setOpen(false);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to link company", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const available = allCompanies.filter((c) => !linkedCompanyIds.has(c.id));
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`button-link-company-${contactId}`}>
+          <LinkIcon className="w-3.5 h-3.5 mr-1.5" />
+          Link Company
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search companies…" />
+          <CommandList>
+            <CommandEmpty>
+              {allCompanies.length === 0 ? "No companies in address book." : "All companies already linked."}
+            </CommandEmpty>
+            <CommandGroup>
+              {available.map((c) => (
+                <CommandItem
+                  key={c.id}
+                  value={c.name}
+                  onSelect={() => linkMutation.mutate(c.id)}
+                  disabled={linkMutation.isPending}
+                  data-testid={`item-link-company-${c.id}`}
+                >
+                  <Building2 className="w-3.5 h-3.5 mr-2 text-muted-foreground flex-shrink-0" />
+                  <span className="truncate">{c.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function UnlinkCompanyButton({ contactId, companyId, companyName }: { contactId: string; companyId: string; companyName: string }) {
+  const { toast } = useToast();
+
+  const unlinkMutation = useMutation({
+    mutationFn: async () => apiRequest("DELETE", `/api/companies/${companyId}/contacts/${contactId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      toast({ title: `Unlinked from ${companyName}` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to unlink", description: err.message, variant: "destructive" });
+    },
+  });
+
+  return (
+    <button
+      type="button"
+      className="ml-0.5 rounded-sm opacity-60 hover:opacity-100"
+      onClick={(e) => { e.stopPropagation(); unlinkMutation.mutate(); }}
+      disabled={unlinkMutation.isPending}
+      data-testid={`button-unlink-company-${companyId}`}
+    >
+      <X className="w-3 h-3" />
+    </button>
+  );
+}
 
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
@@ -214,10 +316,10 @@ export default function ContactsPage() {
                     data-testid={`card-contact-${i}`}
                   >
                     <div className="flex-shrink-0 mt-0.5">
-                      <Building2 className="w-4 h-4 text-muted-foreground" />
+                      <User className="w-4 h-4 text-muted-foreground" />
                     </div>
 
-                    <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex-1 min-w-0 space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold" data-testid={`text-contact-name-${i}`}>
                           {c.fullName}
@@ -225,9 +327,6 @@ export default function ContactsPage() {
                         {c.title && (
                           <span className="text-xs text-muted-foreground">{c.title}</span>
                         )}
-                        <Badge variant="secondary" className="text-xs">
-                          Address Book
-                        </Badge>
                       </div>
 
                       {c.companyName && (
@@ -236,18 +335,25 @@ export default function ContactsPage() {
                         </p>
                       )}
 
-                      {c.companies.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pt-0.5">
-                          {c.companies.map((co) => (
-                            <Badge key={co.id} variant="outline" className="text-xs gap-1">
-                              <Building2 className="w-2.5 h-2.5" />
-                              {co.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {c.companies.map((co) => (
+                          <Badge key={co.id} variant="outline" className="text-xs gap-1 pr-1">
+                            <Building2 className="w-2.5 h-2.5 flex-shrink-0" />
+                            <span>{co.name}</span>
+                            <UnlinkCompanyButton
+                              contactId={c.id}
+                              companyId={co.id}
+                              companyName={co.name}
+                            />
+                          </Badge>
+                        ))}
+                        <LinkCompanyPicker
+                          contactId={c.id}
+                          linkedCompanyIds={new Set(c.companies.map((co) => co.id))}
+                        />
+                      </div>
 
-                      <div className="flex flex-wrap gap-4 pt-1">
+                      <div className="flex flex-wrap gap-4 pt-0.5">
                         {c.email && (
                           <a
                             href={`mailto:${c.email}`}
@@ -271,7 +377,7 @@ export default function ContactsPage() {
                       </div>
 
                       {c.notes && (
-                        <p className="text-xs text-muted-foreground pt-1 line-clamp-2">{c.notes}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{c.notes}</p>
                       )}
                     </div>
 
