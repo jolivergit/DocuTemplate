@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -17,10 +17,21 @@ import NotFound from "@/pages/not-found";
 import { useQuery } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 import { SiGoogle } from "react-icons/si";
-import { FolderKanban, LogOut } from "lucide-react";
+import { FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+function getPageTitle(location: string): string {
+  if (location === "/" || location === "") return "Dashboard";
+  if (location.startsWith("/projects/")) return "Project";
+  if (location === "/projects") return "Projects";
+  if (location === "/companies") return "Companies";
+  if (location === "/contacts") return "Contacts";
+  if (location === "/doc-builder") return "Doc Builder";
+  if (location === "/profile/firm") return "Firm";
+  if (location === "/profile/contact") return "Contact";
+  return "";
+}
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = useQuery<User | null>({
@@ -81,6 +92,9 @@ function AppLayout() {
     retry: false,
   });
 
+  const [location] = useLocation();
+  const pageTitle = getPageTitle(location);
+
   const sidebarStyle = {
     "--sidebar-width": "14rem",
     "--sidebar-width-icon": "3.5rem",
@@ -91,30 +105,16 @@ function AppLayout() {
       <div className="flex h-screen w-full">
         <AppSidebar user={user} />
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="h-14 border-b flex items-center justify-between px-4 flex-shrink-0 gap-2 bg-background">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-muted">
-                <Avatar className="h-6 w-6">
-                  <AvatarImage src={user?.picture || undefined} alt={user?.name || "User"} />
-                  <AvatarFallback className="text-xs">
-                    {user?.name?.charAt(0).toUpperCase() || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm hidden lg:inline text-muted-foreground" data-testid="text-user-name">
-                  {user?.name || user?.email}
+          <header className="h-14 border-b flex items-center justify-between px-4 flex-shrink-0 gap-4 bg-background">
+            <div className="flex items-center gap-3">
+              <SidebarTrigger data-testid="button-sidebar-toggle" />
+              {pageTitle && (
+                <span className="text-sm font-medium uppercase tracking-widest" data-testid="text-page-title">
+                  {pageTitle}
                 </span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => { window.location.href = "/auth/logout"; }}
-                title="Sign out"
-                data-testid="button-logout"
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
+              )}
             </div>
+            <ThemeToggle />
           </header>
           <main className="flex-1 overflow-hidden">
             <Switch>

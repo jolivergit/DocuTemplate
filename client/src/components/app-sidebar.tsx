@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { FileText, Briefcase, LayoutDashboard, Users, Building2, User } from "lucide-react";
+import { FileText, Briefcase, LayoutDashboard, Users, Building2, User, LogOut } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -14,7 +14,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
 import type { User as UserType } from "@shared/schema";
 
 const navItems = [
@@ -95,11 +95,11 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* User identity */}
+        {/* User identity + sign out */}
         {user && (
           <>
             <SidebarSeparator />
-            <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-1">
+            <div className="px-3 pt-3 pb-1 space-y-2">
               <div className="flex items-center gap-2 min-w-0">
                 <Avatar className="h-6 w-6 flex-shrink-0">
                   <AvatarImage src={user.picture || undefined} alt={user.name} />
@@ -111,7 +111,16 @@ export function AppSidebar({ user }: AppSidebarProps) {
                   {user.name}
                 </span>
               </div>
-              <ThemeToggle />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start gap-2 text-xs text-muted-foreground px-1"
+                onClick={() => { window.location.href = "/auth/logout"; }}
+                data-testid="button-logout"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Sign out
+              </Button>
             </div>
           </>
         )}
