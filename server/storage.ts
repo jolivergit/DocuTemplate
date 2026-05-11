@@ -988,7 +988,7 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    const recentLeads = allLeads.slice(-5).reverse();
+    const recentLeads = allLeads.slice(-6).reverse();
 
     return { leadsByStatus, sentInvoicesTotal, paidInvoicesTotal, recentLeads };
   }
@@ -1105,21 +1105,25 @@ export class DatabaseStorage implements IStorage {
     let contactsCreated = 0;
     let rowsUpdated = 0;
 
-    // Cache by name to avoid creating duplicates within this run
-    const companyCache = new Map<string, string>(); // name -> id
-    const contactCache = new Map<string, string>(); // fullName -> id
+    // Cache to avoid creating duplicates within this run
+    const companyCache = new Map<string, string>(); // lowerName -> id
+    const contactEmailCache = new Map<string, string>(); // lowerEmail -> id
+    const contactNameCache = new Map<string, string>(); // lowerFullName -> id
 
     // Pre-load existing companies and contacts for this user
     const existingCompanies = await db.select().from(companies).where(eq(companies.userId, userId));
     const existingContacts = await db.select().from(contacts).where(eq(contacts.userId, userId));
     for (const c of existingCompanies) companyCache.set(c.name.toLowerCase(), c.id);
-    for (const c of existingContacts) contactCache.set(c.fullName.toLowerCase(), c.id);
+    for (const c of existingContacts) {
+      if (c.email) contactEmailCache.set(c.email.toLowerCase(), c.id);
+      contactNameCache.set(c.fullName.toLowerCase(), c.id);
+    }
 
     for (const row of unlinked) {
       let companyId: string | null = null;
       let contactId: string | null = null;
 
-      // Find or create company by name
+      // Find or create company by name (case-insensitive)
       if (row.companyName) {
         const key = row.companyName.toLowerCase();
         if (companyCache.has(key)) {
@@ -1140,12 +1144,24 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      // Find or create contact by full name
+      // Find or create contact: prefer email match, fallback to name match
       if (row.contactFullName) {
-        const key = row.contactFullName.toLowerCase();
-        if (contactCache.has(key)) {
-          contactId = contactCache.get(key)!;
-        } else {
+        // 1) Try email match first (most reliable dedup key)
+        if (row.contactEmail) {
+          const emailKey = row.contactEmail.toLowerCase();
+          if (contactEmailCache.has(emailKey)) {
+            contactId = contactEmailCache.get(emailKey)!;
+          }
+        }
+        // 2) Try name match
+        if (!contactId) {
+          const nameKey = row.contactFullName.toLowerCase();
+          if (contactNameCache.has(nameKey)) {
+            contactId = contactNameCache.get(nameKey)!;
+          }
+        }
+        // 3) Create new contact
+        if (!contactId) {
           const [newContact] = await db.insert(contacts).values({
             userId,
             fullName: row.contactFullName,
@@ -1155,7 +1171,8 @@ export class DatabaseStorage implements IStorage {
             companyName: row.companyName,
           }).returning();
           contactId = newContact.id;
-          contactCache.set(key, contactId);
+          if (newContact.email) contactEmailCache.set(newContact.email.toLowerCase(), contactId);
+          contactNameCache.set(row.contactFullName.toLowerCase(), contactId);
           contactsCreated++;
         }
 

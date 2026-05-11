@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -75,6 +75,18 @@ export function ContactFormDialog({ open, onOpenChange, contact }: Props) {
       notes: contact?.notes || "",
     },
   });
+
+  useEffect(() => {
+    form.reset({
+      fullName: contact?.fullName || "",
+      title: contact?.title || "",
+      phone: contact?.phone || "",
+      email: contact?.email || "",
+      companyName: contact?.companyName || "",
+      notes: contact?.notes || "",
+    });
+    setSelectedCompanyIds(contact?.companies.map((c) => c.id) || []);
+  }, [contact?.id]);
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {

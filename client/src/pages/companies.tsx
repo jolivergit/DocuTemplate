@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Search, Building2, Plus, Pencil, Trash2, Phone, Mail, Globe,
@@ -88,6 +88,21 @@ function CompanyFormDialog({
       notes: company?.notes || "",
     },
   });
+
+  useEffect(() => {
+    form.reset({
+      name: company?.name || "",
+      addressLine1: company?.addressLine1 || "",
+      addressLine2: company?.addressLine2 || "",
+      city: company?.city || "",
+      state: company?.state || "",
+      zip: company?.zip || "",
+      phone: company?.phone || "",
+      email: company?.email || "",
+      website: company?.website || "",
+      notes: company?.notes || "",
+    });
+  }, [company?.id]);
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
