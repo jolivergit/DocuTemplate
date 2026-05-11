@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ContactFormDialog } from "@/components/contact-form-dialog";
+import { CompanyFormDialog } from "@/components/company-form-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { ContactWithCompanies, CompanyWithContacts, LeadWithCompanies } from "@shared/schema";
@@ -56,6 +57,7 @@ type ContactEntry = ProjectContactEntry | StandaloneContactEntry;
 function LinkCompanyPicker({ contactId, linkedCompanyIds }: { contactId: string; linkedCompanyIds: Set<string> }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
   const { toast } = useToast();
 
   const { data: allCompanies = [] } = useQuery<CompanyWithContacts[]>({
@@ -80,46 +82,62 @@ function LinkCompanyPicker({ contactId, linkedCompanyIds }: { contactId: string;
   const available = allCompanies.filter((c) => !linkedCompanyIds.has(c.id));
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button size="sm" variant="outline" data-testid={`button-link-company-${contactId}`}>
-          <LinkIcon className="w-3.5 h-3.5 mr-1.5" />
-          Link Company
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-64 p-0" align="start">
-        <Command>
-          <CommandInput
-            placeholder="Search companies…"
-            value={search}
-            onValueChange={setSearch}
-          />
-          <CommandList>
-            <CommandEmpty>
-              {allCompanies.length === 0
-                ? "No companies in address book."
-                : available.length === 0
-                ? "All companies already linked."
-                : "No companies found."}
-            </CommandEmpty>
-            <CommandGroup>
-              {available.map((c) => (
-                <CommandItem
-                  key={c.id}
-                  value={c.name}
-                  onSelect={() => { linkMutation.mutate(c.id); setSearch(""); }}
-                  disabled={linkMutation.isPending}
-                  data-testid={`item-link-company-${c.id}`}
-                >
-                  <Building2 className="w-3.5 h-3.5 mr-2 text-muted-foreground flex-shrink-0" />
-                  <span className="truncate">{c.name}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button size="sm" variant="outline" data-testid={`button-link-company-${contactId}`}>
+            <LinkIcon className="w-3.5 h-3.5 mr-1.5" />
+            Link Company
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-0" align="start">
+          <Command>
+            <CommandInput
+              placeholder="Search companies…"
+              value={search}
+              onValueChange={setSearch}
+            />
+            <CommandList>
+              <CommandEmpty>
+                {allCompanies.length === 0
+                  ? "No companies in address book."
+                  : available.length === 0
+                  ? "All companies already linked."
+                  : "No companies found."}
+              </CommandEmpty>
+              <CommandGroup>
+                {available.map((c) => (
+                  <CommandItem
+                    key={c.id}
+                    value={c.name}
+                    onSelect={() => { linkMutation.mutate(c.id); setSearch(""); }}
+                    disabled={linkMutation.isPending}
+                    data-testid={`item-link-company-${c.id}`}
+                  >
+                    <Building2 className="w-3.5 h-3.5 mr-2 text-muted-foreground flex-shrink-0" />
+                    <span className="truncate">{c.name}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+          {/* Rendered outside CommandList so it is never filtered by search */}
+          <div className="border-t p-1">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-medium hover-elevate"
+              onClick={() => { setOpen(false); setCreateOpen(true); }}
+              data-testid={`button-create-company-${contactId}`}
+            >
+              <Plus className="w-3.5 h-3.5 flex-shrink-0" />
+              Create new company
+            </button>
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      <CompanyFormDialog open={createOpen} onOpenChange={setCreateOpen} />
+    </>
   );
 }
 
