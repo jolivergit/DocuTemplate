@@ -305,19 +305,8 @@ export default function CompaniesPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b px-6 py-4 flex items-center justify-between gap-4 flex-wrap flex-shrink-0 bg-background">
-        <div>
-          <h1 className="text-xl font-semibold" data-testid="text-page-title">Companies</h1>
-          <p className="text-sm text-muted-foreground">Your company address book</p>
-        </div>
-        <Button onClick={openCreate} data-testid="button-new-company">
-          <Plus className="w-4 h-4 mr-2" />
-          New Company
-        </Button>
-      </div>
-
-      <div className="px-6 py-3 border-b flex-shrink-0 bg-background">
-        <div className="relative max-w-sm">
+      <div className="px-6 py-3 border-b flex items-center gap-3 flex-wrap flex-shrink-0 bg-background">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search companies…"
@@ -327,6 +316,10 @@ export default function CompaniesPage() {
             data-testid="input-search-companies"
           />
         </div>
+        <Button onClick={openCreate} data-testid="button-new-company">
+          <Plus className="w-4 h-4" />
+          New Company
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
