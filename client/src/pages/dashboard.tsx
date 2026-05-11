@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Briefcase, ChevronRight, TrendingUp, FileCheck, Clock, CircleDollarSign } from "lucide-react";
+import { Briefcase, ChevronRight, CircleDollarSign } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardStats } from "@/lib/types";
 
 const STATUS_COLORS: Record<string, string> = {
-  Lead: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  Proposal: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-  "Active Project": "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  Lead: "bg-muted text-muted-foreground",
+  Proposal: "bg-muted text-muted-foreground",
+  "Active Project": "bg-foreground text-background",
   Completed: "bg-secondary text-secondary-foreground",
-  Lost: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  Lost: "bg-muted text-muted-foreground",
 };
+
+const PIPELINE_STAGES: { key: string; label: string; testId: string }[] = [
+  { key: "Lead", label: "Lead", testId: "stat-open-leads" },
+  { key: "Proposal", label: "Proposal", testId: "stat-proposals" },
+  { key: "Active Project", label: "Active Project", testId: "stat-active-projects" },
+  { key: "Completed", label: "Completed", testId: "stat-completed" },
+];
 
 function fmt(n: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -62,11 +69,10 @@ export default function DashboardPage() {
     staleTime: 30_000,
   });
 
-  const activeProjects = stats?.leadsByStatus?.["Active Project"] ?? 0;
-  const openLeads = stats?.leadsByStatus?.["Lead"] ?? 0;
-  const proposals = stats?.leadsByStatus?.["Proposal"] ?? 0;
-  const completed = stats?.leadsByStatus?.["Completed"] ?? 0;
-  const pipelineTotal = openLeads + proposals + activeProjects;
+  const pipelineTotal = PIPELINE_STAGES.reduce(
+    (sum, s) => sum + (stats?.leadsByStatus?.[s.key] ?? 0),
+    0
+  );
 
   return (
     <div className="h-full overflow-y-auto">
@@ -86,44 +92,47 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* Pipeline stat cards */}
+        {/* Pipeline strip */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">Pipeline</h2>
           {isLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-md" />)}
-            </div>
+            <Skeleton className="h-24 rounded-md" />
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard
-                title="Active Projects"
-                value={activeProjects}
-                icon={FileCheck}
-                sub="In production"
-                testId="stat-active-projects"
-              />
-              <StatCard
-                title="Open Leads"
-                value={openLeads}
-                icon={Briefcase}
-                sub="Awaiting proposal"
-                testId="stat-open-leads"
-              />
-              <StatCard
-                title="In Proposal"
-                value={proposals}
-                icon={Clock}
-                sub="Awaiting signature"
-                testId="stat-proposals"
-              />
-              <StatCard
-                title="Completed"
-                value={completed}
-                icon={TrendingUp}
-                sub="All time"
-                testId="stat-completed"
-              />
-            </div>
+            <Card>
+              <CardContent className="p-0">
+                <div className="flex items-center">
+                  {PIPELINE_STAGES.map((stage, i) => {
+                    const count = stats?.leadsByStatus?.[stage.key] ?? 0;
+                    const pct = pipelineTotal > 0 ? (count / pipelineTotal) * 100 : 0;
+                    return (
+                      <div key={stage.key} className="contents">
+                        <div className="flex-1 px-5 py-5 relative overflow-hidden">
+                          <p
+                            className="text-2xl font-semibold"
+                            data-testid={stage.testId}
+                          >
+                            {count}
+                          </p>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide mt-1">
+                            {stage.label}
+                          </p>
+                          {/* proportional fill bar */}
+                          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-muted" />
+                          <div
+                            className="absolute bottom-0 left-0 h-[2px] bg-foreground transition-all duration-500"
+                            style={{ width: `${pct}%` }}
+                            data-testid={`bar-stage-${stage.key.replace(/\s+/g, "-").toLowerCase()}`}
+                          />
+                        </div>
+                        {i < PIPELINE_STAGES.length - 1 && (
+                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 flex-shrink-0" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
           )}
         </section>
 
@@ -157,7 +166,7 @@ export default function DashboardPage() {
 
         {/* Recent leads */}
         <section>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Recent Projects</h2>
             <Link href="/projects">
               <Button variant="ghost" size="sm" data-testid="button-view-all-projects">
@@ -220,37 +229,6 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* Pipeline summary bar */}
-        {!isLoading && pipelineTotal > 0 && (
-          <section>
-            <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">Pipeline Breakdown</h2>
-            <Card>
-              <CardContent className="pt-5 space-y-3">
-                {(["Lead", "Proposal", "Active Project", "Completed", "Lost"] as const).map((s) => {
-                  const count = stats?.leadsByStatus?.[s] ?? 0;
-                  const total = Object.values(stats?.leadsByStatus ?? {}).reduce((a, b) => a + b, 0);
-                  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-                  if (count === 0) return null;
-                  return (
-                    <div key={s} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{s}</span>
-                        <span className="font-medium">{count} <span className="text-muted-foreground font-normal text-xs">({pct}%)</span></span>
-                      </div>
-                      <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full transition-all"
-                          style={{ width: `${pct}%` }}
-                          data-testid={`bar-status-${s.replace(/\s+/g, "-").toLowerCase()}`}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          </section>
-        )}
       </div>
     </div>
   );
