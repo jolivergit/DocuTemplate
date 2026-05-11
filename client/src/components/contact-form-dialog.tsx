@@ -72,7 +72,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
       title: contact?.title || "",
       phone: contact?.phone || "",
       email: contact?.email || "",
-      companyName: contact?.companyName || "",
+      companyName: "",
       notes: contact?.notes || "",
     },
   });
@@ -83,7 +83,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
       title: contact?.title || "",
       phone: contact?.phone || "",
       email: contact?.email || "",
-      companyName: contact?.companyName || "",
+      companyName: "",
       notes: contact?.notes || "",
     });
     setSelectedCompanyIds(contact?.companies.map((c) => c.id) || initialCompanyIds || []);
@@ -96,7 +96,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
         title: values.title || null,
         phone: values.phone || null,
         email: values.email || null,
-        companyName: values.companyName || null,
+        companyName: null,
         notes: values.notes || null,
         companyIds: selectedCompanyIds,
       };
@@ -153,7 +153,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
 
         <ScrollArea className="flex-1 min-h-0">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="px-6 py-4 space-y-4">
+            <form id="contact-form" onSubmit={form.handleSubmit(onSubmit)} className="px-6 py-4 space-y-4">
               <FormField
                 control={form.control}
                 name="fullName"
@@ -168,32 +168,18 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-3">
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Title</FormLabel>
-                      <FormControl>
-                        <Input {...field} value={field.value ?? ""} placeholder="Project Manager" data-testid="input-contact-title" />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="companyName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Company (text)</FormLabel>
-                      <FormControl>
-                        <Input {...field} value={field.value ?? ""} placeholder="Acme Corp" data-testid="input-contact-company" />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value ?? ""} placeholder="Project Manager" data-testid="input-contact-title" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
 
               <div className="grid grid-cols-2 gap-3">
                 <FormField
@@ -316,27 +302,29 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
                   <p className="text-xs text-muted-foreground">No companies linked yet</p>
                 )}
               </div>
-
-              <div className="flex justify-end gap-2 pt-1 pb-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleOpen(false)}
-                  data-testid="button-cancel-contact"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={mutation.isPending}
-                  data-testid="button-submit-contact"
-                >
-                  {mutation.isPending ? "Saving..." : isEditing ? "Save Changes" : "Create Contact"}
-                </Button>
-              </div>
             </form>
           </Form>
         </ScrollArea>
+
+        {/* Sticky footer — always visible outside the scroll area */}
+        <div className="flex justify-end gap-2 px-6 py-4 border-t flex-shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleOpen(false)}
+            data-testid="button-cancel-contact"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="contact-form"
+            disabled={mutation.isPending}
+            data-testid="button-submit-contact"
+          >
+            {mutation.isPending ? "Saving..." : isEditing ? "Save Changes" : "Create Contact"}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
