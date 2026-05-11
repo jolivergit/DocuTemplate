@@ -419,23 +419,19 @@ export class DatabaseStorage implements IStorage {
       .from(leads)
       .where(and(eq(leads.id, id), eq(leads.userId, userId)));
     if (!lead) return undefined;
-    const lcs = await db
-      .select()
-      .from(leadCompanies)
-      .where(eq(leadCompanies.leadId, id));
-    return { ...lead, companies: lcs };
+    const [enriched] = await this.attachCompanies([lead]);
+    return enriched;
   }
 
   async createLead(userId: string, leadData: InsertLead, companiesData: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadWithCompanies> {
     const [lead] = await db.insert(leads).values({ ...leadData, userId }).returning();
-    let savedCompanies: LeadCompany[] = [];
     if (companiesData.length > 0) {
-      savedCompanies = await db
+      await db
         .insert(leadCompanies)
-        .values(companiesData.map(c => ({ ...c, leadId: lead.id })))
-        .returning();
+        .values(companiesData.map(c => ({ ...c, leadId: lead.id })));
     }
-    return { ...lead, companies: savedCompanies };
+    const [enriched] = await this.attachCompanies([lead]);
+    return enriched;
   }
 
   async updateLead(userId: string, id: number, updates: Partial<InsertLead>): Promise<Lead | undefined> {
@@ -1091,6 +1087,93 @@ export class DatabaseStorage implements IStorage {
       .delete(contacts)
       .where(and(eq(contacts.id, id), eq(contacts.userId, userId)));
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // ─── Migration: backfill lead_companies text data into address book ────────────
+  // Idempotent: skip rows that already have companyId/contactId set.
+
+  async migrateLeadCompaniesToAddressBook(userId: string): Promise<{ companiesCreated: number; contactsCreated: number; rowsUpdated: number }> {
+    const userLeads = await db.select().from(leads).where(eq(leads.userId, userId));
+    if (userLeads.length === 0) return { companiesCreated: 0, contactsCreated: 0, rowsUpdated: 0 };
+
+    const leadIds = userLeads.map(l => l.id);
+    // Only process rows that don't already have a companyId set
+    const rows = await db.select().from(leadCompanies).where(inArray(leadCompanies.leadId, leadIds));
+    const unlinked = rows.filter(r => !r.companyId);
+
+    let companiesCreated = 0;
+    let contactsCreated = 0;
+    let rowsUpdated = 0;
+
+    // Cache by name to avoid creating duplicates within this run
+    const companyCache = new Map<string, string>(); // name -> id
+    const contactCache = new Map<string, string>(); // fullName -> id
+
+    // Pre-load existing companies and contacts for this user
+    const existingCompanies = await db.select().from(companies).where(eq(companies.userId, userId));
+    const existingContacts = await db.select().from(contacts).where(eq(contacts.userId, userId));
+    for (const c of existingCompanies) companyCache.set(c.name.toLowerCase(), c.id);
+    for (const c of existingContacts) contactCache.set(c.fullName.toLowerCase(), c.id);
+
+    for (const row of unlinked) {
+      let companyId: string | null = null;
+      let contactId: string | null = null;
+
+      // Find or create company by name
+      if (row.companyName) {
+        const key = row.companyName.toLowerCase();
+        if (companyCache.has(key)) {
+          companyId = companyCache.get(key)!;
+        } else {
+          const [newCompany] = await db.insert(companies).values({
+            userId,
+            name: row.companyName,
+            addressLine1: row.addressLine1,
+            addressLine2: row.addressLine2,
+            city: row.city,
+            state: row.state,
+            zip: row.zip,
+          }).returning();
+          companyId = newCompany.id;
+          companyCache.set(key, companyId);
+          companiesCreated++;
+        }
+      }
+
+      // Find or create contact by full name
+      if (row.contactFullName) {
+        const key = row.contactFullName.toLowerCase();
+        if (contactCache.has(key)) {
+          contactId = contactCache.get(key)!;
+        } else {
+          const [newContact] = await db.insert(contacts).values({
+            userId,
+            fullName: row.contactFullName,
+            title: row.contactTitle,
+            phone: row.contactPhone,
+            email: row.contactEmail,
+            companyName: row.companyName,
+          }).returning();
+          contactId = newContact.id;
+          contactCache.set(key, contactId);
+          contactsCreated++;
+        }
+
+        // Link contact to company if both exist
+        if (companyId && contactId) {
+          await db.insert(contactCompanies).values({ contactId, companyId }).onConflictDoNothing();
+        }
+      }
+
+      if (companyId || contactId) {
+        await db.update(leadCompanies)
+          .set({ companyId: companyId || undefined, contactId: contactId || undefined })
+          .where(eq(leadCompanies.id, row.id));
+        rowsUpdated++;
+      }
+    }
+
+    return { companiesCreated, contactsCreated, rowsUpdated };
   }
 }
 

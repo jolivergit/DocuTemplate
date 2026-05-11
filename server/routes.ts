@@ -1436,6 +1436,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Migrate existing lead_companies text data into address-book records (idempotent).
+  app.post("/api/companies/migrate-from-lead-companies", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const result = await storage.migrateLeadCompaniesToAddressBook(userId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ─── Contacts ────────────────────────────────────────────────────────────────
 
   app.get("/api/contacts", requireAuth, async (req, res) => {

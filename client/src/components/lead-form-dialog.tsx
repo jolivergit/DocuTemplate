@@ -171,15 +171,37 @@ function CompanyAddressBookPicker({
   onSelect: (company: CompanyWithContacts) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const { toast } = useToast();
 
   const { data: addressBookCompanies = [] } = useQuery<CompanyWithContacts[]>({
     queryKey: ["/api/companies"],
   });
 
-  if (addressBookCompanies.length === 0) return null;
+  const createMutation = useMutation({
+    mutationFn: async (name: string) =>
+      apiRequest<CompanyWithContacts>("POST", "/api/companies", { name }),
+    onSuccess: (company) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      onSelect(company);
+      setOpen(false);
+      setSearch("");
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to create company", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const trimmed = search.trim();
+  const filtered = addressBookCompanies.filter((c) =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    (c.city || "").toLowerCase().includes(search.toLowerCase())
+  );
+  const showCreate = trimmed.length > 0 &&
+    !filtered.some((c) => c.name.toLowerCase() === trimmed.toLowerCase());
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearch(""); }}>
       <PopoverTrigger asChild>
         <Button type="button" variant="outline" size="sm" data-testid="button-pick-address-book-company">
           <Link2 className="w-3.5 h-3.5 mr-1.5" />
@@ -187,32 +209,55 @@ function CompanyAddressBookPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search address book…" data-testid="input-company-picker-search" />
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search or create company…"
+            data-testid="input-company-picker-search"
+            value={search}
+            onValueChange={setSearch}
+          />
           <CommandList>
-            <CommandEmpty>No companies found.</CommandEmpty>
-            <CommandGroup>
-              {addressBookCompanies.map((c) => (
+            {filtered.length === 0 && !showCreate && (
+              <CommandEmpty>Type a name to create a new company.</CommandEmpty>
+            )}
+            {filtered.length > 0 && (
+              <CommandGroup>
+                {filtered.map((c) => (
+                  <CommandItem
+                    key={c.id}
+                    value={c.id}
+                    onSelect={() => {
+                      onSelect(c);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                    data-testid={`item-company-${c.id}`}
+                  >
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-medium truncate">{c.name}</span>
+                      {(c.city || c.state) && (
+                        <span className="text-xs text-muted-foreground truncate">
+                          {[c.city, c.state].filter(Boolean).join(", ")}
+                        </span>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {showCreate && (
+              <CommandGroup heading="Create new">
                 <CommandItem
-                  key={c.id}
-                  value={`${c.name} ${c.city || ""} ${c.email || ""}`}
-                  onSelect={() => {
-                    onSelect(c);
-                    setOpen(false);
-                  }}
-                  data-testid={`item-company-${c.id}`}
+                  value={`__create__${trimmed}`}
+                  onSelect={() => createMutation.mutate(trimmed)}
+                  disabled={createMutation.isPending}
+                  data-testid="item-create-company"
                 >
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-medium truncate">{c.name}</span>
-                    {(c.city || c.state) && (
-                      <span className="text-xs text-muted-foreground truncate">
-                        {[c.city, c.state].filter(Boolean).join(", ")}
-                      </span>
-                    )}
-                  </div>
+                  <Plus className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+                  <span className="truncate">Create "{trimmed}"</span>
                 </CommandItem>
-              ))}
-            </CommandGroup>
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
@@ -222,16 +267,31 @@ function CompanyAddressBookPicker({
 
 function ContactPicker({
   onSelect,
+  linkedCompany,
 }: {
   onSelect: (contact: ContactWithCompanies) => void;
+  linkedCompany?: CompanyWithContacts | null;
 }) {
   const [open, setOpen] = useState(false);
 
-  const { data: contacts = [] } = useQuery<ContactWithCompanies[]>({
+  const { data: allContacts = [] } = useQuery<ContactWithCompanies[]>({
     queryKey: ["/api/contacts"],
   });
 
-  if (contacts.length === 0) return null;
+  const { data: addressBookCompanies = [] } = useQuery<CompanyWithContacts[]>({
+    queryKey: ["/api/companies"],
+  });
+
+  if (allContacts.length === 0) return null;
+
+  // If a company is linked, find its up-to-date record for its contacts list
+  const upToDateCompany = linkedCompany
+    ? (addressBookCompanies.find((c) => c.id === linkedCompany.id) || linkedCompany)
+    : null;
+
+  const companyContactIds = new Set(upToDateCompany?.contacts.map((c) => c.id) || []);
+  const companyContacts = allContacts.filter((c) => companyContactIds.has(c.id));
+  const otherContacts = allContacts.filter((c) => !companyContactIds.has(c.id));
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -246,28 +306,44 @@ function ContactPicker({
           <CommandInput placeholder="Search contacts…" data-testid="input-contact-picker-search" />
           <CommandList>
             <CommandEmpty>No contacts found.</CommandEmpty>
-            <CommandGroup>
-              {contacts.map((c) => (
-                <CommandItem
-                  key={c.id}
-                  value={`${c.fullName} ${c.companyName || ""} ${c.email || ""}`}
-                  onSelect={() => {
-                    onSelect(c);
-                    setOpen(false);
-                  }}
-                  data-testid={`item-contact-${c.id}`}
-                >
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-medium truncate">{c.fullName}</span>
-                    {(c.companyName || c.title) && (
-                      <span className="text-xs text-muted-foreground truncate">
-                        {[c.title, c.companyName].filter(Boolean).join(" · ")}
-                      </span>
-                    )}
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {companyContacts.length > 0 && (
+              <CommandGroup heading={upToDateCompany?.name || "From company"}>
+                {companyContacts.map((c) => (
+                  <CommandItem
+                    key={c.id}
+                    value={`${c.fullName} ${c.email || ""}`}
+                    onSelect={() => { onSelect(c); setOpen(false); }}
+                    data-testid={`item-contact-${c.id}`}
+                  >
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-medium truncate">{c.fullName}</span>
+                      {c.title && <span className="text-xs text-muted-foreground truncate">{c.title}</span>}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {otherContacts.length > 0 && (
+              <CommandGroup heading={companyContacts.length > 0 ? "All contacts" : undefined}>
+                {otherContacts.map((c) => (
+                  <CommandItem
+                    key={c.id}
+                    value={`${c.fullName} ${c.companyName || ""} ${c.email || ""}`}
+                    onSelect={() => { onSelect(c); setOpen(false); }}
+                    data-testid={`item-contact-${c.id}`}
+                  >
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-medium truncate">{c.fullName}</span>
+                      {(c.companyName || c.title) && (
+                        <span className="text-xs text-muted-foreground truncate">
+                          {[c.title, c.companyName].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
@@ -290,6 +366,13 @@ function CompanyEntry({
   const role = form.watch(`companies.${index}.companyRole`);
   const linkedCompanyId = form.watch(`companies.${index}.companyId`);
   const hasData = !!(companyName || contactName);
+
+  const { data: addressBookCompanies = [] } = useQuery<CompanyWithContacts[]>({
+    queryKey: ["/api/companies"],
+  });
+  const linkedCompany = linkedCompanyId
+    ? (addressBookCompanies.find((c) => c.id === linkedCompanyId) || null)
+    : null;
 
   function applyCompany(company: CompanyWithContacts) {
     form.setValue(`companies.${index}.companyId`, company.id);
@@ -485,7 +568,7 @@ function CompanyEntry({
 
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-muted-foreground">Contact</p>
-              <ContactPicker onSelect={applyContact} />
+              <ContactPicker onSelect={applyContact} linkedCompany={linkedCompany} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
