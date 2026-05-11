@@ -364,18 +364,20 @@ function LinkContactPicker({
                   </CommandItem>
                 ))}
               </CommandGroup>
-              <CommandGroup>
-                <CommandItem
-                  value="__create_new_contact__"
-                  onSelect={() => { setOpen(false); setCreateOpen(true); }}
-                  data-testid={`button-create-contact-${companyId}`}
-                >
-                  <Plus className="w-3.5 h-3.5 mr-2 flex-shrink-0" />
-                  <span className="font-medium">Create new contact</span>
-                </CommandItem>
-              </CommandGroup>
             </CommandList>
           </Command>
+          {/* Rendered outside CommandList so it is never filtered out by search queries */}
+          <div className="border-t p-1">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-medium hover-elevate"
+              onClick={() => { setOpen(false); setCreateOpen(true); }}
+              data-testid={`button-create-contact-${companyId}`}
+            >
+              <Plus className="w-3.5 h-3.5 flex-shrink-0" />
+              Create new contact
+            </button>
+          </div>
         </PopoverContent>
       </Popover>
 

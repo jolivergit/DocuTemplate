@@ -126,10 +126,18 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
 
   const onSubmit = (values: FormValues) => mutation.mutate(values);
 
+  // Re-apply initial state whenever the dialog opens in create mode
+  useEffect(() => {
+    if (open && !isEditing) {
+      setSelectedCompanyIds(initialCompanyIds || []);
+    }
+  }, [open]);
+
   function handleOpen(v: boolean) {
     onOpenChange(v);
     if (!v) {
-      setSelectedCompanyIds(contact?.companies.map((c) => c.id) || []);
+      // Restore to contact's companies when editing, or initialCompanyIds when creating
+      setSelectedCompanyIds(contact?.companies.map((c) => c.id) || initialCompanyIds || []);
     }
   }
 
