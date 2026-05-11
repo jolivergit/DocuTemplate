@@ -78,20 +78,6 @@ export default function DashboardPage() {
     <div className="h-full overflow-y-auto">
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
 
-        {/* Page header */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-semibold" data-testid="text-dashboard-title">Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Oliver Studios project pipeline overview</p>
-          </div>
-          <Link href="/projects">
-            <Button size="sm" data-testid="button-go-to-projects">
-              <Briefcase className="w-4 h-4" />
-              All Projects
-            </Button>
-          </Link>
-        </div>
-
         {/* Pipeline strip */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">Pipeline</h2>
