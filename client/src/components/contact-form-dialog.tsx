@@ -146,7 +146,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogContent className="max-w-md flex flex-col p-0 max-h-[90vh]">
+      <DialogContent className="max-w-md flex flex-col p-0 max-h-[80vh]">
         <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
           <DialogTitle>{isEditing ? "Edit Contact" : "New Contact"}</DialogTitle>
         </DialogHeader>
