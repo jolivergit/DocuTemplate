@@ -51,9 +51,10 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   contact?: ContactWithCompanies | null;
   initialCompanyIds?: string[];
+  onCreated?: (contact: ContactWithCompanies) => void;
 }
 
-export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyIds }: Props) {
+export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyIds, onCreated }: Props) {
   const { toast } = useToast();
   const isEditing = !!contact;
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>(
@@ -106,7 +107,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
       }
       return apiRequest("POST", "/api/contacts", payload);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
       toast({ title: isEditing ? "Contact updated" : "Contact created" });
@@ -114,6 +115,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, initialCompanyI
       if (!isEditing) {
         form.reset();
         setSelectedCompanyIds([]);
+        onCreated?.(result as ContactWithCompanies);
       }
     },
     onError: (err: Error) => {

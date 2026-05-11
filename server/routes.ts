@@ -1385,8 +1385,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/companies", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      const validated = insertCompanySchema.parse(req.body);
-      const company = await storage.createCompany(userId, validated);
+      const { contactIds, ...companyRaw } = req.body;
+      const validated = insertCompanySchema.parse(companyRaw);
+      const company = await storage.createCompany(userId, validated, Array.isArray(contactIds) ? contactIds : undefined);
       res.json(company);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -1396,8 +1397,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/companies/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      const validated = insertCompanySchema.partial().parse(req.body);
-      const company = await storage.updateCompany(userId, req.params.id, validated);
+      const { contactIds, ...companyRaw } = req.body;
+      const validated = insertCompanySchema.partial().parse(companyRaw);
+      const company = await storage.updateCompany(userId, req.params.id, validated, Array.isArray(contactIds) ? contactIds : undefined);
       if (!company) return res.status(404).json({ error: "Company not found" });
       res.json(company);
     } catch (error: any) {

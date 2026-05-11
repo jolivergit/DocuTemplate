@@ -90,8 +90,8 @@ export interface IStorage {
   // Companies
   getCompanies(userId: string): Promise<CompanyWithContacts[]>;
   getCompanyById(userId: string, id: string): Promise<CompanyWithContacts | undefined>;
-  createCompany(userId: string, company: InsertCompany): Promise<CompanyWithContacts>;
-  updateCompany(userId: string, id: string, company: Partial<InsertCompany>): Promise<CompanyWithContacts | undefined>;
+  createCompany(userId: string, company: InsertCompany, contactIds?: string[]): Promise<CompanyWithContacts>;
+  updateCompany(userId: string, id: string, company: Partial<InsertCompany>, contactIds?: string[]): Promise<CompanyWithContacts | undefined>;
   deleteCompany(userId: string, id: string): Promise<boolean>;
   linkContactToCompany(userId: string, companyId: string, contactId: string): Promise<void>;
   unlinkContactFromCompany(userId: string, companyId: string, contactId: string): Promise<void>;
@@ -323,21 +323,48 @@ export class DatabaseStorage implements IStorage {
     return withContacts;
   }
 
-  async createCompany(userId: string, data: InsertCompany): Promise<CompanyWithContacts> {
+  private async verifyContactOwnership(userId: string, contactIds: string[]): Promise<string[]> {
+    if (contactIds.length === 0) return [];
+    const owned = await db
+      .select({ id: contacts.id })
+      .from(contacts)
+      .where(and(inArray(contacts.id, contactIds), eq(contacts.userId, userId)));
+    return owned.map(c => c.id);
+  }
+
+  async createCompany(userId: string, data: InsertCompany, contactIds?: string[]): Promise<CompanyWithContacts> {
     const [company] = await db
       .insert(companies)
       .values({ ...data, userId })
       .returning();
-    return { ...company, contacts: [] };
+    if (contactIds && contactIds.length > 0) {
+      const validIds = await this.verifyContactOwnership(userId, contactIds);
+      if (validIds.length > 0) {
+        await db.insert(contactCompanies).values(
+          validIds.map(contactId => ({ contactId, companyId: company.id }))
+        ).onConflictDoNothing();
+      }
+    }
+    const [withContacts] = await this.attachContactsToCompanies([company]);
+    return withContacts;
   }
 
-  async updateCompany(userId: string, id: string, updates: Partial<InsertCompany>): Promise<CompanyWithContacts | undefined> {
+  async updateCompany(userId: string, id: string, updates: Partial<InsertCompany>, contactIds?: string[]): Promise<CompanyWithContacts | undefined> {
     const [company] = await db
       .update(companies)
       .set(updates)
       .where(and(eq(companies.id, id), eq(companies.userId, userId)))
       .returning();
     if (!company) return undefined;
+    if (contactIds !== undefined) {
+      const validIds = await this.verifyContactOwnership(userId, contactIds);
+      await db.delete(contactCompanies).where(eq(contactCompanies.companyId, id));
+      if (validIds.length > 0) {
+        await db.insert(contactCompanies).values(
+          validIds.map(contactId => ({ contactId, companyId: id }))
+        ).onConflictDoNothing();
+      }
+    }
     const [withContacts] = await this.attachContactsToCompanies([company]);
     return withContacts;
   }
