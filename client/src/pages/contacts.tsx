@@ -19,8 +19,7 @@ import {
 import { ContactFormDialog } from "@/components/contact-form-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Contact, LeadWithCompanies } from "@shared/schema";
-import { COMPANY_ROLE_LABELS } from "@shared/schema";
+import type { ContactWithCompanies, LeadWithCompanies } from "@shared/schema";
 
 interface ProjectContactEntry {
   source: "project";
@@ -36,7 +35,7 @@ interface ProjectContactEntry {
 
 interface StandaloneContactEntry {
   source: "standalone";
-  contact: Contact;
+  contact: ContactWithCompanies;
 }
 
 type ContactEntry = ProjectContactEntry | StandaloneContactEntry;
@@ -44,11 +43,11 @@ type ContactEntry = ProjectContactEntry | StandaloneContactEntry;
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
-  const [editingContact, setEditingContact] = useState<Contact | null>(null);
-  const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
+  const [editingContact, setEditingContact] = useState<ContactWithCompanies | null>(null);
+  const [deletingContact, setDeletingContact] = useState<ContactWithCompanies | null>(null);
   const { toast } = useToast();
 
-  const { data: standaloneContacts = [], isLoading: loadingContacts } = useQuery<Contact[]>({
+  const { data: standaloneContacts = [], isLoading: loadingContacts } = useQuery<ContactWithCompanies[]>({
     queryKey: ["/api/contacts"],
   });
 
@@ -64,6 +63,7 @@ export default function ContactsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
       toast({ title: "Contact deleted" });
       setDeletingContact(null);
     },
@@ -124,7 +124,8 @@ export default function ContactsPage() {
         (c.companyName || "").toLowerCase().includes(q) ||
         (c.email || "").toLowerCase().includes(q) ||
         (c.phone || "").toLowerCase().includes(q) ||
-        (c.title || "").toLowerCase().includes(q)
+        (c.title || "").toLowerCase().includes(q) ||
+        c.companies.some((co) => co.name.toLowerCase().includes(q))
       );
     } else {
       return (
@@ -142,7 +143,7 @@ export default function ContactsPage() {
     setFormOpen(true);
   }
 
-  function openEdit(contact: Contact) {
+  function openEdit(contact: ContactWithCompanies) {
     setEditingContact(contact);
     setFormOpen(true);
   }
@@ -235,6 +236,17 @@ export default function ContactsPage() {
                         </p>
                       )}
 
+                      {c.companies.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {c.companies.map((co) => (
+                            <Badge key={co.id} variant="outline" className="text-xs gap-1">
+                              <Building2 className="w-2.5 h-2.5" />
+                              {co.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
                       <div className="flex flex-wrap gap-4 pt-1">
                         {c.email && (
                           <a
@@ -305,7 +317,7 @@ export default function ContactsPage() {
                           <span className="text-xs text-muted-foreground">{entry.contactTitle}</span>
                         )}
                         <Badge variant="secondary" className="text-xs" data-testid={`badge-contact-role-${i}`}>
-                          {COMPANY_ROLE_LABELS[entry.companyRole as keyof typeof COMPANY_ROLE_LABELS] || entry.companyRole}
+                          {entry.companyRole}
                         </Badge>
                       </div>
 

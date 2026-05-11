@@ -5,6 +5,8 @@ import {
   fieldValues,
   leads,
   leadCompanies,
+  companies,
+  contactCompanies,
   proposals,
   proposalPhases,
   proposalFeeLines,
@@ -26,6 +28,12 @@ import {
   type LeadCompany,
   type InsertLeadCompany,
   type LeadWithCompanies,
+  type Company,
+  type InsertCompany,
+  type CompanyWithContacts,
+  type Contact,
+  type InsertContact,
+  type ContactWithCompanies,
   type Proposal,
   type InsertProposal,
   type ProposalPhase,
@@ -38,9 +46,6 @@ import {
   type ExpenseEntry,
   type ProjectComment,
   type InvoiceWithDetails,
-  type Contact,
-  type InsertContact,
-  COMPANY_ROLES,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, sql, inArray } from "drizzle-orm";
@@ -80,6 +85,15 @@ export interface IStorage {
   // Legacy Profiles
   getProfiles(userId: string): Promise<Profile[]>;
   getProfileById(userId: string, id: string): Promise<Profile | undefined>;
+
+  // Companies
+  getCompanies(userId: string): Promise<CompanyWithContacts[]>;
+  getCompanyById(userId: string, id: string): Promise<CompanyWithContacts | undefined>;
+  createCompany(userId: string, company: InsertCompany): Promise<CompanyWithContacts>;
+  updateCompany(userId: string, id: string, company: Partial<InsertCompany>): Promise<CompanyWithContacts | undefined>;
+  deleteCompany(userId: string, id: string): Promise<boolean>;
+  linkContactToCompany(userId: string, companyId: string, contactId: string): Promise<void>;
+  unlinkContactFromCompany(userId: string, companyId: string, contactId: string): Promise<void>;
 
   // Leads
   getLeads(userId: string): Promise<LeadWithCompanies[]>;
@@ -121,10 +135,10 @@ export interface IStorage {
   deleteProjectComment(userId: string, commentId: string, leadId: number): Promise<boolean>;
 
   // Contacts
-  getContacts(userId: string): Promise<Contact[]>;
-  getContactById(userId: string, id: string): Promise<Contact | undefined>;
-  createContact(userId: string, contact: InsertContact): Promise<Contact>;
-  updateContact(userId: string, id: string, contact: Partial<InsertContact>): Promise<Contact | undefined>;
+  getContacts(userId: string): Promise<ContactWithCompanies[]>;
+  getContactById(userId: string, id: string): Promise<ContactWithCompanies | undefined>;
+  createContact(userId: string, contact: InsertContact, companyIds?: string[]): Promise<ContactWithCompanies>;
+  updateContact(userId: string, id: string, contact: Partial<InsertContact>, companyIds?: string[]): Promise<ContactWithCompanies | undefined>;
   deleteContact(userId: string, id: string): Promise<boolean>;
 }
 
@@ -265,6 +279,95 @@ export class DatabaseStorage implements IStorage {
     return profile || undefined;
   }
 
+  // ─── Companies ────────────────────────────────────────────────────────────────
+
+  private async attachContactsToCompanies(companyRows: Company[]): Promise<CompanyWithContacts[]> {
+    if (companyRows.length === 0) return [];
+    const companyIds = companyRows.map(c => c.id);
+    const junctionRows = await db
+      .select()
+      .from(contactCompanies)
+      .where(inArray(contactCompanies.companyId, companyIds));
+    if (junctionRows.length === 0) return companyRows.map(c => ({ ...c, contacts: [] }));
+    const contactIds = junctionRows.map(j => j.contactId);
+    const allContacts = await db
+      .select()
+      .from(contacts)
+      .where(inArray(contacts.id, contactIds));
+    return companyRows.map(company => ({
+      ...company,
+      contacts: junctionRows
+        .filter(j => j.companyId === company.id)
+        .map(j => allContacts.find(c => c.id === j.contactId)!)
+        .filter(Boolean),
+    }));
+  }
+
+  async getCompanies(userId: string): Promise<CompanyWithContacts[]> {
+    const rows = await db
+      .select()
+      .from(companies)
+      .where(eq(companies.userId, userId))
+      .orderBy(companies.name);
+    return this.attachContactsToCompanies(rows);
+  }
+
+  async getCompanyById(userId: string, id: string): Promise<CompanyWithContacts | undefined> {
+    const [company] = await db
+      .select()
+      .from(companies)
+      .where(and(eq(companies.id, id), eq(companies.userId, userId)));
+    if (!company) return undefined;
+    const [withContacts] = await this.attachContactsToCompanies([company]);
+    return withContacts;
+  }
+
+  async createCompany(userId: string, data: InsertCompany): Promise<CompanyWithContacts> {
+    const [company] = await db
+      .insert(companies)
+      .values({ ...data, userId })
+      .returning();
+    return { ...company, contacts: [] };
+  }
+
+  async updateCompany(userId: string, id: string, updates: Partial<InsertCompany>): Promise<CompanyWithContacts | undefined> {
+    const [company] = await db
+      .update(companies)
+      .set(updates)
+      .where(and(eq(companies.id, id), eq(companies.userId, userId)))
+      .returning();
+    if (!company) return undefined;
+    const [withContacts] = await this.attachContactsToCompanies([company]);
+    return withContacts;
+  }
+
+  async deleteCompany(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(companies)
+      .where(and(eq(companies.id, id), eq(companies.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async linkContactToCompany(userId: string, companyId: string, contactId: string): Promise<void> {
+    // Verify ownership
+    const [co] = await db.select({ id: companies.id }).from(companies).where(and(eq(companies.id, companyId), eq(companies.userId, userId)));
+    if (!co) throw new Error('Company not found');
+    const [ct] = await db.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.id, contactId), eq(contacts.userId, userId)));
+    if (!ct) throw new Error('Contact not found');
+    await db
+      .insert(contactCompanies)
+      .values({ contactId, companyId })
+      .onConflictDoNothing();
+  }
+
+  async unlinkContactFromCompany(userId: string, companyId: string, contactId: string): Promise<void> {
+    const [co] = await db.select({ id: companies.id }).from(companies).where(and(eq(companies.id, companyId), eq(companies.userId, userId)));
+    if (!co) throw new Error('Company not found');
+    await db
+      .delete(contactCompanies)
+      .where(and(eq(contactCompanies.companyId, companyId), eq(contactCompanies.contactId, contactId)));
+  }
+
   // ─── Leads ───────────────────────────────────────────────────────────────────
 
   private async attachCompanies(leadRows: Lead[]): Promise<LeadWithCompanies[]> {
@@ -295,25 +398,20 @@ export class DatabaseStorage implements IStorage {
       .from(leads)
       .where(and(eq(leads.id, id), eq(leads.userId, userId)));
     if (!lead) return undefined;
-    const companies = await db
+    const lcs = await db
       .select()
       .from(leadCompanies)
       .where(eq(leadCompanies.leadId, id));
-    return { ...lead, companies };
+    return { ...lead, companies: lcs };
   }
 
-  async createLead(userId: string, leadData: InsertLead, companies: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadWithCompanies> {
-    const roles = companies.map(c => c.companyRole);
-    const duplicates = roles.filter((r, i) => roles.indexOf(r) !== i);
-    if (duplicates.length > 0) {
-      throw new Error(`Duplicate company roles: ${Array.from(new Set(duplicates)).join(', ')}`);
-    }
+  async createLead(userId: string, leadData: InsertLead, companiesData: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadWithCompanies> {
     const [lead] = await db.insert(leads).values({ ...leadData, userId }).returning();
     let savedCompanies: LeadCompany[] = [];
-    if (companies.length > 0) {
+    if (companiesData.length > 0) {
       savedCompanies = await db
         .insert(leadCompanies)
-        .values(companies.map(c => ({ ...c, leadId: lead.id })))
+        .values(companiesData.map(c => ({ ...c, leadId: lead.id })))
         .returning();
     }
     return { ...lead, companies: savedCompanies };
@@ -328,24 +426,18 @@ export class DatabaseStorage implements IStorage {
     return lead || undefined;
   }
 
-  async upsertLeadCompanies(userId: string, leadId: number, companies: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadCompany[]> {
+  async upsertLeadCompanies(userId: string, leadId: number, companiesData: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadCompany[]> {
     const [existingLead] = await db
       .select({ id: leads.id })
       .from(leads)
       .where(and(eq(leads.id, leadId), eq(leads.userId, userId)));
     if (!existingLead) throw new Error(`Lead not found or access denied`);
 
-    const roles = companies.map(c => c.companyRole);
-    const duplicates = roles.filter((r, i) => roles.indexOf(r) !== i);
-    if (duplicates.length > 0) {
-      throw new Error(`Duplicate company roles: ${Array.from(new Set(duplicates)).join(', ')}`);
-    }
-
     await db.delete(leadCompanies).where(eq(leadCompanies.leadId, leadId));
-    if (companies.length === 0) return [];
+    if (companiesData.length === 0) return [];
     return await db
       .insert(leadCompanies)
-      .values(companies.map(c => ({ ...c, leadId })))
+      .values(companiesData.map(c => ({ ...c, leadId })))
       .returning();
   }
 
@@ -468,7 +560,6 @@ export class DatabaseStorage implements IStorage {
     const existing = await this.getProposalById(userId, proposalId);
     if (!existing) return undefined;
 
-    // Server-side allowlist: strip any fields that must not be updated via this path
     const { leadId: _leadId, id: _id, userId: _userId, ...safeUpdates } = updates as Record<string, unknown>;
     void _leadId; void _id; void _userId;
     const [updated] = await db
@@ -478,7 +569,6 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     if (phases !== undefined) {
-      // Replace all phases
       const existingPhaseIds = existing.phases.map(p => p.id);
       if (existingPhaseIds.length > 0) {
         await db.delete(proposalFeeLines).where(inArray(proposalFeeLines.phaseId, existingPhaseIds));
@@ -526,7 +616,6 @@ export class DatabaseStorage implements IStorage {
       .where(eq(proposals.id, proposalId))
       .returning();
 
-    // Advance lead to Active Project
     await db
       .update(leads)
       .set({ status: 'Active Project', updatedAt: sql`CURRENT_TIMESTAMP` })
@@ -570,12 +659,10 @@ export class DatabaseStorage implements IStorage {
     const owned = await this.verifyLeadOwnership(userId, leadId);
     if (!owned) throw new Error('Lead not found or access denied');
 
-    // Validate: proposal must belong to this lead
     const [proposalRow] = await db.select({ leadId: proposals.leadId, status: proposals.status }).from(proposals).where(eq(proposals.id, proposalId));
     if (!proposalRow || proposalRow.leadId !== leadId) throw new Error('Proposal not found or does not belong to this lead');
     if (proposalRow.status !== 'Signed') throw new Error('Invoices can only be created against a signed proposal');
 
-    // Calculate next invoice number for this lead
     const existingInvoices = await db.select({ num: invoices.invoiceNumber }).from(invoices).where(eq(invoices.leadId, leadId));
     const nextNumber = existingInvoices.length > 0 ? Math.max(...existingInvoices.map(i => i.num)) + 1 : 1;
 
@@ -584,13 +671,11 @@ export class DatabaseStorage implements IStorage {
       .values({ leadId, proposalId, invoiceNumber: nextNumber, notes: notes || null })
       .returning();
 
-    // Fetch proposal fee lines for snapshot — only lines that actually belong to this proposal
     const proposalFeeLineIds = feeLineInputs.map(f => f.proposalFeeLineId);
     const allProposalFeeLines = proposalFeeLineIds.length > 0
       ? await db.select().from(proposalFeeLines).where(inArray(proposalFeeLines.id, proposalFeeLineIds))
       : [];
 
-    // Validate: all submitted fee line IDs must belong to phases within this proposal
     if (allProposalFeeLines.length > 0) {
       const phaseIds = allProposalFeeLines.map(fl => fl.phaseId);
       const validPhases = await db.select({ id: proposalPhases.id }).from(proposalPhases).where(and(inArray(proposalPhases.id, phaseIds), eq(proposalPhases.proposalId, proposalId)));
@@ -600,8 +685,6 @@ export class DatabaseStorage implements IStorage {
     }
 
     const feeLineRows = allProposalFeeLines;
-
-    // Calculate previous billing per fee line from prior invoices
     const previousBillingMap = new Map<string, number>();
     const priorInvoices = await db
       .select({ id: invoices.id })
@@ -620,7 +703,6 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Build snapshots
     const snapshotValues: (typeof invoiceFeeLineSnapshots.$inferInsert)[] = [];
     let sortIdx = 0;
     for (const input of feeLineInputs) {
@@ -673,7 +755,6 @@ export class DatabaseStorage implements IStorage {
       savedSnapshots = await db.insert(invoiceFeeLineSnapshots).values(snapshotValues).returning();
     }
 
-    // Hours entries
     let savedHours: HoursEntry[] = [];
     if (hoursInputs.length > 0) {
       savedHours = await db.insert(hoursEntries).values(
@@ -681,7 +762,6 @@ export class DatabaseStorage implements IStorage {
       ).returning();
     }
 
-    // Expense entries
     let savedExpenses: ExpenseEntry[] = [];
     if (expenseInputs.length > 0) {
       savedExpenses = await db.insert(expenseEntries).values(
@@ -844,80 +924,119 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDashboardStats(userId: string): Promise<DashboardStats> {
-    // Leads grouped by status
     const allLeads = await this.getLeads(userId);
     const leadsByStatus: Record<string, number> = {};
     for (const lead of allLeads) {
-      leadsByStatus[lead.status] = (leadsByStatus[lead.status] ?? 0) + 1;
+      leadsByStatus[lead.status] = (leadsByStatus[lead.status] || 0) + 1;
     }
 
-    // Invoice financial totals — use correlated subqueries to avoid cross-join row inflation
-    const invoiceTotals = await db.execute(sql`
-      SELECT
-        i.status,
-        SUM(
-          (SELECT COALESCE(SUM(s.current_billing::numeric), 0)
-           FROM invoice_fee_line_snapshots s WHERE s.invoice_id = i.id)
-          + (SELECT COALESCE(SUM(h.hours::numeric * h.rate_per_hour::numeric), 0)
-             FROM hours_entries h WHERE h.invoice_id = i.id)
-          + (SELECT COALESCE(SUM(
-               CASE WHEN e.expense_type = 'Mileage'
-                    THEN e.miles_traveled::numeric * e.rate_per_mile::numeric
-                    ELSE e.amount::numeric END), 0)
-             FROM expense_entries e WHERE e.invoice_id = i.id)
-        ) AS total
-      FROM invoices i
-      WHERE i.user_id = ${userId}
-      GROUP BY i.status
-    `);
-
+    const allUserLeadIds = allLeads.map(l => l.id);
     let sentInvoicesTotal = 0;
     let paidInvoicesTotal = 0;
-    for (const row of invoiceTotals.rows as { status: string; total: string }[]) {
-      const amt = parseFloat(row.total) || 0;
-      if (row.status === "Sent") sentInvoicesTotal = amt;
-      if (row.status === "Paid") paidInvoicesTotal = amt;
+
+    if (allUserLeadIds.length > 0) {
+      const allInvoices = await db
+        .select()
+        .from(invoices)
+        .where(inArray(invoices.leadId, allUserLeadIds));
+
+      const sentAndPaid = allInvoices.filter(i => i.status === 'Sent' || i.status === 'Paid');
+      if (sentAndPaid.length > 0) {
+        const invoiceIds = sentAndPaid.map(i => i.id);
+        const allSnapshots = await db
+          .select()
+          .from(invoiceFeeLineSnapshots)
+          .where(inArray(invoiceFeeLineSnapshots.invoiceId, invoiceIds));
+
+        for (const invoice of sentAndPaid) {
+          const snaps = allSnapshots.filter(s => s.invoiceId === invoice.id);
+          const total = snaps.reduce((sum, s) => sum + parseFloat(s.currentBilling || '0'), 0);
+          if (invoice.status === 'Sent') sentInvoicesTotal += total;
+          if (invoice.status === 'Paid') paidInvoicesTotal += total;
+        }
+      }
     }
 
-    // Recent 6 leads (already sorted by id desc via getLeads returning insertion order)
-    const recentLeads = allLeads.slice(0, 6);
+    const recentLeads = allLeads.slice(-5).reverse();
 
     return { leadsByStatus, sentInvoicesTotal, paidInvoicesTotal, recentLeads };
   }
 
-  // ─── Contacts ────────────────────────────────────────────────────────────────
+  // ─── Contacts ─────────────────────────────────────────────────────────────────
 
-  async getContacts(userId: string): Promise<Contact[]> {
-    return await db
+  private async attachCompaniesToContacts(contactRows: Contact[]): Promise<ContactWithCompanies[]> {
+    if (contactRows.length === 0) return [];
+    const contactIds = contactRows.map(c => c.id);
+    const junctionRows = await db
+      .select()
+      .from(contactCompanies)
+      .where(inArray(contactCompanies.contactId, contactIds));
+    if (junctionRows.length === 0) return contactRows.map(c => ({ ...c, companies: [] }));
+    const companyIds = junctionRows.map(j => j.companyId);
+    const allCompanies = await db
+      .select()
+      .from(companies)
+      .where(inArray(companies.id, companyIds));
+    return contactRows.map(contact => ({
+      ...contact,
+      companies: junctionRows
+        .filter(j => j.contactId === contact.id)
+        .map(j => allCompanies.find(c => c.id === j.companyId)!)
+        .filter(Boolean),
+    }));
+  }
+
+  async getContacts(userId: string): Promise<ContactWithCompanies[]> {
+    const rows = await db
       .select()
       .from(contacts)
       .where(eq(contacts.userId, userId))
       .orderBy(contacts.fullName);
+    return this.attachCompaniesToContacts(rows);
   }
 
-  async getContactById(userId: string, id: string): Promise<Contact | undefined> {
+  async getContactById(userId: string, id: string): Promise<ContactWithCompanies | undefined> {
     const [contact] = await db
       .select()
       .from(contacts)
       .where(and(eq(contacts.id, id), eq(contacts.userId, userId)));
-    return contact || undefined;
+    if (!contact) return undefined;
+    const [withCompanies] = await this.attachCompaniesToContacts([contact]);
+    return withCompanies;
   }
 
-  async createContact(userId: string, contact: InsertContact): Promise<Contact> {
-    const [created] = await db
+  async createContact(userId: string, data: InsertContact, companyIds?: string[]): Promise<ContactWithCompanies> {
+    const [contact] = await db
       .insert(contacts)
-      .values({ ...contact, userId })
+      .values({ ...data, userId })
       .returning();
-    return created;
+    if (companyIds && companyIds.length > 0) {
+      await db.insert(contactCompanies).values(
+        companyIds.map(companyId => ({ contactId: contact.id, companyId }))
+      ).onConflictDoNothing();
+    }
+    const [withCompanies] = await this.attachCompaniesToContacts([contact]);
+    return withCompanies;
   }
 
-  async updateContact(userId: string, id: string, contact: Partial<InsertContact>): Promise<Contact | undefined> {
-    const [updated] = await db
+  async updateContact(userId: string, id: string, updates: Partial<InsertContact>, companyIds?: string[]): Promise<ContactWithCompanies | undefined> {
+    const [contact] = await db
       .update(contacts)
-      .set(contact)
+      .set(updates)
       .where(and(eq(contacts.id, id), eq(contacts.userId, userId)))
       .returning();
-    return updated || undefined;
+    if (!contact) return undefined;
+    if (companyIds !== undefined) {
+      // Replace all company links
+      await db.delete(contactCompanies).where(eq(contactCompanies.contactId, id));
+      if (companyIds.length > 0) {
+        await db.insert(contactCompanies).values(
+          companyIds.map(companyId => ({ contactId: id, companyId }))
+        ).onConflictDoNothing();
+      }
+    }
+    const [withCompanies] = await this.attachCompaniesToContacts([contact]);
+    return withCompanies;
   }
 
   async deleteContact(userId: string, id: string): Promise<boolean> {

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { FileText, Briefcase, LayoutDashboard, Users } from "lucide-react";
+import { FileText, Briefcase, LayoutDashboard, Users, Building2 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +27,12 @@ const navItems = [
     title: "Projects",
     url: "/projects",
     icon: Briefcase,
+    exact: false,
+  },
+  {
+    title: "Companies",
+    url: "/companies",
+    icon: Building2,
     exact: false,
   },
   {

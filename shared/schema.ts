@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, serial, numeric, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, serial, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -101,6 +101,78 @@ export const insertContentSnippetSchema = createInsertSchema(contentSnippets).om
 export type InsertContentSnippet = z.infer<typeof insertContentSnippetSchema>;
 export type ContentSnippet = typeof contentSnippets.$inferSelect;
 
+// ─── Companies Address Book ────────────────────────────────────────────────────
+
+export const companies = pgTable("companies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  addressLine1: text("address_line_1"),
+  addressLine2: text("address_line_2"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  phone: text("phone"),
+  email: text("email"),
+  website: text("website"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertCompanySchema = createInsertSchema(companies).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+});
+
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+export type Company = typeof companies.$inferSelect;
+
+export interface CompanyWithContacts extends Company {
+  contacts: Contact[];
+}
+
+// ─── Contacts ────────────────────────────────────────────────────────────────
+
+export const contacts = pgTable("contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  fullName: text("full_name").notNull(),
+  title: text("title"),
+  phone: text("phone"),
+  email: text("email"),
+  companyName: text("company_name"),
+  addressLine1: text("address_line_1"),
+  addressLine2: text("address_line_2"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertContactSchema = createInsertSchema(contacts).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+});
+
+export type InsertContact = z.infer<typeof insertContactSchema>;
+export type Contact = typeof contacts.$inferSelect;
+
+export interface ContactWithCompanies extends Contact {
+  companies: Company[];
+}
+
+// Junction table: contact ↔ company (many-to-many)
+export const contactCompanies = pgTable("contact_companies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").references(() => contacts.id, { onDelete: "cascade" }).notNull(),
+  companyId: varchar("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
+});
+
+export type ContactCompany = typeof contactCompanies.$inferSelect;
+
 // ─── Lead Pipeline ─────────────────────────────────────────────────────────────
 
 export const LEAD_STATUSES = ["Lead", "Proposal", "Active Project", "Completed", "Lost"] as const;
@@ -109,6 +181,7 @@ export type LeadStatus = typeof LEAD_STATUSES[number];
 export const LEAD_PROBABILITIES = ["LOW", "MEDIUM", "HIGH"] as const;
 export type LeadProbability = typeof LEAD_PROBABILITIES[number];
 
+// Suggested roles (used as quick-select options in UI, but role is free-form text)
 export const COMPANY_ROLES = [
   "ContractHolder",
   "Client",
@@ -127,6 +200,15 @@ export const COMPANY_ROLE_LABELS: Record<CompanyRole, string> = {
   EquipmentVendor: "Equipment Vendor",
   FurnitureVendor: "Furniture Vendor",
 };
+
+export const COMPANY_ROLE_SUGGESTIONS: string[] = [
+  "Contract Holder",
+  "Client",
+  "MEP Engineering",
+  "Structural Engineering",
+  "Equipment Vendor",
+  "Furniture Vendor",
+];
 
 export const leads = pgTable("leads", {
   id: serial("id").primaryKey(),
@@ -156,10 +238,13 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
 export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
 
+// lead_companies: free-form role, no unique constraint on role, optional FK to companies/contacts
 export const leadCompanies = pgTable("lead_companies", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
   companyRole: text("company_role").notNull(),
+  companyId: varchar("company_id").references(() => companies.id, { onDelete: "set null" }),
+  contactId: varchar("contact_id").references(() => contacts.id, { onDelete: "set null" }),
   companyName: text("company_name"),
   addressLine1: text("address_line_1"),
   addressLine2: text("address_line_2"),
@@ -170,12 +255,14 @@ export const leadCompanies = pgTable("lead_companies", {
   contactTitle: text("contact_title"),
   contactPhone: text("contact_phone"),
   contactEmail: text("contact_email"),
-}, (t) => [unique("lead_companies_lead_id_role_unique").on(t.leadId, t.companyRole)]);
+});
 
 export const insertLeadCompanySchema = createInsertSchema(leadCompanies).omit({
   id: true,
 }).extend({
-  companyRole: z.enum(COMPANY_ROLES),
+  companyRole: z.string().min(1, "Role is required"),
+  companyId: z.string().optional().nullable(),
+  contactId: z.string().optional().nullable(),
 });
 
 export const insertLeadCompanyInputSchema = insertLeadCompanySchema.omit({ leadId: true });
@@ -338,34 +425,6 @@ export interface InvoiceWithDetails extends Invoice {
   hoursEntries: HoursEntry[];
   expenseEntries: ExpenseEntry[];
 }
-
-// ─── Contacts ────────────────────────────────────────────────────────────────
-
-export const contacts = pgTable("contacts", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
-  fullName: text("full_name").notNull(),
-  title: text("title"),
-  phone: text("phone"),
-  email: text("email"),
-  companyName: text("company_name"),
-  addressLine1: text("address_line_1"),
-  addressLine2: text("address_line_2"),
-  city: text("city"),
-  state: text("state"),
-  zip: text("zip"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-export const insertContactSchema = createInsertSchema(contacts).omit({
-  id: true,
-  userId: true,
-  createdAt: true,
-});
-
-export type InsertContact = z.infer<typeof insertContactSchema>;
-export type Contact = typeof contacts.$inferSelect;
 
 // ─── Template / Doc Builder types (not stored in DB) ──────────────────────────
 

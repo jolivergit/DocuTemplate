@@ -14,6 +14,7 @@ import {
   insertLeadSchema,
   insertLeadCompanyInputSchema,
   insertContactSchema,
+  insertCompanySchema,
   INVOICE_STATUSES,
   EXPENSE_TYPES,
   generateDocumentRequestSchema,
@@ -1369,6 +1370,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── Companies ────────────────────────────────────────────────────────────────
+
+  app.get("/api/companies", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const result = await storage.getCompanies(userId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/companies", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const validated = insertCompanySchema.parse(req.body);
+      const company = await storage.createCompany(userId, validated);
+      res.json(company);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/companies/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const validated = insertCompanySchema.partial().parse(req.body);
+      const company = await storage.updateCompany(userId, req.params.id, validated);
+      if (!company) return res.status(404).json({ error: "Company not found" });
+      res.json(company);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/companies/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const success = await storage.deleteCompany(userId, req.params.id);
+      if (!success) return res.status(404).json({ error: "Company not found" });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/companies/:id/contacts/:contactId", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      await storage.linkContactToCompany(userId, req.params.id, req.params.contactId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/companies/:id/contacts/:contactId", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      await storage.unlinkContactFromCompany(userId, req.params.id, req.params.contactId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // ─── Contacts ────────────────────────────────────────────────────────────────
 
   app.get("/api/contacts", requireAuth, async (req, res) => {
@@ -1384,8 +1451,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/contacts", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      const validated = insertContactSchema.parse(req.body);
-      const contact = await storage.createContact(userId, validated);
+      const { companyIds, ...contactRaw } = req.body;
+      const validated = insertContactSchema.parse(contactRaw);
+      const contact = await storage.createContact(userId, validated, Array.isArray(companyIds) ? companyIds : undefined);
       res.json(contact);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -1395,8 +1463,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/contacts/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      const validated = insertContactSchema.partial().parse(req.body);
-      const contact = await storage.updateContact(userId, req.params.id, validated);
+      const { companyIds, ...contactRaw } = req.body;
+      const validated = insertContactSchema.partial().parse(contactRaw);
+      const contact = await storage.updateContact(userId, req.params.id, validated, Array.isArray(companyIds) ? companyIds : undefined);
       if (!contact) return res.status(404).json({ error: "Contact not found" });
       res.json(contact);
     } catch (error: any) {

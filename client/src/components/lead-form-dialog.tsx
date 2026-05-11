@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm, type UseFormReturn } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -40,8 +40,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Building2, ChevronDown, ChevronRight, BookUser } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, BookUser, Plus, Trash2, ChevronsUpDown } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -49,17 +50,15 @@ import { useToast } from "@/hooks/use-toast";
 import {
   LEAD_STATUSES,
   LEAD_PROBABILITIES,
-  COMPANY_ROLES,
-  COMPANY_ROLE_LABELS,
+  COMPANY_ROLE_SUGGESTIONS,
   type LeadProbability,
   type LeadStatus,
   type LeadWithCompanies,
-  type CompanyRole,
-  type Contact,
+  type ContactWithCompanies,
 } from "@shared/schema";
 
 const companySchema = z.object({
-  companyRole: z.enum(COMPANY_ROLES),
+  companyRole: z.string().min(1, "Role is required"),
   companyName: z.string().optional(),
   addressLine1: z.string().optional(),
   addressLine2: z.string().optional(),
@@ -84,33 +83,87 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-function buildDefaultCompanies(existing?: LeadWithCompanies["companies"]) {
-  return COMPANY_ROLES.map((role) => {
-    const found = existing?.find((c) => c.companyRole === role);
-    return {
-      companyRole: role,
-      companyName: found?.companyName || "",
-      addressLine1: found?.addressLine1 || "",
-      addressLine2: found?.addressLine2 || "",
-      city: found?.city || "",
-      state: found?.state || "",
-      zip: found?.zip || "",
-      contactFullName: found?.contactFullName || "",
-      contactTitle: found?.contactTitle || "",
-      contactPhone: found?.contactPhone || "",
-      contactEmail: found?.contactEmail || "",
-    };
-  });
+function buildDefaultCompanies(existing?: LeadWithCompanies["companies"]): FormValues["companies"] {
+  if (!existing || existing.length === 0) return [];
+  return existing.map((c) => ({
+    companyRole: c.companyRole,
+    companyName: c.companyName || "",
+    addressLine1: c.addressLine1 || "",
+    addressLine2: c.addressLine2 || "",
+    city: c.city || "",
+    state: c.state || "",
+    zip: c.zip || "",
+    contactFullName: c.contactFullName || "",
+    contactTitle: c.contactTitle || "",
+    contactPhone: c.contactPhone || "",
+    contactEmail: c.contactEmail || "",
+  }));
 }
 
-function ContactPicker({
-  onSelect,
-}: {
-  onSelect: (contact: Contact) => void;
-}) {
+function RoleSuggestionPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+
+  const suggestions = COMPANY_ROLE_SUGGESTIONS.filter(
+    (s) => s.toLowerCase().includes(inputValue.toLowerCase()) && s !== value
+  );
+
+  return (
+    <div className="relative">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <div className="relative">
+            <Input
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                onChange(e.target.value);
+                if (!open) setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              placeholder="e.g. Contract Holder"
+              className="pr-8"
+              data-testid="input-company-role"
+            />
+            <ChevronsUpDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          </div>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+          <Command>
+            <CommandList>
+              {suggestions.length === 0 && inputValue ? (
+                <CommandEmpty className="py-2 px-3 text-xs text-muted-foreground">
+                  Press Enter or type a custom role
+                </CommandEmpty>
+              ) : (
+                <CommandGroup heading="Suggestions">
+                  {COMPANY_ROLE_SUGGESTIONS.map((s) => (
+                    <CommandItem
+                      key={s}
+                      value={s}
+                      onSelect={() => {
+                        setInputValue(s);
+                        onChange(s);
+                        setOpen(false);
+                      }}
+                    >
+                      {s}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+function ContactPicker({ onSelect }: { onSelect: (contact: ContactWithCompanies) => void }) {
   const [open, setOpen] = useState(false);
 
-  const { data: contacts = [] } = useQuery<Contact[]>({
+  const { data: contacts = [] } = useQuery<ContactWithCompanies[]>({
     queryKey: ["/api/contacts"],
   });
 
@@ -119,14 +172,9 @@ function ContactPicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          data-testid="button-pick-contact"
-        >
+        <Button type="button" variant="outline" size="sm" data-testid="button-pick-contact">
           <BookUser className="w-3.5 h-3.5 mr-1.5" />
-          Pick from contacts
+          Pick contact
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
@@ -163,21 +211,22 @@ function ContactPicker({
   );
 }
 
-function CompanyFields({
+function CompanyEntry({
   index,
-  role,
   form,
+  onRemove,
 }: {
   index: number;
-  role: CompanyRole;
-  form: UseFormReturn<FormValues>;
+  form: ReturnType<typeof useForm<FormValues>>;
+  onRemove: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const companyName = form.watch(`companies.${index}.companyName`);
   const contactName = form.watch(`companies.${index}.contactFullName`);
-  const hasData = companyName || contactName;
+  const role = form.watch(`companies.${index}.companyRole`);
+  const hasData = !!(companyName || contactName);
 
-  function applyContact(contact: Contact) {
+  function applyContact(contact: ContactWithCompanies) {
     form.setValue(`companies.${index}.contactFullName`, contact.fullName);
     form.setValue(`companies.${index}.contactTitle`, contact.title || "");
     form.setValue(`companies.${index}.contactPhone`, contact.phone || "");
@@ -188,87 +237,120 @@ function CompanyFields({
   }
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          className="w-full flex items-center justify-between py-3 px-1 text-left hover-elevate rounded-md"
-          data-testid={`button-toggle-company-${role}`}
-        >
-          <div className="flex items-center gap-2">
+    <div className="rounded-md border" data-testid={`company-entry-${index}`}>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="w-full flex items-center gap-3 py-3 px-3 text-left hover-elevate rounded-md"
+            data-testid={`button-toggle-company-${index}`}
+          >
             <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <div>
-              <span className="text-sm font-medium">{COMPANY_ROLE_LABELS[role]}</span>
-              {hasData && (
-                <p className="text-xs text-muted-foreground">{companyName || contactName}</p>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium">{role || <span className="text-muted-foreground">New Company</span>}</span>
+                {hasData && (
+                  <Badge variant="secondary" className="text-xs">
+                    {companyName || contactName}
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {open ? (
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
               )}
             </div>
-          </div>
-          {open ? (
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          )}
-        </button>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="pl-6 pr-1 pb-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <FormField
-                control={form.control}
-                name={`companies.${index}.companyName`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Company Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} data-testid={`input-company-name-${role}`} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+          </button>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <div className="px-3 pb-3 pt-1 space-y-3 border-t">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1">
+                <FormField
+                  control={form.control}
+                  name={`companies.${index}.companyRole`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role *</FormLabel>
+                      <FormControl>
+                        <RoleSuggestionPicker value={field.value} onChange={field.onChange} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="flex-shrink-0 mt-5">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={onRemove}
+                  data-testid={`button-remove-company-${index}`}
+                  title="Remove company"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-            <div className="col-span-2">
-              <FormField
-                control={form.control}
-                name={`companies.${index}.addressLine1`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address Line 1</FormLabel>
-                    <FormControl>
-                      <Input {...field} data-testid={`input-address1-${role}`} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
-            <div className="col-span-2">
-              <FormField
-                control={form.control}
-                name={`companies.${index}.addressLine2`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address Line 2</FormLabel>
-                    <FormControl>
-                      <Input {...field} data-testid={`input-address2-${role}`} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
+
             <FormField
               control={form.control}
-              name={`companies.${index}.city`}
+              name={`companies.${index}.companyName`}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>City</FormLabel>
+                  <FormLabel>Company Name</FormLabel>
                   <FormControl>
-                    <Input {...field} data-testid={`input-city-${role}`} />
+                    <Input {...field} data-testid={`input-company-name-${index}`} />
                   </FormControl>
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-2 gap-2">
+
+            <FormField
+              control={form.control}
+              name={`companies.${index}.addressLine1`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address Line 1</FormLabel>
+                  <FormControl>
+                    <Input {...field} data-testid={`input-address1-${index}`} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name={`companies.${index}.addressLine2`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address Line 2</FormLabel>
+                  <FormControl>
+                    <Input {...field} data-testid={`input-address2-${index}`} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-1">
+                <FormField
+                  control={form.control}
+                  name={`companies.${index}.city`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid={`input-city-${index}`} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={form.control}
                 name={`companies.${index}.state`}
@@ -276,7 +358,7 @@ function CompanyFields({
                   <FormItem>
                     <FormLabel>State</FormLabel>
                     <FormControl>
-                      <Input {...field} data-testid={`input-state-${role}`} />
+                      <Input {...field} data-testid={`input-state-${index}`} />
                     </FormControl>
                   </FormItem>
                 )}
@@ -288,74 +370,74 @@ function CompanyFields({
                   <FormItem>
                     <FormLabel>Zip</FormLabel>
                     <FormControl>
-                      <Input {...field} data-testid={`input-zip-${role}`} />
+                      <Input {...field} data-testid={`input-zip-${index}`} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground">Contact</p>
+              <ContactPicker onSelect={applyContact} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name={`companies.${index}.contactFullName`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid={`input-contact-name-${index}`} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name={`companies.${index}.contactTitle`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid={`input-contact-title-${index}`} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name={`companies.${index}.contactPhone`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="tel" data-testid={`input-contact-phone-${index}`} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name={`companies.${index}.contactEmail`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="email" data-testid={`input-contact-email-${index}`} />
                     </FormControl>
                   </FormItem>
                 )}
               />
             </div>
           </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Primary Contact</p>
-            <ContactPicker onSelect={applyContact} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <FormField
-              control={form.control}
-              name={`companies.${index}.contactFullName`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Full Name</FormLabel>
-                  <FormControl>
-                    <Input {...field} data-testid={`input-contact-name-${role}`} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name={`companies.${index}.contactTitle`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Title</FormLabel>
-                  <FormControl>
-                    <Input {...field} data-testid={`input-contact-title-${role}`} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name={`companies.${index}.contactPhone`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Phone</FormLabel>
-                  <FormControl>
-                    <Input {...field} type="tel" data-testid={`input-contact-phone-${role}`} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name={`companies.${index}.contactEmail`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input {...field} type="email" data-testid={`input-contact-email-${role}`} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-          </div>
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
   );
 }
 
@@ -382,22 +464,26 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
     },
   });
 
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "companies",
+  });
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const companies = values.companies
-        .map((c) => ({
-          ...c,
-          companyName: c.companyName || null,
-          addressLine1: c.addressLine1 || null,
-          addressLine2: c.addressLine2 || null,
-          city: c.city || null,
-          state: c.state || null,
-          zip: c.zip || null,
-          contactFullName: c.contactFullName || null,
-          contactTitle: c.contactTitle || null,
-          contactPhone: c.contactPhone || null,
-          contactEmail: c.contactEmail || null,
-        }));
+      const companies = values.companies.map((c) => ({
+        companyRole: c.companyRole,
+        companyName: c.companyName || null,
+        addressLine1: c.addressLine1 || null,
+        addressLine2: c.addressLine2 || null,
+        city: c.city || null,
+        state: c.state || null,
+        zip: c.zip || null,
+        contactFullName: c.contactFullName || null,
+        contactTitle: c.contactTitle || null,
+        contactPhone: c.contactPhone || null,
+        contactEmail: c.contactEmail || null,
+      }));
 
       const payload = {
         projectName: values.projectName,
@@ -433,6 +519,22 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
   });
 
   const onSubmit = (values: FormValues) => mutation.mutate(values);
+
+  function addCompany() {
+    append({
+      companyRole: "",
+      companyName: "",
+      addressLine1: "",
+      addressLine2: "",
+      city: "",
+      state: "",
+      zip: "",
+      contactFullName: "",
+      contactTitle: "",
+      contactPhone: "",
+      contactEmail: "",
+    });
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -552,15 +654,51 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
               <Separator />
 
               {/* Companies */}
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                  Associated Companies
-                </h3>
-                <div className="space-y-1">
-                  {COMPANY_ROLES.map((role, index) => (
-                    <CompanyFields key={role} index={index} role={role} form={form} />
-                  ))}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    Associated Companies
+                  </h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addCompany}
+                    data-testid="button-add-company"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Add Company
+                  </Button>
                 </div>
+
+                {fields.length === 0 ? (
+                  <div className="rounded-md border border-dashed px-4 py-6 text-center">
+                    <Building2 className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">No companies added yet</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addCompany}
+                      className="mt-3"
+                      data-testid="button-add-first-company"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      Add Company
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {fields.map((field, index) => (
+                      <CompanyEntry
+                        key={field.id}
+                        index={index}
+                        form={form}
+                        onRemove={() => remove(index)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Submit */}
