@@ -43,7 +43,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Building2, ChevronDown, ChevronRight, BookUser, Plus, Trash2, ChevronsUpDown, Link2, X } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -748,9 +747,9 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
           <DialogTitle>{isEditing ? "Edit Project" : "New Project"}</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1">
+        <div className="overflow-y-auto flex-1 min-h-0">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="px-6 py-4 space-y-6">
+            <form id="lead-form" onSubmit={form.handleSubmit(onSubmit)} className="px-6 py-4 pb-8 space-y-6">
               {/* Core lead fields */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -890,22 +889,29 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
                 ))}
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 pb-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => { onOpenChange(false); if (!isEditing) form.reset(); }}
-                  data-testid="button-cancel-lead"
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={mutation.isPending} data-testid="button-submit-lead">
-                  {mutation.isPending ? "Saving..." : isEditing ? "Save Changes" : "Create Project"}
-                </Button>
-              </div>
             </form>
           </Form>
-        </ScrollArea>
+        </div>
+
+        {/* Static footer — always visible outside the scroll area */}
+        <div className="flex justify-end gap-2 px-6 py-4 border-t flex-shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => { onOpenChange(false); if (!isEditing) form.reset(); }}
+            data-testid="button-cancel-lead"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="lead-form"
+            disabled={mutation.isPending}
+            data-testid="button-submit-lead"
+          >
+            {mutation.isPending ? "Saving..." : isEditing ? "Save Changes" : "Create Project"}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
