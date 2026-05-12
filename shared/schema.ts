@@ -407,6 +407,7 @@ export const hoursEntries = pgTable("hours_entries", {
 });
 
 export type HoursEntry = typeof hoursEntries.$inferSelect;
+export type ProjectHoursEntry = HoursEntry;
 
 export const expenseEntries = pgTable("expense_entries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -421,6 +422,7 @@ export const expenseEntries = pgTable("expense_entries", {
 });
 
 export type ExpenseEntry = typeof expenseEntries.$inferSelect;
+export type ProjectExpenseEntry = ExpenseEntry;
 
 export const projectComments = pgTable("project_comments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

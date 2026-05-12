@@ -126,12 +126,12 @@ export interface IStorage {
 
   // Hours entries
   createHoursEntry(userId: string, invoiceId: string | null, leadId: number, entry: { date: string; description: string; hours: string; ratePerHour: string }): Promise<HoursEntry>;
-  updateHoursEntry(userId: string, id: string, updates: Partial<{ date: string; description: string; hours: string; ratePerHour: string }>): Promise<HoursEntry | undefined>;
+  updateHoursEntry(userId: string, id: string, updates: Partial<{ date: string; description: string; hours: string; ratePerHour: string; invoiceId: string | null }>): Promise<HoursEntry | undefined>;
   deleteHoursEntry(userId: string, id: string): Promise<boolean>;
 
   // Expense entries
   createExpenseEntry(userId: string, invoiceId: string | null, leadId: number, entry: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }): Promise<ExpenseEntry>;
-  updateExpenseEntry(userId: string, id: string, updates: Partial<{ date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }>): Promise<ExpenseEntry | undefined>;
+  updateExpenseEntry(userId: string, id: string, updates: Partial<{ date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string; invoiceId: string | null }>): Promise<ExpenseEntry | undefined>;
   deleteExpenseEntry(userId: string, id: string): Promise<boolean>;
 
   // Project comments
@@ -959,11 +959,15 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async updateHoursEntry(userId: string, id: string, updates: Partial<{ date: string; description: string; hours: string; ratePerHour: string }>): Promise<HoursEntry | undefined> {
+  async updateHoursEntry(userId: string, id: string, updates: Partial<{ date: string; description: string; hours: string; ratePerHour: string; invoiceId: string | null }>): Promise<HoursEntry | undefined> {
     const [existing] = await db.select().from(hoursEntries).where(eq(hoursEntries.id, id));
     if (!existing) return undefined;
     const owned = await this.verifyLeadOwnership(userId, existing.leadId);
     if (!owned) return undefined;
+    if (updates.invoiceId !== undefined && updates.invoiceId !== null) {
+      const [invoice] = await db.select({ leadId: invoices.leadId }).from(invoices).where(eq(invoices.id, updates.invoiceId));
+      if (!invoice || invoice.leadId !== existing.leadId) return undefined;
+    }
     const [updated] = await db.update(hoursEntries).set(updates).where(eq(hoursEntries.id, id)).returning();
     return updated || undefined;
   }
@@ -1001,11 +1005,15 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async updateExpenseEntry(userId: string, id: string, updates: Partial<{ date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }>): Promise<ExpenseEntry | undefined> {
+  async updateExpenseEntry(userId: string, id: string, updates: Partial<{ date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string; invoiceId: string | null }>): Promise<ExpenseEntry | undefined> {
     const [existing] = await db.select().from(expenseEntries).where(eq(expenseEntries.id, id));
     if (!existing) return undefined;
     const owned = await this.verifyLeadOwnership(userId, existing.leadId);
     if (!owned) return undefined;
+    if (updates.invoiceId !== undefined && updates.invoiceId !== null) {
+      const [invoice] = await db.select({ leadId: invoices.leadId }).from(invoices).where(eq(invoices.id, updates.invoiceId));
+      if (!invoice || invoice.leadId !== existing.leadId) return undefined;
+    }
     const [updated] = await db.update(expenseEntries).set(updates).where(eq(expenseEntries.id, id)).returning();
     return updated || undefined;
   }

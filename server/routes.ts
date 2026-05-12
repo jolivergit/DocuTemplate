@@ -1349,9 +1349,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/hours/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      // Strip invoiceId — invoice association is managed through invoice creation/attachment flows only
-      const { invoiceId: _discardedInvoiceId, ...updates } = req.body;
-      const entry = await storage.updateHoursEntry(userId, req.params.id, updates);
+      const { invoiceId, ...rest } = req.body;
+      const updates: Record<string, unknown> = { ...rest };
+      if (invoiceId !== undefined) {
+        if (invoiceId === null) {
+          updates.invoiceId = null;
+        } else {
+          const invoice = await storage.getInvoiceById(userId, invoiceId);
+          if (!invoice) return res.status(403).json({ error: "Invoice not found or access denied" });
+          updates.invoiceId = invoiceId;
+        }
+      }
+      const entry = await storage.updateHoursEntry(userId, req.params.id, updates as Parameters<typeof storage.updateHoursEntry>[2]);
       if (!entry) return res.status(404).json({ error: "Hours entry not found" });
       res.json(entry);
     } catch (error: any) {
@@ -1390,9 +1399,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/expenses/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      // Strip invoiceId — invoice association is managed through invoice creation/attachment flows only
-      const { invoiceId: _discardedInvoiceId, ...updates } = req.body;
-      const entry = await storage.updateExpenseEntry(userId, req.params.id, updates);
+      const { invoiceId, ...rest } = req.body;
+      const updates: Record<string, unknown> = { ...rest };
+      if (invoiceId !== undefined) {
+        if (invoiceId === null) {
+          updates.invoiceId = null;
+        } else {
+          const invoice = await storage.getInvoiceById(userId, invoiceId);
+          if (!invoice) return res.status(403).json({ error: "Invoice not found or access denied" });
+          updates.invoiceId = invoiceId;
+        }
+      }
+      const entry = await storage.updateExpenseEntry(userId, req.params.id, updates as Parameters<typeof storage.updateExpenseEntry>[2]);
       if (!entry) return res.status(404).json({ error: "Expense entry not found" });
       res.json(entry);
     } catch (error: any) {
