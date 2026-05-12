@@ -447,9 +447,14 @@ function CompanyEntry({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium">{role || <span className="text-muted-foreground">New Company</span>}</span>
-                {hasData && (
+                {companyName && (
                   <Badge variant="secondary" className="text-xs">
-                    {companyName || selectedContact?.fullName}
+                    {companyName}
+                  </Badge>
+                )}
+                {selectedContact && (
+                  <Badge variant="outline" className="text-xs">
+                    {selectedContact.fullName}
                   </Badge>
                 )}
                 {linkedCompanyId && (
