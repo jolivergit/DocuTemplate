@@ -1283,7 +1283,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!date || !description || !hours || !ratePerHour) {
         return res.status(400).json({ error: "date, description, hours, and ratePerHour are required" });
       }
-      const entry = await storage.createHoursEntry(userId, invoiceId ?? null, leadId, { date, description, hours, ratePerHour });
+      let resolvedInvoiceId: string | null = null;
+      if (invoiceId) {
+        const invoice = await storage.getInvoiceById(userId, invoiceId);
+        if (!invoice) return res.status(403).json({ error: "Invoice not found or access denied" });
+        if (invoice.leadId !== leadId) return res.status(400).json({ error: "Invoice does not belong to this project" });
+        resolvedInvoiceId = invoiceId;
+      }
+      const entry = await storage.createHoursEntry(userId, resolvedInvoiceId, leadId, { date, description, hours, ratePerHour });
       res.json(entry);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -1312,7 +1319,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (expenseType && !(EXPENSE_TYPES as readonly string[]).includes(expenseType)) {
         return res.status(400).json({ error: `Invalid expenseType. Must be one of: ${EXPENSE_TYPES.join(", ")}` });
       }
-      const entry = await storage.createExpenseEntry(userId, invoiceId ?? null, leadId, { expenseType, ...rest });
+      let resolvedInvoiceId: string | null = null;
+      if (invoiceId) {
+        const invoice = await storage.getInvoiceById(userId, invoiceId);
+        if (!invoice) return res.status(403).json({ error: "Invoice not found or access denied" });
+        if (invoice.leadId !== leadId) return res.status(400).json({ error: "Invoice does not belong to this project" });
+        resolvedInvoiceId = invoiceId;
+      }
+      const entry = await storage.createExpenseEntry(userId, resolvedInvoiceId, leadId, { expenseType, ...rest });
       res.json(entry);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -1335,7 +1349,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/hours/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      const entry = await storage.updateHoursEntry(userId, req.params.id, req.body);
+      // Strip invoiceId — invoice association is managed through invoice creation/attachment flows only
+      const { invoiceId: _discardedInvoiceId, ...updates } = req.body;
+      const entry = await storage.updateHoursEntry(userId, req.params.id, updates);
       if (!entry) return res.status(404).json({ error: "Hours entry not found" });
       res.json(entry);
     } catch (error: any) {
@@ -1374,7 +1390,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/expenses/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      const entry = await storage.updateExpenseEntry(userId, req.params.id, req.body);
+      // Strip invoiceId — invoice association is managed through invoice creation/attachment flows only
+      const { invoiceId: _discardedInvoiceId, ...updates } = req.body;
+      const entry = await storage.updateExpenseEntry(userId, req.params.id, updates);
       if (!entry) return res.status(404).json({ error: "Expense entry not found" });
       res.json(entry);
     } catch (error: any) {
