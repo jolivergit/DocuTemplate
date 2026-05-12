@@ -1259,7 +1259,7 @@ export default function ProjectDetailPage({ params }: Props) {
             <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
             <TabsTrigger value="proposals" data-testid="tab-proposals">Proposals</TabsTrigger>
             {isProject && (
-              <TabsTrigger value="time-expenses" data-testid="tab-time-expenses">Time & Exp</TabsTrigger>
+              <TabsTrigger value="time-expenses" data-testid="tab-time-expenses">Time & Expenses</TabsTrigger>
             )}
             {isProject && (
               <TabsTrigger value="invoices" data-testid="tab-invoices">Invoices</TabsTrigger>
