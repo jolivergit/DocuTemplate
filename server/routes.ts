@@ -1201,9 +1201,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as User).id;
       const leadId = parseInt(req.params.leadId, 10);
       if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
-      const { proposalId, feeLineInputs = [], hoursInputs = [], expenseInputs = [], notes } = req.body;
+      const { proposalId, feeLineInputs = [], hoursInputs = [], expenseInputs = [], notes, existingHoursIds, existingExpenseIds } = req.body;
       if (!proposalId) return res.status(400).json({ error: "proposalId is required" });
-      const invoice = await storage.createInvoice(userId, leadId, proposalId, feeLineInputs, hoursInputs, expenseInputs, notes);
+      const invoice = await storage.createInvoice(
+        userId, leadId, proposalId, feeLineInputs, hoursInputs, expenseInputs, notes,
+        Array.isArray(existingHoursIds) ? existingHoursIds : undefined,
+        Array.isArray(existingExpenseIds) ? existingExpenseIds : undefined
+      );
       res.json(invoice);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -1257,7 +1261,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Hours entries
+  // Project-level hours (no invoice required)
+  app.get("/api/leads/:leadId/hours", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const leadId = parseInt(req.params.leadId, 10);
+      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
+      const result = await storage.getProjectHours(userId, leadId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/leads/:leadId/hours", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const leadId = parseInt(req.params.leadId, 10);
+      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
+      const { date, description, hours, ratePerHour } = req.body;
+      if (!date || !description || !hours || !ratePerHour) {
+        return res.status(400).json({ error: "date, description, hours, and ratePerHour are required" });
+      }
+      const entry = await storage.createHoursEntry(userId, null, leadId, { date, description, hours, ratePerHour });
+      res.json(entry);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Project-level expenses (no invoice required)
+  app.get("/api/leads/:leadId/expenses", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const leadId = parseInt(req.params.leadId, 10);
+      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
+      const result = await storage.getProjectExpenses(userId, leadId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/leads/:leadId/expenses", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const leadId = parseInt(req.params.leadId, 10);
+      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
+      const { expenseType } = req.body;
+      if (expenseType && !(EXPENSE_TYPES as readonly string[]).includes(expenseType)) {
+        return res.status(400).json({ error: `Invalid expenseType. Must be one of: ${EXPENSE_TYPES.join(", ")}` });
+      }
+      const entry = await storage.createExpenseEntry(userId, null, leadId, req.body);
+      res.json(entry);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Hours entries (invoice-scoped)
   app.post("/api/invoices/:id/hours", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
@@ -1292,7 +1354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Expense entries
+  // Expense entries (invoice-scoped)
   app.post("/api/invoices/:id/expenses", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;

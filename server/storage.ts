@@ -745,7 +745,9 @@ export class DatabaseStorage implements IStorage {
     feeLineInputs: { proposalFeeLineId: string; percentComplete?: string; hoursWorked?: string; ratePerHour?: string }[],
     hoursInputs: { date: string; description: string; hours: string; ratePerHour: string }[],
     expenseInputs: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }[],
-    notes?: string
+    notes?: string,
+    existingHoursIds?: string[],
+    existingExpenseIds?: string[]
   ): Promise<InvoiceWithDetails> {
     const owned = await this.verifyLeadOwnership(userId, leadId);
     if (!owned) throw new Error('Lead not found or access denied');
@@ -853,6 +855,15 @@ export class DatabaseStorage implements IStorage {
       ).returning();
     }
 
+    if (existingHoursIds && existingHoursIds.length > 0) {
+      await db.update(hoursEntries)
+        .set({ invoiceId: invoice.id })
+        .where(inArray(hoursEntries.id, existingHoursIds));
+      const attachedHours = await db.select().from(hoursEntries)
+        .where(inArray(hoursEntries.id, existingHoursIds));
+      savedHours = [...savedHours, ...attachedHours];
+    }
+
     let savedExpenses: ExpenseEntry[] = [];
     if (expenseInputs.length > 0) {
       savedExpenses = await db.insert(expenseEntries).values(
@@ -867,6 +878,15 @@ export class DatabaseStorage implements IStorage {
           amount: e.amount || null,
         }))
       ).returning();
+    }
+
+    if (existingExpenseIds && existingExpenseIds.length > 0) {
+      await db.update(expenseEntries)
+        .set({ invoiceId: invoice.id })
+        .where(inArray(expenseEntries.id, existingExpenseIds));
+      const attachedExpenses = await db.select().from(expenseEntries)
+        .where(inArray(expenseEntries.id, existingExpenseIds));
+      savedExpenses = [...savedExpenses, ...attachedExpenses];
     }
 
     return {
@@ -908,10 +928,16 @@ export class DatabaseStorage implements IStorage {
 
   // ─── Hours Entries ────────────────────────────────────────────────────────────
 
-  async createHoursEntry(userId: string, invoiceId: string, leadId: number, entry: { date: string; description: string; hours: string; ratePerHour: string }): Promise<HoursEntry> {
+  async getProjectHours(userId: string, leadId: number): Promise<HoursEntry[]> {
+    const owned = await this.verifyLeadOwnership(userId, leadId);
+    if (!owned) return [];
+    return db.select().from(hoursEntries).where(eq(hoursEntries.leadId, leadId)).orderBy(hoursEntries.date);
+  }
+
+  async createHoursEntry(userId: string, invoiceId: string | null, leadId: number, entry: { date: string; description: string; hours: string; ratePerHour: string }): Promise<HoursEntry> {
     const owned = await this.verifyLeadOwnership(userId, leadId);
     if (!owned) throw new Error('Access denied');
-    const [row] = await db.insert(hoursEntries).values({ invoiceId, leadId, ...entry }).returning();
+    const [row] = await db.insert(hoursEntries).values({ invoiceId: invoiceId ?? null, leadId, ...entry }).returning();
     return row;
   }
 
@@ -935,11 +961,17 @@ export class DatabaseStorage implements IStorage {
 
   // ─── Expense Entries ──────────────────────────────────────────────────────────
 
-  async createExpenseEntry(userId: string, invoiceId: string, leadId: number, entry: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }): Promise<ExpenseEntry> {
+  async getProjectExpenses(userId: string, leadId: number): Promise<ExpenseEntry[]> {
+    const owned = await this.verifyLeadOwnership(userId, leadId);
+    if (!owned) return [];
+    return db.select().from(expenseEntries).where(eq(expenseEntries.leadId, leadId)).orderBy(expenseEntries.date);
+  }
+
+  async createExpenseEntry(userId: string, invoiceId: string | null, leadId: number, entry: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }): Promise<ExpenseEntry> {
     const owned = await this.verifyLeadOwnership(userId, leadId);
     if (!owned) throw new Error('Access denied');
     const [row] = await db.insert(expenseEntries).values({
-      invoiceId,
+      invoiceId: invoiceId ?? null,
       leadId,
       date: entry.date,
       expenseType: entry.expenseType,

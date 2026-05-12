@@ -16,6 +16,8 @@ import {
   FileText,
   MessageSquare,
   Send,
+  Clock,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +36,15 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { LeadFormDialog } from "@/components/lead-form-dialog";
 import { ProposalFormDialog } from "@/components/proposal-form-dialog";
 import { ProposalDetailPanel } from "@/components/proposal-detail-panel";
@@ -51,35 +62,37 @@ import type {
   Invoice,
   ProjectComment,
   Contact,
+  HoursEntry,
+  ExpenseEntry,
 } from "@shared/schema";
-import { COMPANY_ROLE_LABELS, LEAD_STATUSES } from "@shared/schema";
+import { COMPANY_ROLE_LABELS, EXPENSE_TYPES, LEAD_STATUSES } from "@shared/schema";
 
 const STATUS_COLORS: Record<LeadStatus, string> = {
-  Lead: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  Proposal: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-  "Active Project": "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  Lead: "bg-secondary text-secondary-foreground",
+  Proposal: "bg-secondary text-secondary-foreground",
+  "Active Project": "bg-secondary text-secondary-foreground",
   Completed: "bg-secondary text-secondary-foreground",
-  Lost: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  Lost: "bg-secondary text-secondary-foreground",
 };
 
 const PROBABILITY_COLORS: Record<LeadProbability, string> = {
-  LOW: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-  MEDIUM: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-  HIGH: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  LOW: "bg-secondary text-secondary-foreground",
+  MEDIUM: "bg-secondary text-secondary-foreground",
+  HIGH: "bg-secondary text-secondary-foreground",
 };
 
 const PROPOSAL_STATUS_COLORS: Record<ProposalStatus, string> = {
   Draft: "bg-secondary text-secondary-foreground",
-  Sent: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  Revision: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-  Signed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  Declined: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  Sent: "bg-secondary text-secondary-foreground",
+  Revision: "bg-secondary text-secondary-foreground",
+  Signed: "bg-secondary text-secondary-foreground",
+  Declined: "bg-secondary text-secondary-foreground",
 };
 
 const INVOICE_STATUS_COLORS: Record<string, string> = {
   Draft: "bg-secondary text-secondary-foreground",
-  Sent: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  Paid: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  Sent: "bg-secondary text-secondary-foreground",
+  Paid: "bg-secondary text-secondary-foreground",
 };
 
 function formatCurrency(value: string | null | undefined): string {
@@ -191,7 +204,7 @@ function CompanySection({ role, company }: {
                     {contact.phone && (
                       <div className="flex items-center gap-2">
                         <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-                        <a href={`tel:${contact.phone}`} className="text-sm text-primary" data-testid={`link-phone-${role}`}>
+                        <a href={`tel:${contact.phone}`} className="text-sm" data-testid={`link-phone-${role}`}>
                           {contact.phone}
                         </a>
                       </div>
@@ -199,7 +212,7 @@ function CompanySection({ role, company }: {
                     {contact.email && (
                       <div className="flex items-center gap-2">
                         <Mail className="w-3.5 h-3.5 text-muted-foreground" />
-                        <a href={`mailto:${contact.email}`} className="text-sm text-primary" data-testid={`link-email-${role}`}>
+                        <a href={`mailto:${contact.email}`} className="text-sm" data-testid={`link-email-${role}`}>
                           {contact.email}
                         </a>
                       </div>
@@ -332,14 +345,355 @@ function ProposalsTab({ leadId, projectName }: { leadId: number; projectName: st
   );
 }
 
-// ─── Project Tab ───────────────────────────────────────────────────────────────
+// ─── Time & Expenses Tab ────────────────────────────────────────────────────────
 
-type ProjectView = { type: "list" } | { type: "builder"; proposal: ProposalWithPhases } | { type: "invoice"; invoiceId: string };
+const MILEAGE_RATE_DEFAULT = "0.67";
 
-function ProjectTab({ leadId, lead }: { leadId: number; lead: LeadWithCompanies }) {
+function calcExpenseAmount(e: ExpenseEntry): number {
+  if (e.expenseType === "Mileage") {
+    return (parseFloat(e.milesTraveled || "0") || 0) * (parseFloat(e.ratePerMile || "0") || 0);
+  }
+  return parseFloat(e.amount || "0") || 0;
+}
+
+function TimeExpensesTab({ leadId }: { leadId: number }) {
   const { toast } = useToast();
-  const [view, setView] = useState<ProjectView>({ type: "list" });
-  const [commentText, setCommentText] = useState("");
+
+  const { data: allHours = [], isLoading: hoursLoading } = useQuery<HoursEntry[]>({
+    queryKey: ["/api/leads", leadId, "hours"],
+    queryFn: async () => {
+      const r = await fetch(`/api/leads/${leadId}/hours`);
+      if (!r.ok) throw new Error("Failed to load hours");
+      return r.json();
+    },
+  });
+
+  const { data: allExpenses = [], isLoading: expensesLoading } = useQuery<ExpenseEntry[]>({
+    queryKey: ["/api/leads", leadId, "expenses"],
+    queryFn: async () => {
+      const r = await fetch(`/api/leads/${leadId}/expenses`);
+      if (!r.ok) throw new Error("Failed to load expenses");
+      return r.json();
+    },
+  });
+
+  const { data: invoices = [] } = useQuery<Invoice[]>({
+    queryKey: ["/api/leads", leadId, "invoices"],
+    queryFn: async () => {
+      const r = await fetch(`/api/leads/${leadId}/invoices`);
+      if (!r.ok) throw new Error("Failed to load invoices");
+      return r.json();
+    },
+  });
+
+  const invoiceMap = new Map(invoices.map((inv) => [inv.id, inv.invoiceNumber]));
+
+  // Hours form state
+  const [showHoursForm, setShowHoursForm] = useState(false);
+  const [hDate, setHDate] = useState("");
+  const [hDesc, setHDesc] = useState("");
+  const [hHours, setHHours] = useState("");
+  const [hRate, setHRate] = useState("");
+
+  // Expense form state
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [eDate, setEDate] = useState("");
+  const [eType, setEType] = useState<string>("Parking");
+  const [eMiles, setEMiles] = useState("");
+  const [eRatePerMile, setERatePerMile] = useState(MILEAGE_RATE_DEFAULT);
+  const [eAmount, setEAmount] = useState("");
+
+  const addHoursMutation = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest("POST", `/api/leads/${leadId}/hours`, {
+        date: hDate,
+        description: hDesc,
+        hours: hHours,
+        ratePerHour: hRate,
+      });
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "hours"] });
+      setShowHoursForm(false);
+      setHDate(""); setHDesc(""); setHHours(""); setHRate("");
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to add hours", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const addExpenseMutation = useMutation({
+    mutationFn: async () => {
+      const body: Record<string, string | undefined> = { date: eDate, expenseType: eType };
+      if (eType === "Mileage") {
+        body.milesTraveled = eMiles;
+        body.ratePerMile = eRatePerMile;
+      } else {
+        body.amount = eAmount;
+      }
+      const r = await apiRequest("POST", `/api/leads/${leadId}/expenses`, body);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "expenses"] });
+      setShowExpenseForm(false);
+      setEDate(""); setEType("Parking"); setEMiles(""); setERatePerMile(MILEAGE_RATE_DEFAULT); setEAmount("");
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to add expense", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteHoursMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/hours/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "hours"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to delete entry", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteExpenseMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/expenses/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "expenses"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to delete entry", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const hoursTotal = allHours.reduce((sum, h) => sum + (parseFloat(h.hours) || 0) * (parseFloat(h.ratePerHour) || 0), 0);
+  const expensesTotal = allExpenses.reduce((sum, e) => sum + calcExpenseAmount(e), 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Hours */}
+      <div className="rounded-md border bg-card">
+        <div className="px-4 py-3 border-b flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Hours</h3>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setShowHoursForm(true)} data-testid="button-add-hours-entry">
+            <Plus className="w-3.5 h-3.5" />
+            Add
+          </Button>
+        </div>
+
+        {showHoursForm && (
+          <div className="px-4 py-3 border-b bg-muted/20 space-y-3">
+            <div className="grid grid-cols-[120px_1fr_80px_90px] gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Date</Label>
+                <Input type="date" value={hDate} onChange={(e) => setHDate(e.target.value)} className="h-8 text-xs" data-testid="input-te-hours-date" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Description</Label>
+                <Input value={hDesc} onChange={(e) => setHDesc(e.target.value)} placeholder="Task description" className="h-8 text-sm" data-testid="input-te-hours-desc" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Hours</Label>
+                <Input type="number" min="0" step="0.5" value={hHours} onChange={(e) => setHHours(e.target.value)} className="h-8 text-sm" data-testid="input-te-hours-hrs" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Rate/hr</Label>
+                <Input type="number" min="0" step="5" value={hRate} onChange={(e) => setHRate(e.target.value)} placeholder="0.00" className="h-8 text-sm" data-testid="input-te-hours-rate" />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="outline" onClick={() => setShowHoursForm(false)}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={() => addHoursMutation.mutate()}
+                disabled={!hDate || !hDesc || !hHours || !hRate || addHoursMutation.isPending}
+                data-testid="button-save-hours-entry"
+              >
+                {addHoursMutation.isPending ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {hoursLoading ? (
+          <div className="p-4 space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>
+        ) : allHours.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-muted-foreground text-center">No hours entries yet.</p>
+        ) : (
+          <div className="divide-y">
+            {allHours.map((h) => {
+              const amount = (parseFloat(h.hours) || 0) * (parseFloat(h.ratePerHour) || 0);
+              const invoiceNum = h.invoiceId ? invoiceMap.get(h.invoiceId) : null;
+              return (
+                <div key={h.id} className="px-4 py-3 flex items-center justify-between gap-3" data-testid={`row-hours-${h.id}`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium truncate">{h.description}</p>
+                        {invoiceNum != null ? (
+                          <Badge variant="secondary" className="text-xs shrink-0">Invoice #{invoiceNum}</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs shrink-0 text-muted-foreground">Unattached</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{h.date} · {h.hours} hrs @ ${h.ratePerHour}/hr</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-sm font-medium">{fmtCurrency(amount)}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteHoursMutation.mutate(h.id)}
+                      disabled={deleteHoursMutation.isPending}
+                      data-testid={`button-delete-hours-${h.id}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {allHours.length > 0 && (
+          <div className="px-4 py-2.5 border-t flex justify-between items-center bg-muted/10">
+            <span className="text-xs text-muted-foreground font-medium">Total</span>
+            <span className="text-sm font-semibold">{fmtCurrency(hoursTotal)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Expenses */}
+      <div className="rounded-md border bg-card">
+        <div className="px-4 py-3 border-b flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Receipt className="w-4 h-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Expenses</h3>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setShowExpenseForm(true)} data-testid="button-add-expense-entry">
+            <Plus className="w-3.5 h-3.5" />
+            Add
+          </Button>
+        </div>
+
+        {showExpenseForm && (
+          <div className="px-4 py-3 border-b bg-muted/20 space-y-3">
+            <div className="grid grid-cols-[120px_140px_1fr] gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Date</Label>
+                <Input type="date" value={eDate} onChange={(e) => setEDate(e.target.value)} className="h-8 text-xs" data-testid="input-te-expense-date" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Type</Label>
+                <Select value={eType} onValueChange={setEType}>
+                  <SelectTrigger className="h-8 text-sm" data-testid="select-te-expense-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXPENSE_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {eType === "Mileage" ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Miles</Label>
+                      <Input type="number" min="0" step="1" value={eMiles} onChange={(e) => setEMiles(e.target.value)} className="h-8 text-sm" data-testid="input-te-expense-miles" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">$/Mile</Label>
+                      <Input type="number" min="0" step="0.01" value={eRatePerMile} onChange={(e) => setERatePerMile(e.target.value)} className="h-8 text-sm" data-testid="input-te-expense-rate" />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-1">
+                  <Label className="text-xs">Amount ($)</Label>
+                  <Input type="number" min="0" step="0.01" value={eAmount} onChange={(e) => setEAmount(e.target.value)} placeholder="0.00" className="h-8 text-sm" data-testid="input-te-expense-amount" />
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="outline" onClick={() => setShowExpenseForm(false)}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={() => addExpenseMutation.mutate()}
+                disabled={!eDate || addExpenseMutation.isPending}
+                data-testid="button-save-expense-entry"
+              >
+                {addExpenseMutation.isPending ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {expensesLoading ? (
+          <div className="p-4 space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>
+        ) : allExpenses.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-muted-foreground text-center">No expense entries yet.</p>
+        ) : (
+          <div className="divide-y">
+            {allExpenses.map((e) => {
+              const amount = calcExpenseAmount(e);
+              const invoiceNum = e.invoiceId ? invoiceMap.get(e.invoiceId) : null;
+              const detail = e.expenseType === "Mileage"
+                ? `${e.milesTraveled} mi @ $${e.ratePerMile}/mi`
+                : fmtCurrency(parseFloat(e.amount || "0") || 0);
+              return (
+                <div key={e.id} className="px-4 py-3 flex items-center justify-between gap-3" data-testid={`row-expense-${e.id}`}>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium">{e.expenseType}</p>
+                      {invoiceNum != null ? (
+                        <Badge variant="secondary" className="text-xs shrink-0">Invoice #{invoiceNum}</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs shrink-0 text-muted-foreground">Unattached</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{e.date} · {detail}</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-sm font-medium">{fmtCurrency(amount)}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteExpenseMutation.mutate(e.id)}
+                      disabled={deleteExpenseMutation.isPending}
+                      data-testid={`button-delete-expense-${e.id}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {allExpenses.length > 0 && (
+          <div className="px-4 py-2.5 border-t flex justify-between items-center bg-muted/10">
+            <span className="text-xs text-muted-foreground font-medium">Total</span>
+            <span className="text-sm font-semibold">{fmtCurrency(expensesTotal)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Invoices Tab ──────────────────────────────────────────────────────────────
+
+type InvoicesView = { type: "list" } | { type: "builder"; proposal: ProposalWithPhases } | { type: "invoice"; invoiceId: string };
+
+function InvoicesTab({ leadId, lead }: { leadId: number; lead: LeadWithCompanies }) {
+  const [view, setView] = useState<InvoicesView>({ type: "list" });
 
   const { data: proposals = [] } = useQuery<ProposalWithPhases[]>({
     queryKey: ["/api/leads", leadId, "proposals"],
@@ -356,36 +710,6 @@ function ProjectTab({ leadId, lead }: { leadId: number; lead: LeadWithCompanies 
       const r = await fetch(`/api/leads/${leadId}/invoices`);
       if (!r.ok) throw new Error("Failed to load invoices");
       return r.json();
-    },
-  });
-
-  const { data: comments = [], isLoading: commentsLoading } = useQuery<ProjectComment[]>({
-    queryKey: ["/api/leads", leadId, "comments"],
-    queryFn: async () => {
-      const r = await fetch(`/api/leads/${leadId}/comments`);
-      if (!r.ok) throw new Error("Failed to load comments");
-      return r.json();
-    },
-  });
-
-  const addCommentMutation = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/leads/${leadId}/comments`, { content: commentText.trim() }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "comments"] });
-      setCommentText("");
-    },
-    onError: (err: Error) => {
-      toast({ title: "Failed to add comment", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const deleteCommentMutation = useMutation({
-    mutationFn: (commentId: string) => apiRequest("DELETE", `/api/leads/${leadId}/comments/${commentId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "comments"] });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Failed to delete comment", description: err.message, variant: "destructive" });
     },
   });
 
@@ -414,17 +738,15 @@ function ProjectTab({ leadId, lead }: { leadId: number; lead: LeadWithCompanies 
   }
 
   return (
-    <div className="space-y-6">
-      {/* Signed proposal note */}
+    <div className="space-y-4">
       {!signedProposal && (
-        <div className="rounded-md border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 p-4">
-          <p className="text-sm text-amber-800 dark:text-amber-300">
+        <div className="rounded-md border bg-card p-4">
+          <p className="text-sm text-muted-foreground">
             No signed proposal yet. Sign a proposal on the Proposals tab to start creating invoices.
           </p>
         </div>
       )}
 
-      {/* Invoices */}
       <div className="rounded-md border bg-card">
         <div className="px-4 py-3 border-b flex items-center justify-between">
           <h3 className="text-sm font-semibold">Invoices</h3>
@@ -480,66 +802,104 @@ function ProjectTab({ leadId, lead }: { leadId: number; lead: LeadWithCompanies 
           </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      {/* Comments */}
-      <div className="rounded-md border bg-card">
-        <div className="px-4 py-3 border-b flex items-center gap-2">
-          <MessageSquare className="w-4 h-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Project Comments</h3>
-        </div>
+// ─── Notes Tab ─────────────────────────────────────────────────────────────────
 
-        <div className="p-4 space-y-2">
-          <Textarea
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-            placeholder="Add a project note…"
-            rows={2}
-            data-testid="input-comment"
-          />
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              onClick={() => addCommentMutation.mutate()}
-              disabled={!commentText.trim() || addCommentMutation.isPending}
-              data-testid="button-add-comment"
-            >
-              <Send className="w-3.5 h-3.5" />
-              {addCommentMutation.isPending ? "Posting…" : "Post"}
-            </Button>
-          </div>
-        </div>
+function NotesTab({ leadId }: { leadId: number }) {
+  const { toast } = useToast();
+  const [commentText, setCommentText] = useState("");
 
-        <Separator />
+  const { data: comments = [], isLoading: commentsLoading } = useQuery<ProjectComment[]>({
+    queryKey: ["/api/leads", leadId, "comments"],
+    queryFn: async () => {
+      const r = await fetch(`/api/leads/${leadId}/comments`);
+      if (!r.ok) throw new Error("Failed to load comments");
+      return r.json();
+    },
+  });
 
-        {commentsLoading ? (
-          <div className="p-4 space-y-2">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </div>
-        ) : comments.length === 0 ? (
-          <p className="px-4 py-4 text-sm text-muted-foreground text-center">No comments yet.</p>
-        ) : (
-          <div className="divide-y">
-            {comments.map((c) => (
-              <div key={c.id} className="px-4 py-3 space-y-1 group" data-testid={`comment-${c.id}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">{new Date(c.createdAt).toLocaleString()}</p>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => deleteCommentMutation.mutate(c.id)}
-                    data-testid={`button-delete-comment-${c.id}`}
-                  >
-                    <Trash2 className="w-3 h-3 text-muted-foreground" />
-                  </Button>
-                </div>
-                <p className="text-sm whitespace-pre-wrap">{c.content}</p>
-              </div>
-            ))}
-          </div>
-        )}
+  const addCommentMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/leads/${leadId}/comments`, { content: commentText.trim() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "comments"] });
+      setCommentText("");
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to add comment", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: (commentId: string) => apiRequest("DELETE", `/api/leads/${leadId}/comments/${commentId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "comments"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to delete comment", description: err.message, variant: "destructive" });
+    },
+  });
+
+  return (
+    <div className="rounded-md border bg-card">
+      <div className="px-4 py-3 border-b flex items-center gap-2">
+        <MessageSquare className="w-4 h-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold">Project Notes</h3>
       </div>
+
+      <div className="p-4 space-y-2">
+        <Textarea
+          value={commentText}
+          onChange={(e) => setCommentText(e.target.value)}
+          placeholder="Add a project note…"
+          rows={2}
+          data-testid="input-comment"
+        />
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            onClick={() => addCommentMutation.mutate()}
+            disabled={!commentText.trim() || addCommentMutation.isPending}
+            data-testid="button-add-comment"
+          >
+            <Send className="w-3.5 h-3.5" />
+            {addCommentMutation.isPending ? "Posting…" : "Post"}
+          </Button>
+        </div>
+      </div>
+
+      <Separator />
+
+      {commentsLoading ? (
+        <div className="p-4 space-y-2">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+      ) : comments.length === 0 ? (
+        <p className="px-4 py-4 text-sm text-muted-foreground text-center">No notes yet.</p>
+      ) : (
+        <div className="divide-y">
+          {comments.map((c) => (
+            <div key={c.id} className="px-4 py-3 space-y-1 group" data-testid={`comment-${c.id}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">{new Date(c.createdAt).toLocaleString()}</p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => deleteCommentMutation.mutate(c.id)}
+                  data-testid={`button-delete-comment-${c.id}`}
+                >
+                  <Trash2 className="w-3 h-3 text-muted-foreground" />
+                </Button>
+              </div>
+              <p className="text-sm whitespace-pre-wrap">{c.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -620,6 +980,8 @@ export default function ProjectDetailPage({ params }: Props) {
 
   const companyMap = new Map(lead.companies.map((c) => [c.companyRole, c]));
   const isProject = lead.status === "Active Project" || lead.status === "Completed";
+
+  const tabColsClass = isProject ? "grid grid-cols-5" : "grid grid-cols-3";
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -711,12 +1073,16 @@ export default function ProjectDetailPage({ params }: Props) {
 
         {/* Tabs */}
         <Tabs defaultValue="overview">
-          <TabsList className={`w-full ${isProject ? "grid grid-cols-3" : "grid grid-cols-2"}`}>
+          <TabsList className={`w-full ${tabColsClass}`}>
             <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
             <TabsTrigger value="proposals" data-testid="tab-proposals">Proposals</TabsTrigger>
             {isProject && (
-              <TabsTrigger value="project" data-testid="tab-project">Project</TabsTrigger>
+              <TabsTrigger value="time-expenses" data-testid="tab-time-expenses">Time & Exp</TabsTrigger>
             )}
+            {isProject && (
+              <TabsTrigger value="invoices" data-testid="tab-invoices">Invoices</TabsTrigger>
+            )}
+            <TabsTrigger value="notes" data-testid="tab-notes">Notes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-6">
@@ -737,10 +1103,20 @@ export default function ProjectDetailPage({ params }: Props) {
           </TabsContent>
 
           {isProject && (
-            <TabsContent value="project" className="mt-6">
-              <ProjectTab leadId={leadId} lead={lead} />
+            <TabsContent value="time-expenses" className="mt-6">
+              <TimeExpensesTab leadId={leadId} />
             </TabsContent>
           )}
+
+          {isProject && (
+            <TabsContent value="invoices" className="mt-6">
+              <InvoicesTab leadId={leadId} lead={lead} />
+            </TabsContent>
+          )}
+
+          <TabsContent value="notes" className="mt-6">
+            <NotesTab leadId={leadId} />
+          </TabsContent>
         </Tabs>
       </div>
 

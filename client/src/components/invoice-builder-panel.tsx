@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Plus, Trash2, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Select,
   SelectContent,
@@ -16,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { EXPENSE_TYPES, type ProposalWithPhases } from "@shared/schema";
+import { EXPENSE_TYPES, type ProposalWithPhases, type HoursEntry, type ExpenseEntry } from "@shared/schema";
 
 function fmt(n: number | string | null | undefined): string {
   if (n === null || n === undefined) return "$0";
@@ -105,6 +107,30 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
   const [hoursRows, setHoursRows] = useState<HoursInput[]>([]);
   const [expenseRows, setExpenseRows] = useState<ExpenseInput[]>([]);
   const [notes, setNotes] = useState("");
+  const [selectedHoursIds, setSelectedHoursIds] = useState<Set<string>>(new Set());
+  const [selectedExpenseIds, setSelectedExpenseIds] = useState<Set<string>>(new Set());
+  const [attachSectionOpen, setAttachSectionOpen] = useState(false);
+
+  const { data: projectHours = [] } = useQuery<HoursEntry[]>({
+    queryKey: ["/api/leads", leadId, "hours"],
+    queryFn: async () => {
+      const r = await fetch(`/api/leads/${leadId}/hours`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+
+  const { data: projectExpenses = [] } = useQuery<ExpenseEntry[]>({
+    queryKey: ["/api/leads", leadId, "expenses"],
+    queryFn: async () => {
+      const r = await fetch(`/api/leads/${leadId}/expenses`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+
+  const unattachedHours = projectHours.filter((h) => !h.invoiceId);
+  const unattachedExpenses = projectExpenses.filter((e) => !e.invoiceId);
 
   // Fetch prior billing summary so we can show Previous Billing and Current Billing per line
   const { data: billingSummary = {} } = useQuery<Record<string, number>>({
@@ -154,7 +180,18 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
     return sum + (parseFloat(e.amount) || 0);
   }, 0);
 
-  const grandTotal = feeSubtotal + hoursSubtotal + expenseSubtotal;
+  const attachedHoursSubtotal = unattachedHours
+    .filter((h) => selectedHoursIds.has(h.id))
+    .reduce((sum, h) => sum + (parseFloat(h.hours) || 0) * (parseFloat(h.ratePerHour) || 0), 0);
+
+  const attachedExpensesSubtotal = unattachedExpenses
+    .filter((e) => selectedExpenseIds.has(e.id))
+    .reduce((sum, e) => {
+      if (e.expenseType === "Mileage") return sum + (parseFloat(e.milesTraveled || "0") || 0) * (parseFloat(e.ratePerMile || "0") || 0);
+      return sum + (parseFloat(e.amount || "0") || 0);
+    }, 0);
+
+  const grandTotal = feeSubtotal + hoursSubtotal + expenseSubtotal + attachedHoursSubtotal + attachedExpensesSubtotal;
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -189,6 +226,8 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
         hoursInputs,
         expenseInputs,
         notes: notes.trim() || undefined,
+        existingHoursIds: selectedHoursIds.size > 0 ? [...selectedHoursIds] : undefined,
+        existingExpenseIds: selectedExpenseIds.size > 0 ? [...selectedExpenseIds] : undefined,
       });
       return res.json();
     },
@@ -579,6 +618,112 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
         )}
       </div>
 
+      {/* Attach Project Entries */}
+      {(unattachedHours.length > 0 || unattachedExpenses.length > 0) && (
+        <Collapsible open={attachSectionOpen} onOpenChange={setAttachSectionOpen}>
+          <div className="rounded-md border bg-card">
+            <CollapsibleTrigger asChild>
+              <button className="w-full px-4 py-3 flex items-center justify-between text-left hover-elevate rounded-md">
+                <div>
+                  <p className="text-sm font-semibold">Attach Project Entries</p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedHoursIds.size + selectedExpenseIds.size} of {unattachedHours.length + unattachedExpenses.length} unattached entries selected
+                  </p>
+                </div>
+                {attachSectionOpen ? (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="border-t divide-y">
+                {unattachedHours.length > 0 && (
+                  <>
+                    <div className="px-4 py-2 bg-muted/20">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Hours</p>
+                    </div>
+                    {unattachedHours.map((h) => {
+                      const amount = (parseFloat(h.hours) || 0) * (parseFloat(h.ratePerHour) || 0);
+                      const checked = selectedHoursIds.has(h.id);
+                      return (
+                        <label
+                          key={h.id}
+                          className="flex items-center gap-3 px-4 py-3 cursor-pointer hover-elevate"
+                          data-testid={`attach-hours-${h.id}`}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(val) => {
+                              setSelectedHoursIds((prev) => {
+                                const next = new Set(prev);
+                                if (val) next.add(h.id); else next.delete(h.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm truncate">{h.description}</p>
+                            <p className="text-xs text-muted-foreground">{h.date} · {h.hours} hrs @ ${h.ratePerHour}/hr</p>
+                          </div>
+                          <span className="text-sm font-medium shrink-0">{fmt(amount)}</span>
+                        </label>
+                      );
+                    })}
+                  </>
+                )}
+                {unattachedExpenses.length > 0 && (
+                  <>
+                    <div className="px-4 py-2 bg-muted/20">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Expenses</p>
+                    </div>
+                    {unattachedExpenses.map((e) => {
+                      const amount = e.expenseType === "Mileage"
+                        ? (parseFloat(e.milesTraveled || "0") || 0) * (parseFloat(e.ratePerMile || "0") || 0)
+                        : parseFloat(e.amount || "0") || 0;
+                      const checked = selectedExpenseIds.has(e.id);
+                      return (
+                        <label
+                          key={e.id}
+                          className="flex items-center gap-3 px-4 py-3 cursor-pointer hover-elevate"
+                          data-testid={`attach-expense-${e.id}`}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(val) => {
+                              setSelectedExpenseIds((prev) => {
+                                const next = new Set(prev);
+                                if (val) next.add(e.id); else next.delete(e.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm">{e.expenseType}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {e.date}
+                              {e.expenseType === "Mileage" ? ` · ${e.milesTraveled} mi @ $${e.ratePerMile}/mi` : ""}
+                            </p>
+                          </div>
+                          <span className="text-sm font-medium shrink-0">{fmt(amount)}</span>
+                        </label>
+                      );
+                    })}
+                  </>
+                )}
+                {(attachedHoursSubtotal + attachedExpensesSubtotal) > 0 && (
+                  <div className="px-4 py-2.5 bg-muted/10 flex justify-between items-center">
+                    <span className="text-sm font-medium">Selected Subtotal</span>
+                    <span className="text-sm font-semibold">{fmt(attachedHoursSubtotal + attachedExpensesSubtotal)}</span>
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </div>
+        </Collapsible>
+      )}
+
       {/* Notes */}
       <div className="rounded-md border bg-card p-4 space-y-2">
         <Label className="text-sm font-semibold">Notes (optional)</Label>
@@ -605,10 +750,22 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
               <span>{fmt(hoursSubtotal)}</span>
             </div>
           )}
+          {attachedHoursSubtotal > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Attached Hours</span>
+              <span>{fmt(attachedHoursSubtotal)}</span>
+            </div>
+          )}
           {expenseSubtotal > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Expenses</span>
               <span>{fmt(expenseSubtotal)}</span>
+            </div>
+          )}
+          {attachedExpensesSubtotal > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Attached Expenses</span>
+              <span>{fmt(attachedExpensesSubtotal)}</span>
             </div>
           )}
         </div>

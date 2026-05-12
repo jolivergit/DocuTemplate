@@ -203,9 +203,22 @@ Stores the studio's firm info and primary contact. On save, automatically syncs 
 
 ---
 
+## Project Detail Page — Tab Structure
+
+Active Project / Completed leads get 5 tabs: **Overview | Proposals | Time & Exp | Invoices | Notes**. Lead / Proposal status leads get 3 tabs (Overview, Proposals, Notes). Time & Expenses and Invoices tabs are only visible when `status ∈ { "Active Project", "Completed" }`.
+
+### Time & Expenses Tab
+Displays all hours and expenses logged against a project (across all invoices and unattached). Each entry shows an "Invoice #N" badge if attached to an invoice, or "Unattached" if not. Inline forms let you add new hours and expenses directly at the project level (`POST /api/leads/:leadId/hours` and `POST /api/leads/:leadId/expenses`). Entries can be deleted any time. Invoice attachment is handled through the Invoice Builder.
+
+### Invoice Builder — Attach Project Entries
+When creating a new invoice, a collapsible "Attach Project Entries" section appears if there are any unattached hours or expenses on the project. Checking an entry's checkbox includes it in the invoice total and passes its ID as `existingHoursIds`/`existingExpenseIds` in the create payload. On save, those entries' `invoiceId` is updated to the new invoice — they're now "attached" and no longer appear as unattached.
+
+---
+
 ## Deployment Notes
 - **contacts-fk migration** (`scripts/migrate-contacts-fk.ts`): This migration backfills `contact_id` on legacy `lead_companies` rows from old inline contact fields, then drops those columns. It must be run **before** deploying any code that assumes the four inline columns are absent. Run with: `npx tsx scripts/migrate-contacts-fk.ts`. Fully idempotent — checks column existence before the SELECT, and uses `DROP COLUMN IF EXISTS` for the drops.
 - **Company-only address book migration** (`POST /api/companies/migrate-from-lead-companies`): Backfills `company_id` on `lead_companies` rows that have a `company_name` but no `company_id` yet. Does **not** backfill contacts (use the script above for that). Safe to re-run.
+- **Hours & expenses nullable migration** (`scripts/migrate-hours-expenses-nullable.ts`): Makes `invoice_id` nullable on `hours_entries` and `expense_entries` tables so entries can exist at the project level without being attached to an invoice. Run with: `npx tsx scripts/migrate-hours-expenses-nullable.ts`. Fully idempotent — checks `is_nullable` before altering.
 
 ---
 

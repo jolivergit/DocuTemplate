@@ -398,7 +398,7 @@ export type ExpenseType = typeof EXPENSE_TYPES[number];
 
 export const hoursEntries = pgTable("hours_entries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  invoiceId: varchar("invoice_id").references(() => invoices.id, { onDelete: "cascade" }).notNull(),
+  invoiceId: varchar("invoice_id").references(() => invoices.id, { onDelete: "set null" }),
   leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
   date: text("date").notNull(),
   description: text("description").notNull(),
@@ -410,7 +410,7 @@ export type HoursEntry = typeof hoursEntries.$inferSelect;
 
 export const expenseEntries = pgTable("expense_entries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  invoiceId: varchar("invoice_id").references(() => invoices.id, { onDelete: "cascade" }).notNull(),
+  invoiceId: varchar("invoice_id").references(() => invoices.id, { onDelete: "set null" }),
   leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
   date: text("date").notNull(),
   expenseType: text("expense_type").notNull(),
