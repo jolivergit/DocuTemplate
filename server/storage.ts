@@ -49,7 +49,7 @@ import {
   type InvoiceWithDetails,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray, isNull } from "drizzle-orm";
 
 export interface DashboardStats {
   leadsByStatus: Record<string, number>;
@@ -858,9 +858,16 @@ export class DatabaseStorage implements IStorage {
     if (existingHoursIds && existingHoursIds.length > 0) {
       await db.update(hoursEntries)
         .set({ invoiceId: invoice.id })
-        .where(inArray(hoursEntries.id, existingHoursIds));
+        .where(and(
+          inArray(hoursEntries.id, existingHoursIds),
+          eq(hoursEntries.leadId, leadId),
+          isNull(hoursEntries.invoiceId)
+        ));
       const attachedHours = await db.select().from(hoursEntries)
-        .where(inArray(hoursEntries.id, existingHoursIds));
+        .where(and(
+          inArray(hoursEntries.id, existingHoursIds),
+          eq(hoursEntries.invoiceId, invoice.id)
+        ));
       savedHours = [...savedHours, ...attachedHours];
     }
 
@@ -883,9 +890,16 @@ export class DatabaseStorage implements IStorage {
     if (existingExpenseIds && existingExpenseIds.length > 0) {
       await db.update(expenseEntries)
         .set({ invoiceId: invoice.id })
-        .where(inArray(expenseEntries.id, existingExpenseIds));
+        .where(and(
+          inArray(expenseEntries.id, existingExpenseIds),
+          eq(expenseEntries.leadId, leadId),
+          isNull(expenseEntries.invoiceId)
+        ));
       const attachedExpenses = await db.select().from(expenseEntries)
-        .where(inArray(expenseEntries.id, existingExpenseIds));
+        .where(and(
+          inArray(expenseEntries.id, existingExpenseIds),
+          eq(expenseEntries.invoiceId, invoice.id)
+        ));
       savedExpenses = [...savedExpenses, ...attachedExpenses];
     }
 

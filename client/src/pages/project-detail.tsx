@@ -388,20 +388,52 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
 
   const invoiceMap = new Map(invoices.map((inv) => [inv.id, inv.invoiceNumber]));
 
-  // Hours form state
+  // Hours form state (add)
   const [showHoursForm, setShowHoursForm] = useState(false);
   const [hDate, setHDate] = useState("");
   const [hDesc, setHDesc] = useState("");
   const [hHours, setHHours] = useState("");
   const [hRate, setHRate] = useState("");
 
-  // Expense form state
+  // Hours edit state
+  const [editingHoursId, setEditingHoursId] = useState<string | null>(null);
+  const [ehDate, setEhDate] = useState("");
+  const [ehDesc, setEhDesc] = useState("");
+  const [ehHours, setEhHours] = useState("");
+  const [ehRate, setEhRate] = useState("");
+
+  // Expense form state (add)
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [eDate, setEDate] = useState("");
   const [eType, setEType] = useState<string>("Parking");
   const [eMiles, setEMiles] = useState("");
   const [eRatePerMile, setERatePerMile] = useState(MILEAGE_RATE_DEFAULT);
   const [eAmount, setEAmount] = useState("");
+
+  // Expense edit state
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [eeDate, setEeDate] = useState("");
+  const [eeType, setEeType] = useState<string>("Parking");
+  const [eeMiles, setEeMiles] = useState("");
+  const [eeRatePerMile, setEeRatePerMile] = useState(MILEAGE_RATE_DEFAULT);
+  const [eeAmount, setEeAmount] = useState("");
+
+  function startEditHours(h: HoursEntry) {
+    setEditingHoursId(h.id);
+    setEhDate(h.date);
+    setEhDesc(h.description);
+    setEhHours(h.hours);
+    setEhRate(h.ratePerHour);
+  }
+
+  function startEditExpense(e: ExpenseEntry) {
+    setEditingExpenseId(e.id);
+    setEeDate(e.date);
+    setEeType(e.expenseType);
+    setEeMiles(e.milesTraveled || "");
+    setEeRatePerMile(e.ratePerMile || MILEAGE_RATE_DEFAULT);
+    setEeAmount(e.amount || "");
+  }
 
   const addHoursMutation = useMutation({
     mutationFn: async () => {
@@ -445,6 +477,25 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
     },
   });
 
+  const updateHoursMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await apiRequest("PATCH", `/api/hours/${id}`, {
+        date: ehDate,
+        description: ehDesc,
+        hours: ehHours,
+        ratePerHour: ehRate,
+      });
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "hours"] });
+      setEditingHoursId(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to update hours entry", description: err.message, variant: "destructive" });
+    },
+  });
+
   const deleteHoursMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/hours/${id}`),
     onSuccess: () => {
@@ -452,6 +503,27 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
     },
     onError: (err: Error) => {
       toast({ title: "Failed to delete entry", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateExpenseMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const body: Record<string, string | undefined> = { date: eeDate, expenseType: eeType };
+      if (eeType === "Mileage") {
+        body.milesTraveled = eeMiles;
+        body.ratePerMile = eeRatePerMile;
+      } else {
+        body.amount = eeAmount;
+      }
+      const r = await apiRequest("PATCH", `/api/expenses/${id}`, body);
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "expenses"] });
+      setEditingExpenseId(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to update expense entry", description: err.message, variant: "destructive" });
     },
   });
 
@@ -526,8 +598,47 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
             {allHours.map((h) => {
               const amount = (parseFloat(h.hours) || 0) * (parseFloat(h.ratePerHour) || 0);
               const invoiceNum = h.invoiceId ? invoiceMap.get(h.invoiceId) : null;
+              const isEditing = editingHoursId === h.id;
+              const isAttached = !!h.invoiceId;
+
+              if (isEditing) {
+                return (
+                  <div key={h.id} className="px-4 py-3 bg-muted/10 space-y-2" data-testid={`row-hours-edit-${h.id}`}>
+                    <div className="grid grid-cols-[120px_1fr_80px_90px] gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Date</Label>
+                        <Input type="date" value={ehDate} onChange={(e) => setEhDate(e.target.value)} className="h-8 text-xs" data-testid={`input-edit-hours-date-${h.id}`} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Description</Label>
+                        <Input value={ehDesc} onChange={(e) => setEhDesc(e.target.value)} className="h-8 text-sm" data-testid={`input-edit-hours-desc-${h.id}`} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Hours</Label>
+                        <Input type="number" min="0" step="0.5" value={ehHours} onChange={(e) => setEhHours(e.target.value)} className="h-8 text-sm" data-testid={`input-edit-hours-hrs-${h.id}`} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Rate/hr</Label>
+                        <Input type="number" min="0" step="5" value={ehRate} onChange={(e) => setEhRate(e.target.value)} className="h-8 text-sm" data-testid={`input-edit-hours-rate-${h.id}`} />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button size="sm" variant="outline" onClick={() => setEditingHoursId(null)}>Cancel</Button>
+                      <Button
+                        size="sm"
+                        onClick={() => updateHoursMutation.mutate(h.id)}
+                        disabled={!ehDate || !ehDesc || !ehHours || !ehRate || updateHoursMutation.isPending}
+                        data-testid={`button-save-edit-hours-${h.id}`}
+                      >
+                        {updateHoursMutation.isPending ? "Saving…" : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
-                <div key={h.id} className="px-4 py-3 flex items-center justify-between gap-3" data-testid={`row-hours-${h.id}`}>
+                <div key={h.id} className="px-4 py-3 flex items-center justify-between gap-3 group" data-testid={`row-hours-${h.id}`}>
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -541,8 +652,18 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
                       <p className="text-xs text-muted-foreground">{h.date} · {h.hours} hrs @ ${h.ratePerHour}/hr</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-sm font-medium">{fmtCurrency(amount)}</span>
+                    {!isAttached && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => startEditHours(h)}
+                        data-testid={`button-edit-hours-${h.id}`}
+                      >
+                        <Edit className="w-3.5 h-3.5 text-muted-foreground" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -643,9 +764,66 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
             {allExpenses.map((e) => {
               const amount = calcExpenseAmount(e);
               const invoiceNum = e.invoiceId ? invoiceMap.get(e.invoiceId) : null;
+              const isEditing = editingExpenseId === e.id;
+              const isAttached = !!e.invoiceId;
               const detail = e.expenseType === "Mileage"
                 ? `${e.milesTraveled} mi @ $${e.ratePerMile}/mi`
                 : fmtCurrency(parseFloat(e.amount || "0") || 0);
+
+              if (isEditing) {
+                return (
+                  <div key={e.id} className="px-4 py-3 bg-muted/10 space-y-2" data-testid={`row-expense-edit-${e.id}`}>
+                    <div className="grid grid-cols-[120px_140px_1fr] gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Date</Label>
+                        <Input type="date" value={eeDate} onChange={(ev) => setEeDate(ev.target.value)} className="h-8 text-xs" data-testid={`input-edit-expense-date-${e.id}`} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Type</Label>
+                        <Select value={eeType} onValueChange={setEeType}>
+                          <SelectTrigger className="h-8 text-sm" data-testid={`select-edit-expense-type-${e.id}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {EXPENSE_TYPES.map((t) => (
+                              <SelectItem key={t} value={t}>{t}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {eeType === "Mileage" ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Miles</Label>
+                            <Input type="number" min="0" step="1" value={eeMiles} onChange={(ev) => setEeMiles(ev.target.value)} className="h-8 text-sm" data-testid={`input-edit-expense-miles-${e.id}`} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">$/Mile</Label>
+                            <Input type="number" min="0" step="0.01" value={eeRatePerMile} onChange={(ev) => setEeRatePerMile(ev.target.value)} className="h-8 text-sm" data-testid={`input-edit-expense-rate-${e.id}`} />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Amount ($)</Label>
+                          <Input type="number" min="0" step="0.01" value={eeAmount} onChange={(ev) => setEeAmount(ev.target.value)} className="h-8 text-sm" data-testid={`input-edit-expense-amount-${e.id}`} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button size="sm" variant="outline" onClick={() => setEditingExpenseId(null)}>Cancel</Button>
+                      <Button
+                        size="sm"
+                        onClick={() => updateExpenseMutation.mutate(e.id)}
+                        disabled={!eeDate || updateExpenseMutation.isPending}
+                        data-testid={`button-save-edit-expense-${e.id}`}
+                      >
+                        {updateExpenseMutation.isPending ? "Saving…" : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div key={e.id} className="px-4 py-3 flex items-center justify-between gap-3" data-testid={`row-expense-${e.id}`}>
                   <div className="min-w-0">
@@ -659,8 +837,18 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
                     </div>
                     <p className="text-xs text-muted-foreground">{e.date} · {detail}</p>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-sm font-medium">{fmtCurrency(amount)}</span>
+                    {!isAttached && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => startEditExpense(e)}
+                        data-testid={`button-edit-expense-${e.id}`}
+                      >
+                        <Edit className="w-3.5 h-3.5 text-muted-foreground" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
