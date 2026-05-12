@@ -92,14 +92,14 @@ export default function DashboardPage() {
                     const pct = pipelineTotal > 0 ? (count / pipelineTotal) * 100 : 0;
                     return (
                       <div key={stage.key} className="contents">
-                        <div className="flex-1 px-5 py-5 relative overflow-hidden">
+                        <div className="flex-1 px-5 py-5 relative overflow-hidden flex flex-col items-center text-center">
                           <p
                             className="text-2xl font-semibold"
                             data-testid={stage.testId}
                           >
                             {count}
                           </p>
-                          <p className="text-xs text-muted-foreground uppercase tracking-wide mt-1">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide mt-1 whitespace-nowrap">
                             {stage.label}
                           </p>
                           {/* proportional fill bar */}

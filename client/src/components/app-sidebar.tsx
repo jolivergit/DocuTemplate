@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { FileText, Briefcase, LayoutDashboard, Users, Building2, User, LogOut } from "lucide-react";
+import { FileText, Briefcase, Compass, Users, Building2, User, LogOut } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import type { User as UserType } from "@shared/schema";
 
 const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard, exact: true },
+  { title: "Dashboard", url: "/", icon: Compass, exact: true },
   { title: "Projects", url: "/projects", icon: Briefcase, exact: false },
   { title: "Companies", url: "/companies", icon: Building2, exact: false },
   { title: "Contacts", url: "/contacts", icon: Users, exact: false },
@@ -37,11 +37,21 @@ interface AppSidebarProps {
 export function AppSidebar({ user }: AppSidebarProps) {
   const [location] = useLocation();
 
+  // Only the single most-specific matching nav item should be active
+  const loc = location || "/";
+  const activeNavUrl = [...navItems]
+    .filter(item => item.exact ? loc === item.url : loc.startsWith(item.url))
+    .sort((a, b) => b.url.length - a.url.length)[0]?.url;
+
+  const activeSettingUrl = [...settingsItems]
+    .filter(item => loc === item.url || loc.startsWith(item.url))
+    .sort((a, b) => b.url.length - a.url.length)[0]?.url;
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b">
         <div className="flex items-center gap-2">
-          <LayoutDashboard className="w-4 h-4 text-primary flex-shrink-0" />
+          <Compass className="w-4 h-4 flex-shrink-0" />
           <span className="text-xs font-medium uppercase tracking-widest">Studio PM</span>
         </div>
       </SidebarHeader>
@@ -50,21 +60,16 @@ export function AppSidebar({ user }: AppSidebarProps) {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => {
-                const isActive = item.exact
-                  ? location === item.url || location === ""
-                  : location.startsWith(item.url);
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild data-active={isActive}>
-                      <Link href={item.url}>
-                        <item.icon className="w-4 h-4" />
-                        <span className="tracking-wide uppercase">{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {navItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild data-active={item.url === activeNavUrl}>
+                    <Link href={item.url}>
+                      <item.icon className="w-4 h-4" />
+                      <span className="tracking-wide uppercase">{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -78,19 +83,16 @@ export function AppSidebar({ user }: AppSidebarProps) {
           <SidebarGroupLabel>Settings</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {settingsItems.map((item) => {
-                const isActive = location === item.url || location.startsWith(item.url);
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild data-active={isActive}>
-                      <Link href={item.url}>
-                        <item.icon className="w-4 h-4" />
-                        <span className="tracking-wide uppercase">{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {settingsItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild data-active={item.url === activeSettingUrl}>
+                    <Link href={item.url}>
+                      <item.icon className="w-4 h-4" />
+                      <span className="tracking-wide uppercase">{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
