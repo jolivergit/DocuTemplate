@@ -115,18 +115,22 @@ export interface IStorage {
   // Invoices
   getInvoices(userId: string, leadId: number): Promise<Invoice[]>;
   getInvoiceById(userId: string, invoiceId: string): Promise<InvoiceWithDetails | undefined>;
-  createInvoice(userId: string, leadId: number, proposalId: string, feeLineInputs: { proposalFeeLineId: string; percentComplete?: string; hoursWorked?: string; ratePerHour?: string }[], hoursInputs: { date: string; description: string; hours: string; ratePerHour: string }[], expenseInputs: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }[], notes?: string): Promise<InvoiceWithDetails>;
+  createInvoice(userId: string, leadId: number, proposalId: string, feeLineInputs: { proposalFeeLineId: string; percentComplete?: string; hoursWorked?: string; ratePerHour?: string }[], hoursInputs: { date: string; description: string; hours: string; ratePerHour: string }[], expenseInputs: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }[], notes?: string, existingHoursIds?: string[], existingExpenseIds?: string[]): Promise<InvoiceWithDetails>;
   updateInvoiceStatus(userId: string, invoiceId: string, status: string): Promise<Invoice | undefined>;
   updateInvoiceDocUrl(userId: string, invoiceId: string, docUrl: string): Promise<Invoice | undefined>;
   deleteInvoice(userId: string, invoiceId: string): Promise<boolean>;
 
+  // Project-level time & expense access (across all invoices)
+  getProjectHours(userId: string, leadId: number): Promise<HoursEntry[]>;
+  getProjectExpenses(userId: string, leadId: number): Promise<ExpenseEntry[]>;
+
   // Hours entries
-  createHoursEntry(userId: string, invoiceId: string, leadId: number, entry: { date: string; description: string; hours: string; ratePerHour: string }): Promise<HoursEntry>;
+  createHoursEntry(userId: string, invoiceId: string | null, leadId: number, entry: { date: string; description: string; hours: string; ratePerHour: string }): Promise<HoursEntry>;
   updateHoursEntry(userId: string, id: string, updates: Partial<{ date: string; description: string; hours: string; ratePerHour: string }>): Promise<HoursEntry | undefined>;
   deleteHoursEntry(userId: string, id: string): Promise<boolean>;
 
   // Expense entries
-  createExpenseEntry(userId: string, invoiceId: string, leadId: number, entry: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }): Promise<ExpenseEntry>;
+  createExpenseEntry(userId: string, invoiceId: string | null, leadId: number, entry: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }): Promise<ExpenseEntry>;
   updateExpenseEntry(userId: string, id: string, updates: Partial<{ date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }>): Promise<ExpenseEntry | undefined>;
   deleteExpenseEntry(userId: string, id: string): Promise<boolean>;
 

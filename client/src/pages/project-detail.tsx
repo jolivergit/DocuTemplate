@@ -599,7 +599,6 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
               const amount = (parseFloat(h.hours) || 0) * (parseFloat(h.ratePerHour) || 0);
               const invoiceNum = h.invoiceId ? invoiceMap.get(h.invoiceId) : null;
               const isEditing = editingHoursId === h.id;
-              const isAttached = !!h.invoiceId;
 
               if (isEditing) {
                 return (
@@ -654,16 +653,14 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-sm font-medium">{fmtCurrency(amount)}</span>
-                    {!isAttached && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => startEditHours(h)}
-                        data-testid={`button-edit-hours-${h.id}`}
-                      >
-                        <Edit className="w-3.5 h-3.5 text-muted-foreground" />
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => startEditHours(h)}
+                      data-testid={`button-edit-hours-${h.id}`}
+                    >
+                      <Edit className="w-3.5 h-3.5 text-muted-foreground" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -765,7 +762,6 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
               const amount = calcExpenseAmount(e);
               const invoiceNum = e.invoiceId ? invoiceMap.get(e.invoiceId) : null;
               const isEditing = editingExpenseId === e.id;
-              const isAttached = !!e.invoiceId;
               const detail = e.expenseType === "Mileage"
                 ? `${e.milesTraveled} mi @ $${e.ratePerMile}/mi`
                 : fmtCurrency(parseFloat(e.amount || "0") || 0);
@@ -839,16 +835,14 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-sm font-medium">{fmtCurrency(amount)}</span>
-                    {!isAttached && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => startEditExpense(e)}
-                        data-testid={`button-edit-expense-${e.id}`}
-                      >
-                        <Edit className="w-3.5 h-3.5 text-muted-foreground" />
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => startEditExpense(e)}
+                      data-testid={`button-edit-expense-${e.id}`}
+                    >
+                      <Edit className="w-3.5 h-3.5 text-muted-foreground" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
