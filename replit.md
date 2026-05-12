@@ -204,7 +204,8 @@ Stores the studio's firm info and primary contact. On save, automatically syncs 
 ---
 
 ## Deployment Notes
-- **contacts-fk migration** (`scripts/migrate-contacts-fk.ts`): This one-time migration backfills `contact_id` on legacy `lead_companies` rows from old inline contact fields, then drops those columns. It must be run **before** deploying any code that assumes the four inline columns (`contact_full_name`, `contact_title`, `contact_phone`, `contact_email`) are absent. Run with: `npx tsx scripts/migrate-contacts-fk.ts`. It is safe to re-run (idempotent — uses `DROP COLUMN IF EXISTS`).
+- **contacts-fk migration** (`scripts/migrate-contacts-fk.ts`): This migration backfills `contact_id` on legacy `lead_companies` rows from old inline contact fields, then drops those columns. It must be run **before** deploying any code that assumes the four inline columns are absent. Run with: `npx tsx scripts/migrate-contacts-fk.ts`. Fully idempotent — checks column existence before the SELECT, and uses `DROP COLUMN IF EXISTS` for the drops.
+- **Company-only address book migration** (`POST /api/companies/migrate-from-lead-companies`): Backfills `company_id` on `lead_companies` rows that have a `company_name` but no `company_id` yet. Does **not** backfill contacts (use the script above for that). Safe to re-run.
 
 ---
 
