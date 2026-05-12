@@ -132,7 +132,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       { name: "invoice_status", value: inv.status },
       { name: "project_name", value: lead.projectName },
       { name: "client_company", value: clientCompany?.companyName || "" },
-      { name: "client_contact", value: clientCompany?.contactFullName || "" },
+      { name: "client_contact", value: clientCompany?.linkedContact?.fullName || "" },
       { name: "client_address", value: [clientCompany?.addressLine1, clientCompany?.city, clientCompany?.state].filter(Boolean).join(", ") },
       { name: "invoice_fee_total", value: fmt(feeTotal) },
       { name: "invoice_hours_total", value: fmt(hoursTotal) },

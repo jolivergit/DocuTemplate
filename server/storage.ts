@@ -1219,43 +1219,12 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      // Find or create contact: prefer email match, fallback to name match — only if not already linked
-      if (!contactId && row.contactFullName) {
-        // 1) Try email match first (most reliable dedup key)
-        if (row.contactEmail) {
-          const emailKey = row.contactEmail.toLowerCase();
-          if (contactEmailCache.has(emailKey)) {
-            contactId = contactEmailCache.get(emailKey)!;
-          }
-        }
-        // 2) Try name match
-        if (!contactId) {
-          const nameKey = row.contactFullName.toLowerCase();
-          if (contactNameCache.has(nameKey)) {
-            contactId = contactNameCache.get(nameKey)!;
-          }
-        }
-        // 3) Create new contact
-        if (!contactId) {
-          const [newContact] = await db.insert(contacts).values({
-            userId,
-            fullName: row.contactFullName,
-            title: row.contactTitle,
-            phone: row.contactPhone,
-            email: row.contactEmail,
-            companyName: row.companyName,
-          }).returning();
-          contactId = newContact.id;
-          if (newContact.email) contactEmailCache.set(newContact.email.toLowerCase(), contactId);
-          contactNameCache.set(row.contactFullName.toLowerCase(), contactId);
-          contactsCreated++;
-        }
-
-        // Link contact to company if both exist
-        if (companyId && contactId) {
-          await db.insert(contactCompanies).values({ contactId, companyId }).onConflictDoNothing();
-        }
-      }
+      // contactId backfill from inline fields is no longer applicable —
+      // the 4 inline columns were dropped by migrate-contacts-fk.ts.
+      // This block intentionally left empty; contactId must be set via the
+      // address-book picker in the lead form.
+      void contactEmailCache;
+      void contactNameCache;
 
       if (companyId || contactId) {
         await db.update(leadCompanies)
