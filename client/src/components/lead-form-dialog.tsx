@@ -454,7 +454,7 @@ function CompanyEntry({
                 )}
                 {selectedContact && (
                   <Badge variant="outline" className="text-xs">
-                    {selectedContact.fullName}
+                    {selectedContact.fullName}{selectedContact.title ? ` · ${selectedContact.title}` : ""}
                   </Badge>
                 )}
                 {linkedCompanyId && (
