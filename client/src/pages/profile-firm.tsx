@@ -74,8 +74,7 @@ export default function FirmProfilePage() {
         contactName: profile?.contactName ?? null,
         contactTitle: profile?.contactTitle ?? null,
       };
-      const saved = await apiRequest("PATCH", "/api/profile", merged);
-      const savedProfile: Profile = await saved.json();
+      const savedProfile: Profile = await apiRequest<Profile>("PATCH", "/api/profile", merged);
 
       // Sync firm field values to Doc Builder
       const firmFields = [

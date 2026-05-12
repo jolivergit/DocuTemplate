@@ -62,8 +62,7 @@ export default function ContactProfilePage() {
         contactName: values.contactName,
         contactTitle: values.contactTitle,
       };
-      const saved = await apiRequest("PATCH", "/api/profile", merged);
-      const savedProfile: Profile = await saved.json();
+      const savedProfile: Profile = await apiRequest<Profile>("PATCH", "/api/profile", merged);
 
       // Sync contact field values to Doc Builder
       const contactFields = [
