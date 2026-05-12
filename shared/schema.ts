@@ -261,10 +261,6 @@ export const leadCompanies = pgTable("lead_companies", {
   city: text("city"),
   state: text("state"),
   zip: text("zip"),
-  contactFullName: text("contact_full_name"),
-  contactTitle: text("contact_title"),
-  contactPhone: text("contact_phone"),
-  contactEmail: text("contact_email"),
 });
 
 export const insertLeadCompanySchema = createInsertSchema(leadCompanies).omit({

@@ -224,42 +224,42 @@ async function main() {
 
   // Midtown lead
   await db.insert(schema.leadCompanies).values([
-    { id: uuid(), leadId: leadMidtown.id, companyRole: "ContractHolder", companyId: companyArchfield.id, companyName: companyArchfield.name, contactFullName: contactDanielChu.fullName, contactTitle: contactDanielChu.title, contactEmail: contactDanielChu.email!, contactPhone: contactDanielChu.phone! },
-    { id: uuid(), leadId: leadMidtown.id, companyRole: "Client", companyId: companyWeston.id, companyName: companyWeston.name, contactFullName: contactSarahLane.fullName, contactTitle: contactSarahLane.title, contactEmail: contactSarahLane.email!, contactPhone: contactSarahLane.phone! },
-    { id: uuid(), leadId: leadMidtown.id, companyRole: "MEP", companyId: companyNovaMEP.id, companyName: companyNovaMEP.name, contactFullName: contactPriyaKapoor.fullName, contactTitle: contactPriyaKapoor.title, contactEmail: contactPriyaKapoor.email! },
+    { id: uuid(), leadId: leadMidtown.id, companyRole: "ContractHolder", companyId: companyArchfield.id, contactId: contactDanielChu.id, companyName: companyArchfield.name },
+    { id: uuid(), leadId: leadMidtown.id, companyRole: "Client", companyId: companyWeston.id, contactId: contactSarahLane.id, companyName: companyWeston.name },
+    { id: uuid(), leadId: leadMidtown.id, companyRole: "MEP", companyId: companyNovaMEP.id, contactId: contactPriyaKapoor.id, companyName: companyNovaMEP.name },
   ]);
 
   // Brooklyn lead
   await db.insert(schema.leadCompanies).values([
-    { id: uuid(), leadId: leadBrooklyn.id, companyRole: "ContractHolder", companyId: companyMercer.id, companyName: companyMercer.name, contactFullName: contactAmandaTorres.fullName, contactTitle: contactAmandaTorres.title, contactEmail: contactAmandaTorres.email! },
-    { id: uuid(), leadId: leadBrooklyn.id, companyRole: "Client", companyId: companyMercer.id, companyName: companyMercer.name, contactFullName: contactAmandaTorres.fullName, contactEmail: contactAmandaTorres.email! },
-    { id: uuid(), leadId: leadBrooklyn.id, companyRole: "MEP", companyId: companyNovaMEP.id, companyName: companyNovaMEP.name, contactFullName: contactPriyaKapoor.fullName, contactEmail: contactPriyaKapoor.email! },
-    { id: uuid(), leadId: leadBrooklyn.id, companyRole: "Structural", companyId: companyRidgeline.id, companyName: companyRidgeline.name, contactFullName: contactTomWright.fullName, contactEmail: contactTomWright.email! },
-    { id: uuid(), leadId: leadBrooklyn.id, companyRole: "FurnitureVendor", companyId: companyBlueOakFurniture.id, companyName: companyBlueOakFurniture.name, contactFullName: contactNinaFoster.fullName, contactEmail: contactNinaFoster.email! },
+    { id: uuid(), leadId: leadBrooklyn.id, companyRole: "ContractHolder", companyId: companyMercer.id, contactId: contactAmandaTorres.id, companyName: companyMercer.name },
+    { id: uuid(), leadId: leadBrooklyn.id, companyRole: "Client", companyId: companyMercer.id, contactId: contactAmandaTorres.id, companyName: companyMercer.name },
+    { id: uuid(), leadId: leadBrooklyn.id, companyRole: "MEP", companyId: companyNovaMEP.id, contactId: contactPriyaKapoor.id, companyName: companyNovaMEP.name },
+    { id: uuid(), leadId: leadBrooklyn.id, companyRole: "Structural", companyId: companyRidgeline.id, contactId: contactTomWright.id, companyName: companyRidgeline.name },
+    { id: uuid(), leadId: leadBrooklyn.id, companyRole: "FurnitureVendor", companyId: companyBlueOakFurniture.id, contactId: contactNinaFoster.id, companyName: companyBlueOakFurniture.name },
   ]);
 
   // Hudson Yards (active)
   await db.insert(schema.leadCompanies).values([
-    { id: uuid(), leadId: leadHudson.id, companyRole: "ContractHolder", companyId: companyHavenHospitality.id, companyName: companyHavenHospitality.name, contactFullName: contactMarcusHall.fullName, contactTitle: contactMarcusHall.title, contactEmail: contactMarcusHall.email!, contactPhone: contactMarcusHall.phone! },
-    { id: uuid(), leadId: leadHudson.id, companyRole: "Client", companyId: companyHavenHospitality.id, companyName: companyHavenHospitality.name, contactFullName: contactMarcusHall.fullName, contactEmail: contactMarcusHall.email! },
-    { id: uuid(), leadId: leadHudson.id, companyRole: "MEP", companyId: companyNovaMEP.id, companyName: companyNovaMEP.name, contactFullName: contactPriyaKapoor.fullName, contactEmail: contactPriyaKapoor.email! },
-    { id: uuid(), leadId: leadHudson.id, companyRole: "FurnitureVendor", companyId: companyBlueOakFurniture.id, companyName: companyBlueOakFurniture.name, contactFullName: contactNinaFoster.fullName },
+    { id: uuid(), leadId: leadHudson.id, companyRole: "ContractHolder", companyId: companyHavenHospitality.id, contactId: contactMarcusHall.id, companyName: companyHavenHospitality.name },
+    { id: uuid(), leadId: leadHudson.id, companyRole: "Client", companyId: companyHavenHospitality.id, contactId: contactMarcusHall.id, companyName: companyHavenHospitality.name },
+    { id: uuid(), leadId: leadHudson.id, companyRole: "MEP", companyId: companyNovaMEP.id, contactId: contactPriyaKapoor.id, companyName: companyNovaMEP.name },
+    { id: uuid(), leadId: leadHudson.id, companyRole: "FurnitureVendor", companyId: companyBlueOakFurniture.id, contactId: contactNinaFoster.id, companyName: companyBlueOakFurniture.name },
     { id: uuid(), leadId: leadHudson.id, companyRole: "EquipmentVendor", companyId: companyApexEquipment.id, companyName: companyApexEquipment.name },
   ]);
 
   // Financial District (active)
   await db.insert(schema.leadCompanies).values([
-    { id: uuid(), leadId: leadFinancial.id, companyRole: "ContractHolder", companyId: companyArchfield.id, companyName: companyArchfield.name, contactFullName: contactDanielChu.fullName, contactTitle: contactDanielChu.title, contactEmail: contactDanielChu.email! },
-    { id: uuid(), leadId: leadFinancial.id, companyRole: "Client", companyId: companyWeston.id, companyName: companyWeston.name, contactFullName: contactSarahLane.fullName, contactEmail: contactSarahLane.email! },
-    { id: uuid(), leadId: leadFinancial.id, companyRole: "MEP", companyId: companyNovaMEP.id, companyName: companyNovaMEP.name, contactFullName: contactPriyaKapoor.fullName },
-    { id: uuid(), leadId: leadFinancial.id, companyRole: "Structural", companyId: companyRidgeline.id, companyName: companyRidgeline.name, contactFullName: contactTomWright.fullName, contactEmail: contactTomWright.email! },
+    { id: uuid(), leadId: leadFinancial.id, companyRole: "ContractHolder", companyId: companyArchfield.id, contactId: contactDanielChu.id, companyName: companyArchfield.name },
+    { id: uuid(), leadId: leadFinancial.id, companyRole: "Client", companyId: companyWeston.id, contactId: contactSarahLane.id, companyName: companyWeston.name },
+    { id: uuid(), leadId: leadFinancial.id, companyRole: "MEP", companyId: companyNovaMEP.id, contactId: contactPriyaKapoor.id, companyName: companyNovaMEP.name },
+    { id: uuid(), leadId: leadFinancial.id, companyRole: "Structural", companyId: companyRidgeline.id, contactId: contactTomWright.id, companyName: companyRidgeline.name },
   ]);
 
   // Upper West Side (completed)
   await db.insert(schema.leadCompanies).values([
-    { id: uuid(), leadId: leadUpper.id, companyRole: "ContractHolder", companyId: companyWeston.id, companyName: companyWeston.name, contactFullName: contactSarahLane.fullName, contactTitle: contactSarahLane.title, contactEmail: contactSarahLane.email! },
+    { id: uuid(), leadId: leadUpper.id, companyRole: "ContractHolder", companyId: companyWeston.id, contactId: contactSarahLane.id, companyName: companyWeston.name },
     { id: uuid(), leadId: leadUpper.id, companyRole: "Client", companyId: companyWeston.id, companyName: companyWeston.name },
-    { id: uuid(), leadId: leadUpper.id, companyRole: "FurnitureVendor", companyId: companyBlueOakFurniture.id, companyName: companyBlueOakFurniture.name, contactFullName: contactNinaFoster.fullName },
+    { id: uuid(), leadId: leadUpper.id, companyRole: "FurnitureVendor", companyId: companyBlueOakFurniture.id, contactId: contactNinaFoster.id, companyName: companyBlueOakFurniture.name },
   ]);
 
   // ── 6. Proposals ─────────────────────────────────────────────────────────────

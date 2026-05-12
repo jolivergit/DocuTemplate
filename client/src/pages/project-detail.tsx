@@ -50,6 +50,7 @@ import type {
   ProposalStatus,
   Invoice,
   ProjectComment,
+  Contact,
 } from "@shared/schema";
 import { COMPANY_ROLE_LABELS, LEAD_STATUSES } from "@shared/schema";
 
@@ -103,10 +104,22 @@ function DetailField({ label, value }: { label: string; value?: string | null })
   );
 }
 
-function CompanySection({ role, company }: { role: CompanyRole; company?: { companyName?: string | null; addressLine1?: string | null; addressLine2?: string | null; city?: string | null; state?: string | null; zip?: string | null; contactFullName?: string | null; contactTitle?: string | null; contactPhone?: string | null; contactEmail?: string | null } | null }) {
+function CompanySection({ role, company }: {
+  role: CompanyRole;
+  company?: {
+    companyName?: string | null;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
+    linkedContact?: Contact | null;
+  } | null;
+}) {
   const [open, setOpen] = useState(false);
   const label = COMPANY_ROLE_LABELS[role];
-  const hasData = company && (company.companyName || company.contactFullName);
+  const contact = company?.linkedContact;
+  const hasData = company && (company.companyName || contact);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -120,7 +133,7 @@ function CompanySection({ role, company }: { role: CompanyRole; company?: { comp
             <div>
               <span className="text-sm font-medium">{label}</span>
               {hasData && (
-                <p className="text-xs text-muted-foreground">{company?.companyName || company?.contactFullName}</p>
+                <p className="text-xs text-muted-foreground">{company?.companyName || contact?.fullName}</p>
               )}
             </div>
           </div>
@@ -160,36 +173,34 @@ function CompanySection({ role, company }: { role: CompanyRole; company?: { comp
               )}
             </div>
 
-            {(company?.contactFullName || company?.contactPhone || company?.contactEmail) && (
+            {contact && (
               <>
                 <Separator />
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Primary Contact</p>
                   <div className="space-y-2">
-                    {company?.contactFullName && (
-                      <div className="flex items-center gap-2">
-                        <User className="w-3.5 h-3.5 text-muted-foreground" />
-                        <div>
-                          <span className="text-sm">{company.contactFullName}</span>
-                          {company?.contactTitle && (
-                            <span className="text-xs text-muted-foreground ml-1">· {company.contactTitle}</span>
-                          )}
-                        </div>
+                    <div className="flex items-center gap-2">
+                      <User className="w-3.5 h-3.5 text-muted-foreground" />
+                      <div>
+                        <span className="text-sm">{contact.fullName}</span>
+                        {contact.title && (
+                          <span className="text-xs text-muted-foreground ml-1">· {contact.title}</span>
+                        )}
                       </div>
-                    )}
-                    {company?.contactPhone && (
+                    </div>
+                    {contact.phone && (
                       <div className="flex items-center gap-2">
                         <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-                        <a href={`tel:${company.contactPhone}`} className="text-sm text-primary" data-testid={`link-phone-${role}`}>
-                          {company.contactPhone}
+                        <a href={`tel:${contact.phone}`} className="text-sm text-primary" data-testid={`link-phone-${role}`}>
+                          {contact.phone}
                         </a>
                       </div>
                     )}
-                    {company?.contactEmail && (
+                    {contact.email && (
                       <div className="flex items-center gap-2">
                         <Mail className="w-3.5 h-3.5 text-muted-foreground" />
-                        <a href={`mailto:${company.contactEmail}`} className="text-sm text-primary" data-testid={`link-email-${role}`}>
-                          {company.contactEmail}
+                        <a href={`mailto:${contact.email}`} className="text-sm text-primary" data-testid={`link-email-${role}`}>
+                          {contact.email}
                         </a>
                       </div>
                     )}

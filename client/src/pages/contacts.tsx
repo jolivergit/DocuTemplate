@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
 import { Search, Users, Mail, Phone, Building2, Plus, Pencil, Trash2, User, LinkIcon, ChevronRight, ChevronDown, Unlink } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -33,26 +32,7 @@ import { ContactFormDialog } from "@/components/contact-form-dialog";
 import { CompanyFormDialog } from "@/components/company-form-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { ContactWithCompanies, CompanyWithContacts, LeadWithCompanies } from "@shared/schema";
-
-interface ProjectContactEntry {
-  source: "project";
-  contactFullName: string;
-  contactTitle: string | null;
-  contactPhone: string | null;
-  contactEmail: string | null;
-  companyName: string | null;
-  companyRole: string;
-  projectId: number;
-  projectName: string;
-}
-
-interface StandaloneContactEntry {
-  source: "standalone";
-  contact: ContactWithCompanies;
-}
-
-type ContactEntry = ProjectContactEntry | StandaloneContactEntry;
+import type { ContactWithCompanies, CompanyWithContacts } from "@shared/schema";
 
 function LinkCompanyPicker({ contactId, linkedCompanyIds }: { contactId: string; linkedCompanyIds: Set<string> }) {
   const [open, setOpen] = useState(false);
@@ -121,7 +101,6 @@ function LinkCompanyPicker({ contactId, linkedCompanyIds }: { contactId: string;
               </CommandGroup>
             </CommandList>
           </Command>
-          {/* Rendered outside CommandList so it is never filtered by search */}
           <div className="border-t p-1">
             <button
               type="button"
@@ -141,7 +120,7 @@ function LinkCompanyPicker({ contactId, linkedCompanyIds }: { contactId: string;
   );
 }
 
-function StandaloneContactCard({
+function ContactCard({
   c,
   index,
   onEdit,
@@ -296,15 +275,9 @@ export default function ContactsPage() {
   const [deletingContact, setDeletingContact] = useState<ContactWithCompanies | null>(null);
   const { toast } = useToast();
 
-  const { data: standaloneContacts = [], isLoading: loadingContacts } = useQuery<ContactWithCompanies[]>({
+  const { data: contacts = [], isLoading } = useQuery<ContactWithCompanies[]>({
     queryKey: ["/api/contacts"],
   });
-
-  const { data: leads = [], isLoading: loadingLeads } = useQuery<LeadWithCompanies[]>({
-    queryKey: ["/api/leads"],
-  });
-
-  const isLoading = loadingContacts || loadingLeads;
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -321,71 +294,15 @@ export default function ContactsPage() {
     },
   });
 
-  // Build project-derived contacts (de-duped by email if they match a standalone contact)
-  const standaloneEmails = new Set(
-    standaloneContacts
-      .map((c) => c.email?.toLowerCase())
-      .filter(Boolean) as string[]
-  );
-
-  const projectEntries: ProjectContactEntry[] = [];
-  const seenProjectKeys = new Set<string>();
-
-  for (const lead of leads) {
-    for (const company of lead.companies) {
-      if (!company.contactFullName && !company.companyName) continue;
-
-      const emailKey = company.contactEmail?.toLowerCase();
-      if (emailKey && standaloneEmails.has(emailKey)) continue;
-
-      const dedupeKey = emailKey
-        ? emailKey
-        : `${company.contactFullName || ""}::${company.companyName || ""}::${lead.id}`;
-
-      if (seenProjectKeys.has(dedupeKey)) continue;
-      seenProjectKeys.add(dedupeKey);
-
-      projectEntries.push({
-        source: "project",
-        contactFullName: company.contactFullName || "",
-        contactTitle: company.contactTitle,
-        contactPhone: company.contactPhone,
-        contactEmail: company.contactEmail,
-        companyName: company.companyName,
-        companyRole: company.companyRole,
-        projectId: lead.id,
-        projectName: lead.projectName,
-      });
-    }
-  }
-
-  const allEntries: ContactEntry[] = [
-    ...standaloneContacts.map((c): StandaloneContactEntry => ({ source: "standalone", contact: c })),
-    ...projectEntries,
-  ];
-
   const q = search.toLowerCase();
-  const filtered = allEntries.filter((entry) => {
-    if (entry.source === "standalone") {
-      const c = entry.contact;
-      return (
-        c.fullName.toLowerCase().includes(q) ||
-        (c.companyName || "").toLowerCase().includes(q) ||
-        (c.email || "").toLowerCase().includes(q) ||
-        (c.phone || "").toLowerCase().includes(q) ||
-        (c.title || "").toLowerCase().includes(q) ||
-        c.companies.some((co) => co.name.toLowerCase().includes(q))
-      );
-    } else {
-      return (
-        entry.contactFullName.toLowerCase().includes(q) ||
-        (entry.companyName || "").toLowerCase().includes(q) ||
-        (entry.contactEmail || "").toLowerCase().includes(q) ||
-        (entry.contactPhone || "").toLowerCase().includes(q) ||
-        entry.projectName.toLowerCase().includes(q)
-      );
-    }
-  });
+  const filtered = contacts.filter((c) =>
+    c.fullName.toLowerCase().includes(q) ||
+    (c.companyName || "").toLowerCase().includes(q) ||
+    (c.email || "").toLowerCase().includes(q) ||
+    (c.phone || "").toLowerCase().includes(q) ||
+    (c.title || "").toLowerCase().includes(q) ||
+    c.companies.some((co) => co.name.toLowerCase().includes(q))
+  );
 
   function openCreate() {
     setEditingContact(null);
@@ -434,7 +351,7 @@ export default function ContactsPage() {
             <p className="text-xs text-muted-foreground mb-4" data-testid="text-no-contacts-description">
               {search
                 ? "Try adjusting your search"
-                : "Create standalone contacts or add company info to your projects"}
+                : "Add contacts to your address book to link them to projects"}
             </p>
             {!search && (
               <Button size="sm" onClick={openCreate} data-testid="button-new-contact-empty">
@@ -445,102 +362,24 @@ export default function ContactsPage() {
           </div>
         ) : (
           <div className="p-6 space-y-3">
-            {filtered.map((entry, i) => {
-              if (entry.source === "standalone") {
-                return (
-                  <StandaloneContactCard
-                    key={`standalone-${entry.contact.id}`}
-                    c={entry.contact}
-                    index={i}
-                    onEdit={openEdit}
-                    onDelete={setDeletingContact}
-                  />
-                );
-              } else {
-                return (
-                  <div
-                    key={`project-${i}`}
-                    className="rounded-md border bg-card p-4 flex items-start gap-4"
-                    data-testid={`card-contact-${i}`}
-                  >
-                    <div className="flex-shrink-0 mt-0.5">
-                      <Building2 className="w-4 h-4 text-muted-foreground" />
-                    </div>
-
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {entry.contactFullName && (
-                          <span className="text-sm font-semibold" data-testid={`text-contact-name-${i}`}>
-                            {entry.contactFullName}
-                          </span>
-                        )}
-                        {entry.contactTitle && (
-                          <span className="text-xs text-muted-foreground">{entry.contactTitle}</span>
-                        )}
-                        <Badge variant="secondary" className="text-xs" data-testid={`badge-contact-role-${i}`}>
-                          {entry.companyRole}
-                        </Badge>
-                      </div>
-
-                      {entry.companyName && (
-                        <p className="text-sm text-muted-foreground" data-testid={`text-contact-company-${i}`}>
-                          {entry.companyName}
-                        </p>
-                      )}
-
-                      <div className="flex flex-wrap gap-4 pt-1">
-                        {entry.contactEmail && (
-                          <a
-                            href={`mailto:${entry.contactEmail}`}
-                            className="flex items-center gap-1.5 text-xs text-primary"
-                            data-testid={`link-contact-email-${i}`}
-                          >
-                            <Mail className="w-3.5 h-3.5" />
-                            {entry.contactEmail}
-                          </a>
-                        )}
-                        {entry.contactPhone && (
-                          <a
-                            href={`tel:${entry.contactPhone}`}
-                            className="flex items-center gap-1.5 text-xs text-primary"
-                            data-testid={`link-contact-phone-${i}`}
-                          >
-                            <Phone className="w-3.5 h-3.5" />
-                            {entry.contactPhone}
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex-shrink-0 text-right">
-                      <p className="text-xs text-muted-foreground mb-1">Project</p>
-                      <Link href={`/projects/${entry.projectId}`}>
-                        <span
-                          className="text-xs text-primary hover:underline cursor-pointer"
-                          data-testid={`link-contact-project-${i}`}
-                        >
-                          {entry.projectName}
-                        </span>
-                      </Link>
-                    </div>
-                  </div>
-                );
-              }
-            })}
+            {filtered.map((c, i) => (
+              <ContactCard
+                key={c.id}
+                c={c}
+                index={i}
+                onEdit={openEdit}
+                onDelete={setDeletingContact}
+              />
+            ))}
           </div>
         )}
       </div>
 
       {/* Footer count */}
-      {!isLoading && allEntries.length > 0 && (
+      {!isLoading && contacts.length > 0 && (
         <div className="border-t px-6 py-2 flex-shrink-0 bg-background">
           <p className="text-xs text-muted-foreground" data-testid="text-contacts-count">
-            {filtered.length} of {allEntries.length} contacts
-            {standaloneContacts.length > 0 && (
-              <span className="ml-2 text-muted-foreground/70">
-                ({standaloneContacts.length} in address book)
-              </span>
-            )}
+            {filtered.length} of {contacts.length} contacts
           </p>
         </div>
       )}

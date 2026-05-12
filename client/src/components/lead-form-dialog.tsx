@@ -68,10 +68,6 @@ const companySchema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   zip: z.string().optional(),
-  contactFullName: z.string().optional(),
-  contactTitle: z.string().optional(),
-  contactPhone: z.string().optional(),
-  contactEmail: z.string().optional(),
 });
 
 const formSchema = z.object({
@@ -98,10 +94,6 @@ function buildDefaultCompanies(existing?: LeadWithCompanies["companies"]): FormV
     city: c.city || "",
     state: c.state || "",
     zip: c.zip || "",
-    contactFullName: c.contactFullName || "",
-    contactTitle: c.contactTitle || "",
-    contactPhone: c.contactPhone || "",
-    contactEmail: c.contactEmail || "",
   }));
 }
 
@@ -362,17 +354,25 @@ function CompanyEntry({
 }) {
   const [open, setOpen] = useState(false);
   const companyName = form.watch(`companies.${index}.companyName`);
-  const contactName = form.watch(`companies.${index}.contactFullName`);
+  const contactId = form.watch(`companies.${index}.contactId`);
   const role = form.watch(`companies.${index}.companyRole`);
   const linkedCompanyId = form.watch(`companies.${index}.companyId`);
-  const hasData = !!(companyName || contactName);
 
   const { data: addressBookCompanies = [] } = useQuery<CompanyWithContacts[]>({
     queryKey: ["/api/companies"],
   });
+  const { data: allContacts = [] } = useQuery<ContactWithCompanies[]>({
+    queryKey: ["/api/contacts"],
+  });
+
   const linkedCompany = linkedCompanyId
     ? (addressBookCompanies.find((c) => c.id === linkedCompanyId) || null)
     : null;
+  const selectedContact = contactId
+    ? (allContacts.find((c) => c.id === contactId) || null)
+    : null;
+
+  const hasData = !!(companyName || selectedContact);
 
   function applyCompany(company: CompanyWithContacts) {
     form.setValue(`companies.${index}.companyId`, company.id);
@@ -390,13 +390,13 @@ function CompanyEntry({
 
   function applyContact(contact: ContactWithCompanies) {
     form.setValue(`companies.${index}.contactId`, contact.id);
-    form.setValue(`companies.${index}.contactFullName`, contact.fullName);
-    form.setValue(`companies.${index}.contactTitle`, contact.title || "");
-    form.setValue(`companies.${index}.contactPhone`, contact.phone || "");
-    form.setValue(`companies.${index}.contactEmail`, contact.email || "");
     if (contact.companyName && !form.getValues(`companies.${index}.companyName`)) {
       form.setValue(`companies.${index}.companyName`, contact.companyName);
     }
+  }
+
+  function clearContact() {
+    form.setValue(`companies.${index}.contactId`, null);
   }
 
   return (
@@ -414,7 +414,7 @@ function CompanyEntry({
                 <span className="text-sm font-medium">{role || <span className="text-muted-foreground">New Company</span>}</span>
                 {hasData && (
                   <Badge variant="secondary" className="text-xs">
-                    {companyName || contactName}
+                    {companyName || selectedContact?.fullName}
                   </Badge>
                 )}
                 {linkedCompanyId && (
@@ -566,61 +566,43 @@ function CompanyEntry({
 
             <Separator />
 
-            <div className="flex items-center justify-between">
+            {/* Contact — address book picker only */}
+            <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-medium text-muted-foreground">Contact</p>
-              <ContactPicker onSelect={applyContact} linkedCompany={linkedCompany} />
+              <div className="flex items-center gap-2">
+                <ContactPicker onSelect={applyContact} linkedCompany={linkedCompany} />
+                {contactId && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={clearContact}
+                    data-testid={`button-clear-contact-${index}`}
+                    title="Remove contact link"
+                  >
+                    <X className="w-3.5 h-3.5 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <FormField
-                control={form.control}
-                name={`companies.${index}.contactFullName`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} data-testid={`input-contact-name-${index}`} />
-                    </FormControl>
-                  </FormItem>
+            {selectedContact ? (
+              <div className="rounded-md bg-muted/40 px-3 py-2 space-y-0.5" data-testid={`contact-preview-${index}`}>
+                <p className="text-sm font-medium">{selectedContact.fullName}</p>
+                {selectedContact.title && (
+                  <p className="text-xs text-muted-foreground">{selectedContact.title}</p>
                 )}
-              />
-              <FormField
-                control={form.control}
-                name={`companies.${index}.contactTitle`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Title</FormLabel>
-                    <FormControl>
-                      <Input {...field} data-testid={`input-contact-title-${index}`} />
-                    </FormControl>
-                  </FormItem>
+                {selectedContact.phone && (
+                  <p className="text-xs text-muted-foreground">{selectedContact.phone}</p>
                 )}
-              />
-              <FormField
-                control={form.control}
-                name={`companies.${index}.contactPhone`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone</FormLabel>
-                    <FormControl>
-                      <Input {...field} type="tel" data-testid={`input-contact-phone-${index}`} />
-                    </FormControl>
-                  </FormItem>
+                {selectedContact.email && (
+                  <p className="text-xs text-muted-foreground">{selectedContact.email}</p>
                 )}
-              />
-              <FormField
-                control={form.control}
-                name={`companies.${index}.contactEmail`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input {...field} type="email" data-testid={`input-contact-email-${index}`} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No contact selected. Pick one from the address book.</p>
+            )}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -668,10 +650,6 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
         city: c.city || null,
         state: c.state || null,
         zip: c.zip || null,
-        contactFullName: c.contactFullName || null,
-        contactTitle: c.contactTitle || null,
-        contactPhone: c.contactPhone || null,
-        contactEmail: c.contactEmail || null,
       }));
 
       const payload = {
@@ -720,10 +698,6 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
       city: "",
       state: "",
       zip: "",
-      contactFullName: "",
-      contactTitle: "",
-      contactPhone: "",
-      contactEmail: "",
     });
   }
 
