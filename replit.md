@@ -203,6 +203,11 @@ Stores the studio's firm info and primary contact. On save, automatically syncs 
 
 ---
 
+## Deployment Notes
+- **contacts-fk migration** (`scripts/migrate-contacts-fk.ts`): This one-time migration backfills `contact_id` on legacy `lead_companies` rows from old inline contact fields, then drops those columns. It must be run **before** deploying any code that assumes the four inline columns (`contact_full_name`, `contact_title`, `contact_phone`, `contact_email`) are absent. Run with: `npx tsx scripts/migrate-contacts-fk.ts`. It is safe to re-run (idempotent — uses `DROP COLUMN IF EXISTS`).
+
+---
+
 ## User Preferences
 - Pure greyscale design — no color in the UI palette
 - Uppercase + wide tracking typography throughout
