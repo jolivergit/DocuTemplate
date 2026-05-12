@@ -1,6 +1,6 @@
 /**
  * Migration: contacts-fk
- * 1. For every lead_companies row that has contactFullName but no contactId,
+ * 1. For every lead_companies row that has contact_full_name but no contact_id,
  *    upsert a contacts record and backfill contact_id.
  * 2. Drop the four inline columns: contact_full_name, contact_title,
  *    contact_phone, contact_email.
@@ -8,22 +8,18 @@
  * Run with: npx tsx scripts/migrate-contacts-fk.ts
  */
 import { Pool, neonConfig } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-serverless";
 import ws from "ws";
-import * as schema from "../shared/schema";
-import { eq, isNull, isNotNull, and, sql } from "drizzle-orm";
 
 neonConfig.webSocketConstructor = ws;
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL not set");
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const db = drizzle({ client: pool, schema });
 
 async function main() {
   console.log("Starting migration: contacts-fk");
 
-  // Step 1: Find all lead_companies rows with contactFullName but no contactId
-  // Use raw SQL since we're about to drop those columns (Drizzle schema won't know them)
+  // Step 1: Find all lead_companies rows with contact_full_name but no contact_id.
+  // We use raw SQL because these columns may not exist in the Drizzle schema anymore.
   const { rows: orphanRows } = await pool.query<{
     id: string;
     lead_id: number;
@@ -41,7 +37,6 @@ async function main() {
   console.log(`Found ${orphanRows.length} lead_company rows without contactId.`);
 
   if (orphanRows.length > 0) {
-    // For each lead, we need the userId so we can scope contact inserts
     const leadIds = Array.from(new Set(orphanRows.map((r) => r.lead_id)));
     const { rows: leadRows } = await pool.query<{ id: number; user_id: string }>(
       `SELECT id, user_id FROM leads WHERE id = ANY($1)`,
@@ -49,8 +44,8 @@ async function main() {
     );
     const leadUserMap = new Map(leadRows.map((l) => [l.id, l.user_id]));
 
-    // Cache: email → contactId, per userId
-    const contactCache = new Map<string, string>(); // `${userId}::${email}` → contactId
+    // Cache: `${userId}::${lowerEmail}` → contactId
+    const contactCache = new Map<string, string>();
 
     for (const row of orphanRows) {
       const userId = leadUserMap.get(row.lead_id);
@@ -81,14 +76,7 @@ async function main() {
         await pool.query(
           `INSERT INTO contacts (id, user_id, full_name, title, phone, email)
            VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            newId,
-            userId,
-            row.contact_full_name,
-            row.contact_title || null,
-            row.contact_phone || null,
-            row.contact_email || null,
-          ]
+          [newId, userId, row.contact_full_name, row.contact_title || null, row.contact_phone || null, row.contact_email || null]
         );
         contactId = newId;
         console.log(`  Created contact: ${row.contact_full_name}`);
@@ -97,17 +85,13 @@ async function main() {
         }
       }
 
-      // Backfill contactId
-      await pool.query(`UPDATE lead_companies SET contact_id = $1 WHERE id = $2`, [
-        contactId,
-        row.id,
-      ]);
+      await pool.query(`UPDATE lead_companies SET contact_id = $1 WHERE id = $2`, [contactId, row.id]);
     }
 
     console.log("  contactId backfill complete.");
   }
 
-  // Step 2: Drop the four inline columns
+  // Step 2: Drop the four inline columns (IF EXISTS makes this idempotent)
   console.log("Dropping inline columns from lead_companies...");
   await pool.query(`
     ALTER TABLE lead_companies

@@ -1163,78 +1163,55 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount ? result.rowCount > 0 : false;
   }
 
-  // ─── Migration: backfill lead_companies text data into address book ────────────
-  // Idempotent: skip rows that already have companyId/contactId set.
+  // ─── Migration: backfill lead_companies companyName into address book ─────────
+  // Links any lead_companies rows that have a companyName but no companyId yet.
+  // Idempotent: only processes rows with companyId still unset.
+  // Note: contactId backfill via inline fields is not supported — contacts must be
+  // assigned through the address-book picker in the lead form.
 
-  async migrateLeadCompaniesToAddressBook(userId: string): Promise<{ companiesCreated: number; contactsCreated: number; rowsUpdated: number }> {
+  async migrateLeadCompaniesToAddressBook(userId: string): Promise<{ companiesCreated: number; rowsUpdated: number }> {
     const userLeads = await db.select().from(leads).where(eq(leads.userId, userId));
-    if (userLeads.length === 0) return { companiesCreated: 0, contactsCreated: 0, rowsUpdated: 0 };
+    if (userLeads.length === 0) return { companiesCreated: 0, rowsUpdated: 0 };
 
     const leadIds = userLeads.map(l => l.id);
     const rows = await db.select().from(leadCompanies).where(inArray(leadCompanies.leadId, leadIds));
-    // Process any row that is missing at least one FK — allows reruns to complete partial rows
-    const unlinked = rows.filter(r => !r.companyId || !r.contactId);
+    const unlinked = rows.filter(r => !r.companyId && !!r.companyName);
 
     let companiesCreated = 0;
-    let contactsCreated = 0;
     let rowsUpdated = 0;
 
-    // Cache to avoid creating duplicates within this run
     const companyCache = new Map<string, string>(); // lowerName -> id
-    const contactEmailCache = new Map<string, string>(); // lowerEmail -> id
-    const contactNameCache = new Map<string, string>(); // lowerFullName -> id
-
-    // Pre-load existing companies and contacts for this user
     const existingCompanies = await db.select().from(companies).where(eq(companies.userId, userId));
-    const existingContacts = await db.select().from(contacts).where(eq(contacts.userId, userId));
     for (const c of existingCompanies) companyCache.set(c.name.toLowerCase(), c.id);
-    for (const c of existingContacts) {
-      if (c.email) contactEmailCache.set(c.email.toLowerCase(), c.id);
-      contactNameCache.set(c.fullName.toLowerCase(), c.id);
-    }
 
     for (const row of unlinked) {
-      // Preserve FKs that are already set — only backfill the missing ones
-      let companyId: string | null = row.companyId ?? null;
-      let contactId: string | null = row.contactId ?? null;
+      let companyId: string | null = null;
+      const key = row.companyName!.toLowerCase();
 
-      // Find or create company by name (case-insensitive) — only if not already linked
-      if (!companyId && row.companyName) {
-        const key = row.companyName.toLowerCase();
-        if (companyCache.has(key)) {
-          companyId = companyCache.get(key)!;
-        } else {
-          const [newCompany] = await db.insert(companies).values({
-            userId,
-            name: row.companyName,
-            addressLine1: row.addressLine1,
-            addressLine2: row.addressLine2,
-            city: row.city,
-            state: row.state,
-            zip: row.zip,
-          }).returning();
-          companyId = newCompany.id;
-          companyCache.set(key, companyId);
-          companiesCreated++;
-        }
+      if (companyCache.has(key)) {
+        companyId = companyCache.get(key)!;
+      } else {
+        const [newCompany] = await db.insert(companies).values({
+          userId,
+          name: row.companyName!,
+          addressLine1: row.addressLine1,
+          addressLine2: row.addressLine2,
+          city: row.city,
+          state: row.state,
+          zip: row.zip,
+        }).returning();
+        companyId = newCompany.id;
+        companyCache.set(key, companyId);
+        companiesCreated++;
       }
 
-      // contactId backfill from inline fields is no longer applicable —
-      // the 4 inline columns were dropped by migrate-contacts-fk.ts.
-      // This block intentionally left empty; contactId must be set via the
-      // address-book picker in the lead form.
-      void contactEmailCache;
-      void contactNameCache;
-
-      if (companyId || contactId) {
-        await db.update(leadCompanies)
-          .set({ companyId: companyId || undefined, contactId: contactId || undefined })
-          .where(eq(leadCompanies.id, row.id));
-        rowsUpdated++;
-      }
+      await db.update(leadCompanies)
+        .set({ companyId })
+        .where(eq(leadCompanies.id, row.id));
+      rowsUpdated++;
     }
 
-    return { companiesCreated, contactsCreated, rowsUpdated };
+    return { companiesCreated, rowsUpdated };
   }
 }
 
