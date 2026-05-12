@@ -226,8 +226,8 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
         hoursInputs,
         expenseInputs,
         notes: notes.trim() || undefined,
-        existingHoursIds: selectedHoursIds.size > 0 ? [...selectedHoursIds] : undefined,
-        existingExpenseIds: selectedExpenseIds.size > 0 ? [...selectedExpenseIds] : undefined,
+        existingHoursIds: selectedHoursIds.size > 0 ? Array.from(selectedHoursIds) : undefined,
+        existingExpenseIds: selectedExpenseIds.size > 0 ? Array.from(selectedExpenseIds) : undefined,
       });
       return res.json();
     },
