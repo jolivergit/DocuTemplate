@@ -17,10 +17,13 @@ import NotFound from "@/pages/not-found";
 import { useQuery } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 import { SiGoogle } from "react-icons/si";
-import squareLogo from "@assets/studioarchsquare_1778640146834.png";
-import headerImg from "@assets/studioarchheader_1778640146833.png";
+import squareLogoLight from "@assets/studioarchsquare_1778640146834.png";
+import squareLogoDark from "@assets/studioarchsquaredark_1778640849637.png";
+import headerImgLight from "@assets/studioarchheader_1778640146833.png";
+import headerImgDark from "@assets/studioarchheaderdark_1778640849637.png";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useTheme } from "@/hooks/use-theme";
 
 function getPageTitle(location: string): string {
   if (location === "/" || location === "") return "Dashboard";
@@ -35,6 +38,10 @@ function getPageTitle(location: string): string {
 }
 
 function AuthGate({ children }: { children: React.ReactNode }) {
+  const theme = useTheme();
+  const squareLogo = theme === "dark" ? squareLogoDark : squareLogoLight;
+  const headerImg = theme === "dark" ? headerImgDark : headerImgLight;
+
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/auth/user"],
     retry: false,

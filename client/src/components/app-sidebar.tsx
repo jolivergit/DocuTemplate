@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { FileText, Briefcase, LayoutDashboard, Users, Building2, User, LogOut, Settings, ChevronDown } from "lucide-react";
-import headerImg from "@assets/studioarchheader_1778640146833.png";
+import headerImgLight from "@assets/studioarchheader_1778640146833.png";
+import headerImgDark from "@assets/studioarchheaderdark_1778640849637.png";
+import { useTheme } from "@/hooks/use-theme";
 import {
   Sidebar,
   SidebarContent,
@@ -45,6 +47,9 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const activeNavUrl = [...navItems]
     .filter(item => item.exact ? loc === item.url : loc.startsWith(item.url))
     .sort((a, b) => b.url.length - a.url.length)[0]?.url;
+
+  const theme = useTheme();
+  const headerImg = theme === "dark" ? headerImgDark : headerImgLight;
 
   const activeSettingUrl = [...settingsItems]
     .filter(item => loc === item.url || loc.startsWith(item.url))
