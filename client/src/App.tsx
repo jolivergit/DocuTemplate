@@ -21,6 +21,7 @@ import squareLogoLight from "@assets/studioarchsquare_1778640146834.png";
 import squareLogoDark from "@assets/studioarchsquaredark_1778640849637.png";
 import headerImgLight from "@assets/studioarchheader_1778640146833.png";
 import headerImgDark from "@assets/studioarchheaderdark_1778640849637.png";
+import archBg from "@assets/login_bg_architecture.png";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useTheme } from "@/hooks/use-theme";
@@ -60,34 +61,50 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return (
-      <div className="flex flex-col h-screen bg-background">
-        <header className="h-20 border-b flex-shrink-0 flex items-stretch justify-between bg-background">
-          <div className="w-20 flex-shrink-0 overflow-hidden flex items-center px-2">
-            <img src={squareLogo} alt="Studio PM" className="h-16 w-16 object-contain" />
-          </div>
-          <div className="flex items-center px-4">
+      <div className="flex h-screen bg-background">
+        {/* Left column — login */}
+        <div className="flex flex-col w-full md:w-1/2 items-center justify-center px-10 relative">
+          <div className="absolute top-4 right-4">
             <ThemeToggle />
           </div>
-        </header>
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center max-w-md px-6">
-            <img src={headerImg} alt="Studio PM" className="w-64 h-20 mx-auto mb-6 object-cover object-left" data-testid="icon-login-logo" />
-            <h2 className="text-2xl font-semibold mb-3" data-testid="text-login-title">Welcome to Studio PM</h2>
-            <p className="text-sm text-muted-foreground mb-8" data-testid="text-login-description">
-              The industries leading project pipeline manager. Track every lead, proposal, project, expense, and invoice from one place.
+          <div className="w-full max-w-sm text-center">
+            <img
+              src={headerImg}
+              alt="Studio PM"
+              className="w-full h-28 mx-auto mb-8 object-cover object-left"
+              data-testid="icon-login-logo"
+            />
+            <h2 className="text-2xl font-semibold mb-2" data-testid="text-login-title">Welcome to Studio PM</h2>
+            <p className="text-sm text-muted-foreground mb-10" data-testid="text-login-description">
+              Sign in to access your project pipeline.
             </p>
             <Button
               variant="default"
               size="default"
               onClick={() => { window.location.href = "/auth/google"; }}
-              className="gap-2"
+              className="gap-2 w-full"
               data-testid="button-google-login"
             >
               <SiGoogle className="w-4 h-4" />
               Sign in with Google
             </Button>
           </div>
-        </main>
+        </div>
+
+        {/* Right column — architectural image with quote */}
+        <div className="hidden md:flex md:w-1/2 relative overflow-hidden">
+          <img
+            src={archBg}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
+          <div className="relative z-10 flex flex-col justify-end p-12 pb-16">
+            <p className="text-white text-xl font-semibold leading-relaxed tracking-wide max-w-xs">
+              "The industries leading project pipeline manager. Track every lead, proposal, project, expense, and invoice from one place."
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

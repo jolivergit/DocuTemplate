@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "jxzJa82qExhNkxGRKrr9z"
+uri = "file://attached_assets/login_bg_architecture.png"
+type = "image"
+title = "greyscale architectural skyscraper"
