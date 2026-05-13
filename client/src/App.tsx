@@ -71,10 +71,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
             <img
               src={headerImg}
               alt="Studio PM"
-              className="w-full h-28 mx-auto mb-8 object-cover object-left"
+              className="w-full h-28 mx-auto mb-4 object-cover object-left"
               data-testid="icon-login-logo"
             />
-            <p className="text-sm text-muted-foreground mb-10" data-testid="text-login-description">
+            <p className="text-sm text-muted-foreground mb-4" data-testid="text-login-description">
               Sign in to access your project pipeline.
             </p>
             <Button
