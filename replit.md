@@ -71,8 +71,8 @@ Standard field names auto-populated from the profile and from "Load to Doc Build
 ### App Shell
 - **Sidebar** (Shadcn `Sidebar`, fixed width `14rem`):
   - Header: "STUDIO PM" brand label
-  - Main nav: Dashboard, Projects, Companies, Contacts, Doc Builder
-  - Footer: Settings section with **Firm** and **Contact** nav items, then a separator, then avatar + user name + Sign out button
+  - Main nav: Dashboard, Projects, Companies, Contacts
+  - Footer: collapsible Settings section (defaults open) with **Firm**, **Contact**, and **Doc Builder** nav items, then a separator, then avatar + user name + Sign out button
 - **Header bar** (h-14, border-b): sidebar toggle (left) | current page title in uppercase tracking-widest (center-left) | theme toggle (right)
 - **Main content**: fills remaining space, each page manages its own scroll
 

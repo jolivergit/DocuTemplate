@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { FileText, Briefcase, Compass, Users, Building2, User, LogOut } from "lucide-react";
+import { FileText, Briefcase, Compass, Users, Building2, User, LogOut, Settings, ChevronDown } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -13,6 +14,7 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import type { User as UserType } from "@shared/schema";
@@ -22,12 +24,12 @@ const navItems = [
   { title: "Projects", url: "/projects", icon: Briefcase, exact: false },
   { title: "Companies", url: "/companies", icon: Building2, exact: false },
   { title: "Contacts", url: "/contacts", icon: Users, exact: false },
-  { title: "Doc Builder", url: "/doc-builder", icon: FileText, exact: false },
 ];
 
 const settingsItems = [
   { title: "Firm", url: "/profile/firm", icon: Building2 },
   { title: "Contact", url: "/profile/contact", icon: User },
+  { title: "Doc Builder", url: "/doc-builder", icon: FileText },
 ];
 
 interface AppSidebarProps {
@@ -36,8 +38,8 @@ interface AppSidebarProps {
 
 export function AppSidebar({ user }: AppSidebarProps) {
   const [location] = useLocation();
+  const [settingsOpen, setSettingsOpen] = useState(true);
 
-  // Only the single most-specific matching nav item should be active
   const loc = location || "/";
   const activeNavUrl = [...navItems]
     .filter(item => item.exact ? loc === item.url : loc.startsWith(item.url))
@@ -78,24 +80,39 @@ export function AppSidebar({ user }: AppSidebarProps) {
       <SidebarFooter className="pb-3">
         <SidebarSeparator />
 
-        {/* Settings section */}
-        <SidebarGroup className="py-1">
-          <SidebarGroupLabel>Settings</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {settingsItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild data-active={item.url === activeSettingUrl}>
-                    <Link href={item.url}>
-                      <item.icon className="w-4 h-4" />
-                      <span className="tracking-wide uppercase">{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Settings section — collapsible */}
+        <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <SidebarGroup className="py-1">
+            <CollapsibleTrigger asChild>
+              <SidebarGroupLabel className="flex items-center justify-between w-full cursor-pointer select-none hover:text-foreground transition-colors">
+                <div className="flex items-center gap-1.5">
+                  <Settings className="w-3 h-3" />
+                  Settings
+                </div>
+                <ChevronDown
+                  className="w-3 h-3 transition-transform duration-200"
+                  style={{ transform: settingsOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
+                />
+              </SidebarGroupLabel>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {settingsItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild data-active={item.url === activeSettingUrl}>
+                        <Link href={item.url}>
+                          <item.icon className="w-4 h-4" />
+                          <span className="tracking-wide uppercase">{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </SidebarGroup>
+        </Collapsible>
 
         {/* User identity + sign out */}
         {user && (
