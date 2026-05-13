@@ -18,7 +18,10 @@ import {
   Send,
   Clock,
   Receipt,
+  CalendarIcon,
 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -345,6 +348,57 @@ function ProposalsTab({ leadId, projectName }: { leadId: number; projectName: st
   );
 }
 
+// ─── Date Picker Input ───────────────────────────────────────────────────────────
+
+function DatePickerInput({
+  value,
+  onChange,
+  testId,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  testId?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = value ? new Date(value + "T12:00:00") : undefined;
+  const label = selected
+    ? selected.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : undefined;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 w-full justify-start text-left font-normal text-xs"
+          data-testid={testId}
+        >
+          <CalendarIcon className="mr-1.5 h-3 w-3 text-muted-foreground shrink-0" />
+          {label ? <span>{label}</span> : <span className="text-muted-foreground">Pick date</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={selected}
+          onSelect={(day) => {
+            if (day) {
+              const iso = [
+                day.getFullYear(),
+                String(day.getMonth() + 1).padStart(2, "0"),
+                String(day.getDate()).padStart(2, "0"),
+              ].join("-");
+              onChange(iso);
+            }
+            setOpen(false);
+          }}
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ─── Time & Expenses Tab ────────────────────────────────────────────────────────
 
 const MILEAGE_RATE_DEFAULT = "0.67";
@@ -560,7 +614,7 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
             <div className="grid grid-cols-[120px_1fr_80px_90px] gap-2">
               <div className="space-y-1">
                 <Label className="text-xs">Date</Label>
-                <Input type="date" value={hDate} onChange={(e) => setHDate(e.target.value)} className="h-8 text-xs" data-testid="input-te-hours-date" />
+                <DatePickerInput value={hDate} onChange={setHDate} testId="input-te-hours-date" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Description</Label>
@@ -606,7 +660,7 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
                     <div className="grid grid-cols-[120px_1fr_80px_90px] gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs">Date</Label>
-                        <Input type="date" value={ehDate} onChange={(e) => setEhDate(e.target.value)} className="h-8 text-xs" data-testid={`input-edit-hours-date-${h.id}`} />
+                        <DatePickerInput value={ehDate} onChange={setEhDate} testId={`input-edit-hours-date-${h.id}`} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Description</Label>
@@ -703,7 +757,7 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
             <div className="grid grid-cols-[120px_140px_1fr] gap-2">
               <div className="space-y-1">
                 <Label className="text-xs">Date</Label>
-                <Input type="date" value={eDate} onChange={(e) => setEDate(e.target.value)} className="h-8 text-xs" data-testid="input-te-expense-date" />
+                <DatePickerInput value={eDate} onChange={setEDate} testId="input-te-expense-date" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Type</Label>
@@ -772,7 +826,7 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
                     <div className="grid grid-cols-[120px_140px_1fr] gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs">Date</Label>
-                        <Input type="date" value={eeDate} onChange={(ev) => setEeDate(ev.target.value)} className="h-8 text-xs" data-testid={`input-edit-expense-date-${e.id}`} />
+                        <DatePickerInput value={eeDate} onChange={setEeDate} testId={`input-edit-expense-date-${e.id}`} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Type</Label>
