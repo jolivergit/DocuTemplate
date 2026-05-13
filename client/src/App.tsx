@@ -62,7 +62,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex flex-col h-screen bg-background">
         <header className="h-20 border-b flex-shrink-0 flex items-stretch justify-between bg-background">
-          <div className="w-56 flex-shrink-0 overflow-hidden">
+          <div className="w-80 flex-shrink-0 overflow-hidden">
             <img src={headerImg} alt="Studio PM" className="w-full h-full object-cover object-left" />
           </div>
           <div className="flex items-center px-4">
