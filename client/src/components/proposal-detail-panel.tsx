@@ -109,10 +109,11 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
     setIsLoadingDocBuilder(true);
     try {
       // Clear stale proposal context fields before loading fresh values
+      // Note: client_ is intentionally excluded — proposals don't populate those fields
       await fetch("/api/field-values/by-prefix", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prefixes: ["proposal_", "project_name", "client_"] }),
+        body: JSON.stringify({ prefixes: ["proposal_", "project_name"] }),
       });
 
       const grandTotal = proposal.phases.reduce((sum, ph) => sum + phaseTotal(ph), 0);
