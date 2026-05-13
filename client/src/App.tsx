@@ -99,7 +99,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
           <div className="absolute inset-0 z-10 flex items-center justify-center p-12">
-            <p className="text-white text-xl font-semibold leading-relaxed tracking-wide max-w-xs text-center">
+            <p className="text-white text-3xl font-semibold leading-relaxed tracking-widest max-w-sm text-center" style={{textShadow: "0 2px 16px rgba(0,0,0,0.7)"}}>
               The industries leading project pipeline manager. Track every lead, proposal, project, expense, and invoice from one place.
             </p>
           </div>
