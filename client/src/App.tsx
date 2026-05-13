@@ -54,9 +54,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   if (!user) {
     return (
       <div className="flex flex-col h-screen bg-background">
-        <header className="h-16 border-b flex-shrink-0 flex items-center justify-between px-4 bg-[#0c0c0c]">
-          <img src={headerImg} alt="Studio PM" className="h-full py-1.5 w-auto object-contain object-left" />
-          <ThemeToggle />
+        <header className="h-20 border-b flex-shrink-0 flex items-stretch justify-between bg-[#0c0c0c]">
+          <div className="w-56 overflow-hidden flex-shrink-0">
+            <img src={headerImg} alt="Studio PM" className="w-full h-full object-cover object-center" />
+          </div>
+          <div className="flex items-center px-4">
+            <ThemeToggle />
+          </div>
         </header>
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-md px-6">
