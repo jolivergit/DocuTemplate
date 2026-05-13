@@ -82,6 +82,7 @@ export interface IStorage {
   createFieldValue(userId: string, fieldValue: InsertFieldValue): Promise<FieldValue>;
   updateFieldValue(userId: string, id: string, fieldValue: Partial<InsertFieldValue>): Promise<FieldValue | undefined>;
   deleteFieldValue(userId: string, id: string): Promise<boolean>;
+  deleteFieldValuesByPrefixes(userId: string, prefixes: string[]): Promise<number>;
 
   // User Profile (firm info)
   getMyProfile(userId: string): Promise<Profile | undefined>;
@@ -270,6 +271,15 @@ export class DatabaseStorage implements IStorage {
       .delete(fieldValues)
       .where(and(eq(fieldValues.id, id), eq(fieldValues.userId, userId)));
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async deleteFieldValuesByPrefixes(userId: string, prefixes: string[]): Promise<number> {
+    if (!prefixes.length) return 0;
+    const conditions = prefixes.map((p) => sql`${fieldValues.name} LIKE ${p + "%"}`);
+    const result = await db
+      .delete(fieldValues)
+      .where(and(eq(fieldValues.userId, userId), sql`(${sql.join(conditions, sql` OR `)})`));
+    return result.rowCount ?? 0;
   }
 
   async getProfiles(userId: string): Promise<Profile[]> {

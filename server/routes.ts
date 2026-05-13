@@ -1054,6 +1054,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete field values by name prefixes (used by Load to Doc Builder to clear stale context)
+  app.delete("/api/field-values/by-prefix", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { prefixes } = req.body;
+      if (!Array.isArray(prefixes) || prefixes.some((p) => typeof p !== "string")) {
+        return res.status(400).json({ error: "prefixes must be an array of strings" });
+      }
+      const count = await storage.deleteFieldValuesByPrefixes(userId, prefixes);
+      res.json({ deleted: count });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Upsert field value by name (for invoice doc pre-population)
   app.post("/api/field-values/upsert-by-name", requireAuth, async (req, res) => {
     try {

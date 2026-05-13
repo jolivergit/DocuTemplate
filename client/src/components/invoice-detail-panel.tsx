@@ -191,7 +191,14 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
 
     setIsGenerating(true);
     try {
-      // Step 1: Upsert all invoice field values
+      // Step 1: Clear stale invoice context fields before loading fresh values
+      await fetch("/api/field-values/by-prefix", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prefixes: ["invoice_", "fee_line_", "hours_entry_", "expense_entry_", "project_name", "client_"] }),
+      });
+
+      // Step 2: Upsert all invoice field values
       const fieldMappings = buildInvoiceFieldMappings(invoice);
       const upsertResults = await Promise.all(
         fieldMappings.map((fv) =>
