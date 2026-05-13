@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 import { SiGoogle } from "react-icons/si";
 import squareLogo from "@assets/studioarchsquare_1778640146834.png";
+import headerImg from "@assets/studioarchheader_1778640146833.png";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -53,11 +54,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   if (!user) {
     return (
       <div className="flex flex-col h-screen bg-background">
-        <header className="h-14 border-b flex items-center justify-between px-6 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <img src={squareLogo} alt="Studio PM" className="w-7 h-7 rounded-sm" />
-            <h1 className="text-lg font-semibold">Studio PM</h1>
-          </div>
+        <header className="h-16 border-b flex-shrink-0 flex items-center justify-between px-4 bg-[#0c0c0c]">
+          <img src={headerImg} alt="Studio PM" className="h-full py-1.5 w-auto object-contain object-left" />
           <ThemeToggle />
         </header>
         <main className="flex-1 flex items-center justify-center">
