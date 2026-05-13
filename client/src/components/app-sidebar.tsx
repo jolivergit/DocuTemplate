@@ -61,7 +61,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
         <img
           src={headerImg}
           alt="Studio PM"
-          className="w-full h-20 object-cover object-center"
+          className="w-full h-20 object-contain object-left"
         />
       </SidebarHeader>
 
