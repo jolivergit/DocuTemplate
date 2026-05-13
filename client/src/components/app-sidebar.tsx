@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { FileText, Briefcase, Compass, Users, Building2, User, LogOut, Settings, ChevronDown } from "lucide-react";
+import { FileText, Briefcase, LayoutDashboard, Users, Building2, User, LogOut, Settings, ChevronDown } from "lucide-react";
+import headerImg from "@assets/studioarchheader_1778640146833.png";
 import {
   Sidebar,
   SidebarContent,
@@ -20,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import type { User as UserType } from "@shared/schema";
 
 const navItems = [
-  { title: "Dashboard", url: "/", icon: Compass, exact: true },
+  { title: "Dashboard", url: "/", icon: LayoutDashboard, exact: true },
   { title: "Projects", url: "/projects", icon: Briefcase, exact: false },
   { title: "Companies", url: "/companies", icon: Building2, exact: false },
   { title: "Contacts", url: "/contacts", icon: Users, exact: false },
@@ -51,11 +52,12 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4 border-b">
-        <div className="flex items-center gap-2">
-          <Compass className="w-4 h-4 flex-shrink-0" />
-          <span className="text-xs font-medium uppercase tracking-widest">Studio PM</span>
-        </div>
+      <SidebarHeader className="border-b overflow-hidden">
+        <img
+          src={headerImg}
+          alt="Studio PM"
+          className="w-full h-20 object-cover object-center"
+        />
       </SidebarHeader>
 
       <SidebarContent>
