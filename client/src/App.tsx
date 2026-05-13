@@ -74,7 +74,6 @@ function AuthGate({ children }: { children: React.ReactNode }) {
               className="w-full h-28 mx-auto mb-8 object-cover object-left"
               data-testid="icon-login-logo"
             />
-            <h2 className="text-2xl font-semibold mb-2" data-testid="text-login-title">Welcome to Studio PM</h2>
             <p className="text-sm text-muted-foreground mb-10" data-testid="text-login-description">
               Sign in to access your project pipeline.
             </p>
