@@ -361,22 +361,26 @@ function DatePickerInput({
 }) {
   const [open, setOpen] = useState(false);
   const selected = value ? new Date(value + "T12:00:00") : undefined;
-  const label = selected
-    ? selected.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-    : undefined;
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 w-full justify-start text-left font-normal text-xs"
+      <div className="flex h-8 rounded-md border border-input overflow-hidden focus-within:ring-1 focus-within:ring-ring">
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="YYYY-MM-DD"
+          className="h-full flex-1 min-w-0 border-0 rounded-none shadow-none focus-visible:ring-0 text-xs"
           data-testid={testId}
-        >
-          <CalendarIcon className="mr-1.5 h-3 w-3 text-muted-foreground shrink-0" />
-          {label ? <span>{label}</span> : <span className="text-muted-foreground">Pick date</span>}
-        </Button>
-      </PopoverTrigger>
+        />
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            tabIndex={-1}
+            className="h-full w-8 shrink-0 border-l flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
+          >
+            <CalendarIcon className="h-3.5 w-3.5" />
+          </button>
+        </PopoverTrigger>
+      </div>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="single"
