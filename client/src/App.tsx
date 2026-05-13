@@ -63,7 +63,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
             <img src={squareLogo} alt="Studio PM" className="w-20 h-20 mx-auto mb-6 rounded-lg" data-testid="icon-login-logo" />
             <h2 className="text-2xl font-semibold mb-3" data-testid="text-login-title">Welcome to Studio PM</h2>
             <p className="text-sm text-muted-foreground mb-8" data-testid="text-login-description">
-              Oliver Studios' project pipeline manager. Track every lead, proposal, project, and invoice from one place.
+              The industries leading project pipeline manager. Track every lead, proposal, project, expense, and invoice from one place.
             </p>
             <Button
               variant="default"
