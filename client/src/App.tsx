@@ -98,7 +98,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
             className="absolute inset-0 w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
-          <div className="relative z-10 flex flex-col justify-center items-center h-full p-12">
+          <div className="absolute inset-0 z-10 flex items-center justify-center p-12">
             <p className="text-white text-xl font-semibold leading-relaxed tracking-wide max-w-xs text-center">
               The industries leading project pipeline manager. Track every lead, proposal, project, expense, and invoice from one place.
             </p>
