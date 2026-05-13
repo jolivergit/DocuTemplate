@@ -62,8 +62,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex flex-col h-screen bg-background">
         <header className="h-20 border-b flex-shrink-0 flex items-stretch justify-between bg-background">
-          <div className="w-80 flex-shrink-0 overflow-hidden">
-            <img src={headerImg} alt="Studio PM" className="w-full h-full object-cover object-left" />
+          <div className="w-20 flex-shrink-0 overflow-hidden flex items-center px-2">
+            <img src={squareLogo} alt="Studio PM" className="h-16 w-16 object-contain" />
           </div>
           <div className="flex items-center px-4">
             <ThemeToggle />
@@ -71,7 +71,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         </header>
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-md px-6">
-            <img src={squareLogo} alt="Studio PM" className="w-20 h-20 mx-auto mb-6 rounded-lg" data-testid="icon-login-logo" />
+            <img src={headerImg} alt="Studio PM" className="w-64 h-20 mx-auto mb-6 object-cover object-left" data-testid="icon-login-logo" />
             <h2 className="text-2xl font-semibold mb-3" data-testid="text-login-title">Welcome to Studio PM</h2>
             <p className="text-sm text-muted-foreground mb-8" data-testid="text-login-description">
               The industries leading project pipeline manager. Track every lead, proposal, project, expense, and invoice from one place.
