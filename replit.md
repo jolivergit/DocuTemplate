@@ -70,7 +70,7 @@ Standard field names auto-populated from the profile and from "Load to Doc Build
 
 ### App Shell
 - **Sidebar** (Shadcn `Sidebar`, fixed width `14rem`):
-  - Header: "STUDIO PM" brand label
+  - Header: `studioarchheader` wide banner image (h-20, object-cover object-left) — swaps to `studioarchheaderdark` in dark mode
   - Main nav: Dashboard, Projects, Companies, Contacts
   - Footer: collapsible Settings section (defaults open) with **Firm**, **Contact**, and **Doc Builder** nav items, then a separator, then avatar + user name + Sign out button
 - **Header bar** (h-14, border-b): sidebar toggle (left) | current page title in uppercase tracking-widest (center-left) | theme toggle (right)
@@ -89,6 +89,22 @@ Profile pages (Firm, Contact) use a simple scrollable form layout with a page ti
 - Typography: uppercase + wide tracking on all h1–h4 headings and sidebar nav labels, applied via `@layer base` in `index.css`
 - Sidebar brand: `text-xs font-medium uppercase tracking-widest`
 - Page title in header: `text-base font-semibold uppercase tracking-widest`
+
+### Theme-Aware Logos
+A `useTheme` hook (`client/src/hooks/use-theme.ts`) watches `document.documentElement` class changes via `MutationObserver` and returns `"light" | "dark"`. Used in `App.tsx` (AuthGate) and `app-sidebar.tsx` to swap logo assets at runtime with no page reload.
+
+| Asset file | Used in | Mode |
+|---|---|---|
+| `studioarchheader_1778640146833.png` | Sidebar header, login left-col logo | Light |
+| `studioarchheaderdark_1778640849637.png` | Sidebar header, login left-col logo | Dark |
+| `studioarchsquare_1778640146834.png` | Loading spinner | Light |
+| `studioarchsquaredark_1778640849637.png` | Loading spinner | Dark |
+| `login_bg_architecture.png` | Login page right-column background | Both |
+
+### Login Page Layout
+No top header bar. Full-screen two-column split:
+- **Left column** (`w-1/2`): centered wide banner logo + "Sign in to access your project pipeline." blurb + full-width "Sign in with Google" button. Theme toggle in top-right corner.
+- **Right column** (`w-1/2`, hidden on mobile): greyscale AI-generated architectural skyscraper photo (`login_bg_architecture.png`) as full-bleed background with a dark gradient wash (`bg-gradient-to-t from-black/80`). Tagline text (`text-3xl tracking-widest text-shadow`) centered absolutely over the image.
 
 ---
 
@@ -193,6 +209,7 @@ Stores the studio's firm info and primary contact. On save, automatically syncs 
 
 ### Field Values
 - `POST /api/field-values/upsert-by-name` — Upsert field value by name (used by invoice + proposal "Load to Doc Builder" and by profile save)
+- `DELETE /api/field-values/by-prefix` — Delete all field values whose name starts with one of the provided prefixes (body: `{ prefixes: string[] }`). Called before "Load to Doc Builder" to clear stale proposal/invoice fields before writing fresh ones.
 
 ---
 
