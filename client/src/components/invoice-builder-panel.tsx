@@ -37,8 +37,7 @@ function calcEarned(baseFee: string | null | undefined, pct: string): number {
 
 interface SnapshotInput {
   proposalFeeLineId: string;
-  serviceCategory: string;
-  discipline: string;
+  consultant: string;
   feeType: string;
   baseFee: string | null;
   percentComplete: string;
@@ -72,8 +71,7 @@ function buildSnapshotInputs(proposal: ProposalWithPhases): SnapshotInput[] {
     for (const fl of phase.feeLines) {
       inputs.push({
         proposalFeeLineId: fl.id,
-        serviceCategory: fl.serviceCategory,
-        discipline: fl.discipline,
+        consultant: fl.consultant,
         feeType: fl.feeType,
         baseFee: fl.amount,
         percentComplete: "0",
@@ -284,7 +282,7 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Discipline / Category</th>
+                <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Consultant</th>
                 <th className="text-center px-3 py-2 font-medium text-muted-foreground text-xs w-24">Type</th>
                 <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs">Base Fee</th>
                 <th className="text-center px-3 py-2 font-medium text-muted-foreground text-xs">% / Hours</th>
@@ -319,8 +317,7 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
                     return (
                       <tr key={s.proposalFeeLineId}>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-sm">{s.discipline}</p>
-                          <p className="text-xs text-muted-foreground">{s.serviceCategory}</p>
+                          <p className="font-medium text-sm">{s.consultant}</p>
                         </td>
                         <td className="px-3 py-3 text-center">
                           <Badge variant="secondary" className="text-xs">{s.feeType}</Badge>

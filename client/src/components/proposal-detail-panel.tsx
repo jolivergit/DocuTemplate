@@ -19,8 +19,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ProposalFormDialog } from "@/components/proposal-form-dialog";
 import {
-  SERVICE_CATEGORIES,
-  DISCIPLINES,
   type ProposalWithPhases,
   type ProposalStatus,
 } from "@shared/schema";
@@ -292,31 +290,15 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
                     {total > 0 && <span className="text-sm font-medium">{fmt(total.toFixed(2))}</span>}
                   </div>
                   <div className="divide-y">
-                    {SERVICE_CATEGORIES.map((cat) => {
-                      const catLines = phase.feeLines.filter((fl) => fl.serviceCategory === cat);
-                      if (catLines.every((fl) => !fl.amount && fl.feeType !== "Hourly")) return null;
-                      return (
-                        <div key={cat}>
-                          <div className="px-4 py-1.5 bg-muted/10">
-                            <span className="text-xs font-medium text-muted-foreground">{cat}</span>
-                          </div>
-                          <div className="divide-y">
-                            {catLines.map((fl) => {
-                              if (!fl.amount && fl.feeType !== "Hourly") return null;
-                              return (
-                                <div key={fl.id} className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-2 text-sm">
-                                  <span className="text-muted-foreground pl-2">{fl.discipline}</span>
-                                  <Badge variant="secondary" className="text-xs">{fl.feeType}</Badge>
-                                  <span className="font-medium text-right min-w-[80px]">
-                                    {fl.feeType === "Hourly" ? <span className="text-muted-foreground italic text-xs">Hourly</span> : fmt(fl.amount)}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {phase.feeLines.map((fl) => (
+                      <div key={fl.id} className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-2 text-sm">
+                        <span className="text-muted-foreground">{fl.consultant}</span>
+                        <Badge variant="secondary" className="text-xs">{fl.feeType}</Badge>
+                        <span className="font-medium text-right min-w-[80px]">
+                          {fl.feeType === "Hourly" ? <span className="text-muted-foreground italic text-xs">Hourly</span> : fmt(fl.amount)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );

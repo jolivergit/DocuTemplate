@@ -108,8 +108,8 @@ export interface IStorage {
   // Proposals
   getProposals(userId: string, leadId: number): Promise<ProposalWithPhases[]>;
   getProposalById(userId: string, proposalId: string): Promise<ProposalWithPhases | undefined>;
-  createProposal(userId: string, proposal: InsertProposal, phases: { name: string; sortOrder: number; feeLines: { serviceCategory: string; discipline: string; feeType: string; amount: string | null; sortOrder: number }[] }[]): Promise<ProposalWithPhases>;
-  updateProposal(userId: string, proposalId: string, updates: Partial<InsertProposal>, phases?: { name: string; sortOrder: number; feeLines: { serviceCategory: string; discipline: string; feeType: string; amount: string | null; sortOrder: number }[] }[]): Promise<ProposalWithPhases | undefined>;
+  createProposal(userId: string, proposal: InsertProposal, phases: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[]): Promise<ProposalWithPhases>;
+  updateProposal(userId: string, proposalId: string, updates: Partial<InsertProposal>, phases?: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[]): Promise<ProposalWithPhases | undefined>;
   deleteProposal(userId: string, proposalId: string): Promise<boolean>;
   signProposal(userId: string, proposalId: string): Promise<ProposalWithPhases | undefined>;
 
@@ -621,7 +621,7 @@ export class DatabaseStorage implements IStorage {
   async createProposal(
     userId: string,
     proposalData: InsertProposal,
-    phases: { name: string; sortOrder: number; feeLines: { serviceCategory: string; discipline: string; feeType: string; amount: string | null; sortOrder: number }[] }[]
+    phases: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[]
   ): Promise<ProposalWithPhases> {
     const owned = await this.verifyLeadOwnership(userId, proposalData.leadId);
     if (!owned) throw new Error('Lead not found or access denied');
@@ -642,8 +642,7 @@ export class DatabaseStorage implements IStorage {
           .insert(proposalFeeLines)
           .values(feeLineRows.map(fl => ({
             phaseId: phase.id,
-            serviceCategory: fl.serviceCategory,
-            discipline: fl.discipline,
+            consultant: fl.consultant,
             feeType: fl.feeType,
             amount: fl.amount || null,
             sortOrder: fl.sortOrder,
@@ -660,7 +659,7 @@ export class DatabaseStorage implements IStorage {
     userId: string,
     proposalId: string,
     updates: Partial<InsertProposal>,
-    phases?: { name: string; sortOrder: number; feeLines: { serviceCategory: string; discipline: string; feeType: string; amount: string | null; sortOrder: number }[] }[]
+    phases?: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[]
   ): Promise<ProposalWithPhases | undefined> {
     const existing = await this.getProposalById(userId, proposalId);
     if (!existing) return undefined;
@@ -690,8 +689,7 @@ export class DatabaseStorage implements IStorage {
           await db.insert(proposalFeeLines).values(
             feeLineRows.map(fl => ({
               phaseId: phase.id,
-              serviceCategory: fl.serviceCategory,
-              discipline: fl.discipline,
+              consultant: fl.consultant,
               feeType: fl.feeType,
               amount: fl.amount || null,
               sortOrder: fl.sortOrder,
@@ -843,8 +841,7 @@ export class DatabaseStorage implements IStorage {
       snapshotValues.push({
         invoiceId: invoice.id,
         proposalFeeLineId: feeLine.id,
-        serviceCategory: feeLine.serviceCategory,
-        discipline: feeLine.discipline,
+        consultant: feeLine.consultant,
         feeType: feeLine.feeType,
         baseFee: baseFee !== null ? baseFee.toFixed(2) : null,
         percentComplete,

@@ -143,8 +143,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
     inv.feeLineSnapshots.forEach((s, i) => {
       const prefix = `fee_line_${i + 1}`;
       fields.push(
-        { name: `${prefix}_discipline`, value: s.discipline },
-        { name: `${prefix}_category`, value: s.serviceCategory },
+        { name: `${prefix}_consultant`, value: s.consultant },
         { name: `${prefix}_type`, value: s.feeType },
         { name: `${prefix}_base_fee`, value: s.feeType === "Fixed" ? fmt(s.baseFee) : "" },
         { name: `${prefix}_pct_complete`, value: s.feeType === "Fixed" ? `${parseFloat(s.percentComplete || "0").toFixed(0)}%` : "" },
@@ -458,8 +457,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/30">
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Discipline</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Category</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Consultant</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Base Fee</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">% / Hrs</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Earned</th>
@@ -472,8 +470,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
               <tbody className="divide-y">
                 {invoice.feeLineSnapshots.map((s) => (
                   <tr key={s.id} data-testid={`row-snapshot-${s.id}`}>
-                    <td className="px-4 py-2.5">{s.discipline}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground text-xs">{s.serviceCategory}</td>
+                    <td className="px-4 py-2.5">{s.consultant}</td>
                     <td className="px-4 py-2.5 text-right text-muted-foreground">
                       {s.feeType === "Hourly" ? <span className="italic text-xs">Hourly</span> : fmt(s.baseFee)}
                     </td>

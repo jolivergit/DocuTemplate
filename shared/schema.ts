@@ -294,11 +294,25 @@ export type ProposalStatus = typeof PROPOSAL_STATUSES[number];
 export const FEE_TYPES = ["Fixed", "Hourly"] as const;
 export type FeeType = typeof FEE_TYPES[number];
 
-export const SERVICE_CATEGORIES = ["Documentation", "Bid & Permit", "Construction Administration"] as const;
-export type ServiceCategory = typeof SERVICE_CATEGORIES[number];
+export const PHASE_TYPES = [
+  "Schematic Design",
+  "Design Development",
+  "Documentation",
+  "Bid/Permit",
+  "Construction Administration",
+  "Furniture (FF&E)",
+] as const;
+export type PhaseType = typeof PHASE_TYPES[number];
 
-export const DISCIPLINES = ["Interior Design", "MEP & FP", "Structural"] as const;
-export type Discipline = typeof DISCIPLINES[number];
+export const CONSULTANTS = [
+  "Interior Design",
+  "Architecture",
+  "MEP Engineering",
+  "Structural Engineering",
+  "Equipment Vendor",
+  "Furniture Dealer",
+] as const;
+export type ConsultantType = typeof CONSULTANTS[number];
 
 export const proposals = pgTable("proposals", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -338,8 +352,7 @@ export type ProposalPhase = typeof proposalPhases.$inferSelect;
 export const proposalFeeLines = pgTable("proposal_fee_lines", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   phaseId: varchar("phase_id").references(() => proposalPhases.id, { onDelete: "cascade" }).notNull(),
-  serviceCategory: text("service_category").notNull(),
-  discipline: text("discipline").notNull(),
+  consultant: text("consultant").notNull(),
   feeType: text("fee_type").notNull().default("Fixed"),
   amount: numeric("amount", { precision: 12, scale: 2 }),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -378,8 +391,7 @@ export const invoiceFeeLineSnapshots = pgTable("invoice_fee_line_snapshots", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   invoiceId: varchar("invoice_id").references(() => invoices.id, { onDelete: "cascade" }).notNull(),
   proposalFeeLineId: varchar("proposal_fee_line_id").notNull(),
-  serviceCategory: text("service_category").notNull(),
-  discipline: text("discipline").notNull(),
+  consultant: text("consultant").notNull(),
   feeType: text("fee_type").notNull(),
   baseFee: numeric("base_fee", { precision: 12, scale: 2 }),
   percentComplete: numeric("percent_complete", { precision: 5, scale: 2 }),
