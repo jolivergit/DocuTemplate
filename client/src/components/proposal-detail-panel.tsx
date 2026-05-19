@@ -111,7 +111,7 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
       await fetch("/api/field-values/by-prefix", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prefixes: ["proposal_", "project_name"] }),
+        body: JSON.stringify({ prefixes: ["proposal_", "project_name", "_proposal_phases"] }),
       });
 
       const grandTotal = proposal.phases.reduce((sum, ph) => sum + phaseTotal(ph), 0);
@@ -139,17 +139,34 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
         ] : []),
       ];
 
-      await Promise.all(
-        fieldMappings
-          .filter((f) => f.value)
-          .map((f) =>
-            fetch("/api/field-values/upsert-by-name", {
+      // Build phases JSON for {{proposal_phases_table}} tag
+      const phasesRows = proposal.phases.flatMap(phase =>
+        phase.feeLines.map(fl => ({
+          phase: phase.name,
+          consultant: fl.consultant,
+          feeType: fl.feeType,
+          amount: fl.amount,
+        }))
+      );
+
+      const allWrites = [
+        ...fieldMappings.filter((f) => f.value).map((f) =>
+          fetch("/api/field-values/upsert-by-name", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(f),
+          })
+        ),
+        phasesRows.length > 0
+          ? fetch("/api/field-values/upsert-by-name", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(f),
+              body: JSON.stringify({ name: "_proposal_phases_json", value: JSON.stringify(phasesRows) }),
             })
-          )
-      );
+          : Promise.resolve(),
+      ];
+
+      await Promise.all(allWrites);
 
       queryClient.invalidateQueries({ queryKey: ["/api/field-values"] });
       toast({ title: "Loaded to Doc Builder", description: "Proposal and firm info pre-filled as field values." });

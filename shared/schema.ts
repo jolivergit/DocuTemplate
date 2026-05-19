@@ -485,6 +485,8 @@ export interface TagMapping {
   snippetId: string | null;
   customContent: string | null;
   fieldValueId: string | null;
+  sectionHeader?: string | null;
+  sectionHeaderLevel?: string | null;
 }
 
 export interface GenerateDocumentRequest {
@@ -505,6 +507,8 @@ export const generateDocumentRequestSchema = z.object({
     snippetId: z.string().nullable(),
     customContent: z.string().nullable(),
     fieldValueId: z.string().nullable(),
+    sectionHeader: z.string().nullable().optional(),
+    sectionHeaderLevel: z.string().nullable().optional(),
   })),
   sectionOrder: z.array(z.string()),
 });

@@ -829,6 +829,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         iterations++;
       }
 
+      // Detect {{proposal_phases_table}} special tag — remove from regular field replacement
+      // so the tag stays in the document until we insert a real table in Step 2.5
+      const hasPhaseTable = fieldValueLookup.has('proposal_phases_table');
+      let phasesData: { phase: string; consultant: string; feeType: string; amount: string | null }[] = [];
+      if (hasPhaseTable) {
+        fieldValueLookup.delete('proposal_phases_table');
+        const phasesJsonFv = await storage.getFieldValueByName(userId, '_proposal_phases_json');
+        if (phasesJsonFv) {
+          try {
+            phasesData = JSON.parse(phasesJsonFv.value);
+          } catch (e) {
+            console.error('Failed to parse _proposal_phases_json:', e);
+          }
+        }
+      }
+
       // Step 2: Replace field tags with replaceAllText (inherits surrounding styles)
       const fieldRequests: any[] = [];
       for (const [tagName, value] of Array.from(fieldValueLookup.entries())) {
@@ -850,6 +866,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Step 2.5: Insert Google Docs table for {{proposal_phases_table}} special tag
+      if (hasPhaseTable && phasesData.length > 0) {
+        const tagToFind = '{{proposal_phases_table}}';
+        const docSnap = await docs.documents.get({ documentId: newDocId });
+        const docSnapContent = docSnap.data.body?.content || [];
+
+        let phaseTagLocation: { startIndex: number; endIndex: number } | null = null;
+        for (const element of docSnapContent) {
+          if (element.paragraph?.elements) {
+            for (const el of element.paragraph.elements) {
+              if (el.textRun?.content) {
+                const text = el.textRun.content;
+                const startOffset = el.startIndex || 0;
+                const idx = text.indexOf(tagToFind);
+                if (idx !== -1) {
+                  phaseTagLocation = {
+                    startIndex: startOffset + idx,
+                    endIndex: startOffset + idx + tagToFind.length,
+                  };
+                  break;
+                }
+              }
+            }
+            if (phaseTagLocation) break;
+          }
+        }
+
+        if (phaseTagLocation) {
+          const numTableRows = phasesData.length + 1; // +1 for header
+          const numTableCols = 4;
+
+          // Delete tag and insert empty table
+          await docs.documents.batchUpdate({
+            documentId: newDocId,
+            requestBody: {
+              requests: [
+                {
+                  deleteContentRange: {
+                    range: { startIndex: phaseTagLocation.startIndex, endIndex: phaseTagLocation.endIndex },
+                  },
+                },
+                {
+                  insertTable: {
+                    rows: numTableRows,
+                    columns: numTableCols,
+                    location: { index: phaseTagLocation.startIndex },
+                  },
+                },
+              ],
+            },
+          });
+
+          // Re-fetch to find cell indices
+          const tableDoc = await docs.documents.get({ documentId: newDocId });
+          const tableDocContent = tableDoc.data.body?.content || [];
+
+          const tableCellTexts: string[][] = [
+            ['Phase', 'Consultant', 'Fee Type', 'Amount'],
+            ...phasesData.map(d => [
+              d.phase || '',
+              d.consultant || '',
+              d.feeType || '',
+              d.feeType === 'Fixed' && d.amount
+                ? `$${parseFloat(d.amount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+                : d.feeType === 'Hourly' ? 'Hourly' : '',
+            ]),
+          ];
+
+          const cellInsertions: { index: number; text: string }[] = [];
+
+          for (const element of tableDocContent) {
+            if (element.table) {
+              const rows = element.table.tableRows || [];
+              if (rows.length === numTableRows && (rows[0]?.tableCells?.length || 0) === numTableCols) {
+                for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+                  const cells = rows[rowIdx].tableCells || [];
+                  for (let colIdx = 0; colIdx < cells.length; colIdx++) {
+                    const cellContent = cells[colIdx].content || [];
+                    if (cellContent.length > 0 && cellContent[0].startIndex !== undefined) {
+                      const text = (tableCellTexts[rowIdx] || [])[colIdx] || '';
+                      if (text) {
+                        cellInsertions.push({ index: (cellContent[0].startIndex as number) + 1, text });
+                      }
+                    }
+                  }
+                }
+                break;
+              }
+            }
+          }
+
+          // Insert text in reverse index order to preserve positions
+          cellInsertions.sort((a, b) => b.index - a.index);
+          if (cellInsertions.length > 0) {
+            await docs.documents.batchUpdate({
+              documentId: newDocId,
+              requestBody: {
+                requests: cellInsertions.map(({ index, text }) => ({
+                  insertText: { location: { index }, text },
+                })),
+              },
+            });
+          }
+        }
+      }
+
       // Step 3: For content tags, use HTML-to-Docs conversion for proper nested list formatting
       // Process each content tag
       for (const [tagName, htmlContent] of Array.from(contentValueLookup.entries())) {
@@ -863,13 +985,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return fieldValueLookup.get(trimmedName) ?? match;
         });
 
-        // DEBUG: Log the content being processed for each tag
+        // Get section header for this content tag and prepend as heading HTML if present
+        const contentMappingEntry = tagMappings.find(m => m.tagName === tagName && m.tagType === 'content');
+        const sectionHeaderText = contentMappingEntry?.sectionHeader;
+        const sectionHeaderLevel = contentMappingEntry?.sectionHeaderLevel || 'H2';
+
+        let processedHtml = resolvedHtml;
+        if (sectionHeaderText) {
+          const headingNum = sectionHeaderLevel.replace('H', '');
+          processedHtml = `<h${headingNum}>${sectionHeaderText}</h${headingNum}>${resolvedHtml || ''}`;
+        }
+
         console.log(`\n========== Processing content tag: ${tagName} ==========`);
         console.log(`Raw HTML content:\n${htmlContent}`);
-        console.log(`\nResolved HTML (after field substitution):\n${resolvedHtml}`);
+        console.log(`\nProcessed HTML (after field substitution + section header):\n${processedHtml}`);
 
         // Check if content has rich formatting that needs HTML-to-Docs conversion
-        if (hasRichFormatting(resolvedHtml)) {
+        // (section header heading HTML always qualifies as rich formatting)
+        if (hasRichFormatting(processedHtml)) {
           // Get current document to find tag locations
           const docResponse = await docs.documents.get({ documentId: newDocId });
           const docContent = docResponse.data.body?.content || [];
@@ -905,7 +1038,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           for (const location of tagLocations) {
             // Generate the formatted content insertion requests using htmlToGoogleDocsRequests
-            const { requests: formatRequests, listRuns } = htmlToGoogleDocsRequests(resolvedHtml, location.startIndex);
+            const { requests: formatRequests, listRuns } = htmlToGoogleDocsRequests(processedHtml, location.startIndex);
 
             // Build batch: delete tag first, then insert formatted content
             const batchRequests: any[] = [
@@ -933,7 +1066,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } else {
           // No rich formatting, use simple replaceAllText
-          const plainText = resolveNestedFieldsPlainText(htmlToPlainText(resolvedHtml));
+          const plainText = resolveNestedFieldsPlainText(htmlToPlainText(processedHtml));
           await docs.documents.batchUpdate({
             documentId: newDocId,
             requestBody: {

@@ -137,6 +137,19 @@ export default function Home() {
     setTagMappings(newMappings);
   };
 
+  const handleSectionHeaderSet = (tagName: string, tagType: TagType, header: string, level: string) => {
+    const key = makeTagKey(tagName, tagType);
+    const existing = tagMappings.get(key);
+    if (!existing) return;
+    const newMappings = new Map(tagMappings);
+    newMappings.set(key, {
+      ...existing,
+      sectionHeader: header || null,
+      sectionHeaderLevel: level || null,
+    });
+    setTagMappings(newMappings);
+  };
+
   const handleFieldValueEdit = (fieldValueId: string) => {
     const fieldValue = fieldValues.find(fv => fv.id === fieldValueId);
     if (fieldValue) {
@@ -219,6 +232,7 @@ export default function Home() {
                       onMappingRemove={handleMappingRemove}
                       onCustomContentSet={handleCustomContentSet}
                       onFieldValueEdit={handleFieldValueEdit}
+                      onSectionHeaderSet={handleSectionHeaderSet}
                       onAddCustomField={handleAddCustomField}
                     />
                   ) : (
@@ -288,6 +302,7 @@ export default function Home() {
                   onMappingRemove={handleMappingRemove}
                   onCustomContentSet={handleCustomContentSet}
                   onFieldValueEdit={handleFieldValueEdit}
+                  onSectionHeaderSet={handleSectionHeaderSet}
                   onAddCustomField={handleAddCustomField}
                 />
               ) : (

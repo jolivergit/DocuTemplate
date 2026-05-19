@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RichTextEditor, RichTextDisplay } from "@/components/ui/rich-text-editor";
 import {
   DndContext,
@@ -39,6 +40,7 @@ interface TagsPanelProps {
   onMappingRemove: (tagName: string, tagType: TagType) => void;
   onCustomContentSet: (tagName: string, tagType: TagType, content: string) => void;
   onFieldValueEdit?: (fieldValueId: string) => void;
+  onSectionHeaderSet?: (tagName: string, tagType: TagType, header: string, level: string) => void;
   onAddCustomField?: (fieldName: string) => void;
 }
 
@@ -51,10 +53,13 @@ interface TagItemProps {
   snippetTitle: string | null;
   fieldValueInfo: { fieldName: string; fieldValueId: string } | null;
   occurrenceCount?: number;
+  sectionHeader?: string | null;
+  sectionHeaderLevel?: string | null;
   onTagClick: (tagName: string, tagType: TagType) => void;
   onRemove: (tagName: string, tagType: TagType) => void;
   onCustomContentSet: (tagName: string, tagType: TagType, content: string) => void;
   onFieldValueEdit?: (fieldValueId: string) => void;
+  onSectionHeaderSet?: (tagName: string, tagType: TagType, header: string, level: string) => void;
 }
 
 function TagItem({
@@ -66,13 +71,18 @@ function TagItem({
   snippetTitle,
   fieldValueInfo,
   occurrenceCount,
+  sectionHeader,
+  sectionHeaderLevel,
   onTagClick,
   onRemove,
   onCustomContentSet,
   onFieldValueEdit,
+  onSectionHeaderSet,
 }: TagItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(mappedContent || "");
+  const [localSectionHeader, setLocalSectionHeader] = useState(sectionHeader || "");
+  const [localSectionHeaderLevel, setLocalSectionHeaderLevel] = useState(sectionHeaderLevel || "H2");
 
   const handleSave = () => {
     onCustomContentSet(tagName, tagType, editContent);
@@ -178,6 +188,37 @@ function TagItem({
                   <RichTextDisplay content={mappedContent || ""} />
                 )}
               </div>
+              {tagType === 'content' && onSectionHeaderSet && (
+                <div className="mt-2 pt-2 border-t space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Section Heading</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Optional heading text..."
+                      value={localSectionHeader}
+                      onChange={(e) => setLocalSectionHeader(e.target.value)}
+                      onBlur={() => onSectionHeaderSet(tagName, tagType, localSectionHeader, localSectionHeaderLevel)}
+                      className="h-7 text-xs flex-1"
+                      data-testid={`input-section-header-${testIdSuffix}`}
+                    />
+                    <Select
+                      value={localSectionHeaderLevel}
+                      onValueChange={(v) => {
+                        setLocalSectionHeaderLevel(v);
+                        onSectionHeaderSet(tagName, tagType, localSectionHeader, v);
+                      }}
+                    >
+                      <SelectTrigger className="h-7 w-16 text-xs flex-shrink-0" data-testid={`select-header-level-${testIdSuffix}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="H1">H1</SelectItem>
+                        <SelectItem value="H2">H2</SelectItem>
+                        <SelectItem value="H3">H3</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-xs text-muted-foreground" data-testid={`text-empty-hint-${testIdSuffix}`}>
@@ -264,6 +305,7 @@ interface SectionGroupProps {
   onMappingRemove: (tagName: string, tagType: TagType) => void;
   onCustomContentSet: (tagName: string, tagType: TagType, content: string) => void;
   onFieldValueEdit?: (fieldValueId: string) => void;
+  onSectionHeaderSet?: (tagName: string, tagType: TagType, header: string, level: string) => void;
   level?: number;
   isDraggable?: boolean;
 }
@@ -283,6 +325,7 @@ function SectionGroup({
   onMappingRemove,
   onCustomContentSet,
   onFieldValueEdit,
+  onSectionHeaderSet,
   level = 0,
   isDraggable = false,
 }: SectionGroupProps) {
@@ -408,10 +451,13 @@ function SectionGroup({
                 snippetTitle={snippet?.title || null}
                 fieldValueInfo={fieldValueInfo}
                 occurrenceCount={globalCount}
+                sectionHeader={mapping?.sectionHeader}
+                sectionHeaderLevel={mapping?.sectionHeaderLevel}
                 onTagClick={onTagClick}
                 onRemove={onMappingRemove}
                 onCustomContentSet={onCustomContentSet}
                 onFieldValueEdit={onFieldValueEdit}
+                onSectionHeaderSet={onSectionHeaderSet}
               />
             );
           })}
@@ -435,6 +481,7 @@ function SectionGroup({
               onMappingRemove={onMappingRemove}
               onCustomContentSet={onCustomContentSet}
               onFieldValueEdit={onFieldValueEdit}
+              onSectionHeaderSet={onSectionHeaderSet}
               level={level + 1}
             />
           ))}
@@ -457,6 +504,7 @@ export function TagsPanel({
   onMappingRemove,
   onCustomContentSet,
   onFieldValueEdit,
+  onSectionHeaderSet,
   onAddCustomField,
 }: TagsPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -668,6 +716,7 @@ export function TagsPanel({
                       onMappingRemove={onMappingRemove}
                       onCustomContentSet={onCustomContentSet}
                       onFieldValueEdit={onFieldValueEdit}
+                      onSectionHeaderSet={onSectionHeaderSet}
                       level={0}
                       isDraggable={true}
                     />
