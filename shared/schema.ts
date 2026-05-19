@@ -445,6 +445,18 @@ export const projectComments = pgTable("project_comments", {
 
 export type ProjectComment = typeof projectComments.$inferSelect;
 
+// ─── Consultant Contracts ──────────────────────────────────────────────────────
+
+export const consultantContracts = pgTable("consultant_contracts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  proposalId: varchar("proposal_id").references(() => proposals.id, { onDelete: "cascade" }).notNull(),
+  consultant: text("consultant").notNull(),
+  docUrl: text("doc_url").notNull(),
+  generatedAt: timestamp("generated_at").notNull().defaultNow(),
+});
+
+export type ConsultantContract = typeof consultantContracts.$inferSelect;
+
 export interface InvoiceWithDetails extends Invoice {
   feeLineSnapshots: InvoiceFeeLineSnapshot[];
   hoursEntries: HoursEntry[];

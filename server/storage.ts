@@ -15,6 +15,7 @@ import {
   hoursEntries,
   expenseEntries,
   projectComments,
+  consultantContracts,
   contacts,
   type Category,
   type InsertCategory,
@@ -46,6 +47,7 @@ import {
   type HoursEntry,
   type ExpenseEntry,
   type ProjectComment,
+  type ConsultantContract,
   type InvoiceWithDetails,
 } from "@shared/schema";
 import { db } from "./db";
@@ -146,6 +148,10 @@ export interface IStorage {
   createContact(userId: string, contact: InsertContact, companyIds?: string[]): Promise<ContactWithCompanies>;
   updateContact(userId: string, id: string, contact: Partial<InsertContact>, companyIds?: string[]): Promise<ContactWithCompanies | undefined>;
   deleteContact(userId: string, id: string): Promise<boolean>;
+
+  // Consultant Contracts
+  getConsultantContracts(proposalId: string): Promise<ConsultantContract[]>;
+  upsertConsultantContract(proposalId: string, consultant: string, docUrl: string): Promise<ConsultantContract>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1277,6 +1283,35 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { companiesCreated, rowsUpdated };
+  }
+
+  async getConsultantContracts(proposalId: string): Promise<ConsultantContract[]> {
+    return await db
+      .select()
+      .from(consultantContracts)
+      .where(eq(consultantContracts.proposalId, proposalId));
+  }
+
+  async upsertConsultantContract(proposalId: string, consultant: string, docUrl: string): Promise<ConsultantContract> {
+    const existing = await db
+      .select()
+      .from(consultantContracts)
+      .where(and(eq(consultantContracts.proposalId, proposalId), eq(consultantContracts.consultant, consultant)));
+
+    if (existing.length > 0) {
+      const [updated] = await db
+        .update(consultantContracts)
+        .set({ docUrl, generatedAt: sql`CURRENT_TIMESTAMP` })
+        .where(eq(consultantContracts.id, existing[0].id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(consultantContracts)
+        .values({ proposalId, consultant, docUrl })
+        .returning();
+      return created;
+    }
   }
 }
 

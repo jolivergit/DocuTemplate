@@ -333,6 +333,115 @@ function extractEmbeddedFields(content: string): string[] {
 }
 
 
+type PhaseRow = { phase: string; consultant: string; feeType: string; amount: string | null };
+
+async function insertPhaseTable(
+  docs: any,
+  docId: string,
+  tagToFind: string,
+  phasesData: PhaseRow[]
+): Promise<void> {
+  const docSnap = await docs.documents.get({ documentId: docId });
+  const docSnapContent = docSnap.data.body?.content || [];
+
+  let tagLocation: { startIndex: number; endIndex: number } | null = null;
+  for (const element of docSnapContent) {
+    if (element.paragraph?.elements) {
+      for (const el of element.paragraph.elements) {
+        if (el.textRun?.content) {
+          const text = el.textRun.content;
+          const startOffset = el.startIndex || 0;
+          const idx = text.indexOf(tagToFind);
+          if (idx !== -1) {
+            tagLocation = {
+              startIndex: startOffset + idx,
+              endIndex: startOffset + idx + tagToFind.length,
+            };
+            break;
+          }
+        }
+      }
+      if (tagLocation) break;
+    }
+  }
+
+  if (!tagLocation) return;
+
+  const numTableRows = phasesData.length + 1;
+  const numTableCols = 4;
+
+  await docs.documents.batchUpdate({
+    documentId: docId,
+    requestBody: {
+      requests: [
+        {
+          deleteContentRange: {
+            range: { startIndex: tagLocation.startIndex, endIndex: tagLocation.endIndex },
+          },
+        },
+        {
+          insertTable: {
+            rows: numTableRows,
+            columns: numTableCols,
+            location: { index: tagLocation.startIndex },
+          },
+        },
+      ],
+    },
+  });
+
+  const tableDoc = await docs.documents.get({ documentId: docId });
+  const tableDocContent = tableDoc.data.body?.content || [];
+
+  const tableCellTexts: string[][] = [
+    ['Phase', 'Consultant', 'Fee Type', 'Amount'],
+    ...phasesData.map(d => [
+      d.phase || '',
+      d.consultant || '',
+      d.feeType || '',
+      d.feeType === 'Fixed' && d.amount
+        ? `$${parseFloat(d.amount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+        : d.feeType === 'Hourly' ? 'Hourly' : '',
+    ]),
+  ];
+
+  const cellInsertions: { index: number; text: string }[] = [];
+
+  for (const element of tableDocContent) {
+    if (element.table) {
+      const rows = element.table.tableRows || [];
+      if (rows.length === numTableRows && (rows[0]?.tableCells?.length || 0) === numTableCols) {
+        for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+          const cells = rows[rowIdx].tableCells || [];
+          for (let colIdx = 0; colIdx < cells.length; colIdx++) {
+            const cellContent = cells[colIdx].content || [];
+            if (cellContent.length > 0 && cellContent[0].startIndex !== undefined) {
+              const text = (tableCellTexts[rowIdx] || [])[colIdx] || '';
+              if (text) {
+                cellInsertions.push({ index: (cellContent[0].startIndex as number) + 1, text });
+              }
+            }
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  cellInsertions.sort((a, b) => b.index - a.index);
+  if (cellInsertions.length > 0) {
+    await docs.documents.batchUpdate({
+      documentId: docId,
+      requestBody: {
+        requests: cellInsertions.map(({ index, text }) => ({
+          insertText: { location: { index }, text },
+        })),
+      },
+    });
+  }
+}
+
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.get("/auth/google", passport.authenticate("google", { 
@@ -868,108 +977,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Step 2.5: Insert Google Docs table for {{proposal_phases_table}} special tag
       if (hasPhaseTable && phasesData.length > 0) {
-        const tagToFind = '{{proposal_phases_table}}';
-        const docSnap = await docs.documents.get({ documentId: newDocId });
-        const docSnapContent = docSnap.data.body?.content || [];
-
-        let phaseTagLocation: { startIndex: number; endIndex: number } | null = null;
-        for (const element of docSnapContent) {
-          if (element.paragraph?.elements) {
-            for (const el of element.paragraph.elements) {
-              if (el.textRun?.content) {
-                const text = el.textRun.content;
-                const startOffset = el.startIndex || 0;
-                const idx = text.indexOf(tagToFind);
-                if (idx !== -1) {
-                  phaseTagLocation = {
-                    startIndex: startOffset + idx,
-                    endIndex: startOffset + idx + tagToFind.length,
-                  };
-                  break;
-                }
-              }
-            }
-            if (phaseTagLocation) break;
-          }
-        }
-
-        if (phaseTagLocation) {
-          const numTableRows = phasesData.length + 1; // +1 for header
-          const numTableCols = 4;
-
-          // Delete tag and insert empty table
-          await docs.documents.batchUpdate({
-            documentId: newDocId,
-            requestBody: {
-              requests: [
-                {
-                  deleteContentRange: {
-                    range: { startIndex: phaseTagLocation.startIndex, endIndex: phaseTagLocation.endIndex },
-                  },
-                },
-                {
-                  insertTable: {
-                    rows: numTableRows,
-                    columns: numTableCols,
-                    location: { index: phaseTagLocation.startIndex },
-                  },
-                },
-              ],
-            },
-          });
-
-          // Re-fetch to find cell indices
-          const tableDoc = await docs.documents.get({ documentId: newDocId });
-          const tableDocContent = tableDoc.data.body?.content || [];
-
-          const tableCellTexts: string[][] = [
-            ['Phase', 'Consultant', 'Fee Type', 'Amount'],
-            ...phasesData.map(d => [
-              d.phase || '',
-              d.consultant || '',
-              d.feeType || '',
-              d.feeType === 'Fixed' && d.amount
-                ? `$${parseFloat(d.amount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
-                : d.feeType === 'Hourly' ? 'Hourly' : '',
-            ]),
-          ];
-
-          const cellInsertions: { index: number; text: string }[] = [];
-
-          for (const element of tableDocContent) {
-            if (element.table) {
-              const rows = element.table.tableRows || [];
-              if (rows.length === numTableRows && (rows[0]?.tableCells?.length || 0) === numTableCols) {
-                for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
-                  const cells = rows[rowIdx].tableCells || [];
-                  for (let colIdx = 0; colIdx < cells.length; colIdx++) {
-                    const cellContent = cells[colIdx].content || [];
-                    if (cellContent.length > 0 && cellContent[0].startIndex !== undefined) {
-                      const text = (tableCellTexts[rowIdx] || [])[colIdx] || '';
-                      if (text) {
-                        cellInsertions.push({ index: (cellContent[0].startIndex as number) + 1, text });
-                      }
-                    }
-                  }
-                }
-                break;
-              }
-            }
-          }
-
-          // Insert text in reverse index order to preserve positions
-          cellInsertions.sort((a, b) => b.index - a.index);
-          if (cellInsertions.length > 0) {
-            await docs.documents.batchUpdate({
-              documentId: newDocId,
-              requestBody: {
-                requests: cellInsertions.map(({ index, text }) => ({
-                  insertText: { location: { index }, text },
-                })),
-              },
-            });
-          }
-        }
+        await insertPhaseTable(docs, newDocId, '{{proposal_phases_table}}', phasesData);
       }
 
       // Step 3: For content tags, use HTML-to-Docs conversion for proper nested list formatting
@@ -1315,6 +1323,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!success) return res.status(404).json({ error: "Proposal not found" });
       res.json({ success: true });
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Consultant Contracts ────────────────────────────────────────────────────
+
+  app.get("/api/proposals/:id/consultant-contracts", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const proposal = await storage.getProposalById(userId, req.params.id);
+      if (!proposal) return res.status(404).json({ error: "Proposal not found" });
+      const contracts = await storage.getConsultantContracts(req.params.id);
+      res.json(contracts);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/proposals/:id/consultant-contracts/generate", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { consultant, templateId, outputName } = req.body;
+      if (!consultant || !templateId || !outputName) {
+        return res.status(400).json({ error: "consultant, templateId, and outputName are required" });
+      }
+
+      const proposal = await storage.getProposalById(userId, req.params.id);
+      if (!proposal) return res.status(404).json({ error: "Proposal not found" });
+      if (proposal.status !== "Signed") {
+        return res.status(400).json({ error: "Proposal must be signed to generate consultant contracts" });
+      }
+
+      // Filter fee lines to the specified consultant
+      const consultantRows: PhaseRow[] = proposal.phases.flatMap(phase =>
+        phase.feeLines
+          .filter(fl => fl.consultant === consultant && (fl.amount || fl.feeType === 'Hourly'))
+          .map(fl => ({
+            phase: phase.name,
+            consultant: fl.consultant,
+            feeType: fl.feeType,
+            amount: fl.amount ?? null,
+          }))
+      );
+
+      // Compute total (Fixed fee lines only)
+      const consultantTotal = consultantRows.reduce((sum, row) => {
+        if (row.feeType === 'Fixed' && row.amount) {
+          const n = parseFloat(row.amount);
+          return isNaN(n) ? sum : sum + n;
+        }
+        return sum;
+      }, 0);
+
+      // Build field value map
+      const fieldValueLookup = new Map<string, string>();
+      fieldValueLookup.set('consultant_name', consultant);
+      fieldValueLookup.set('consultant_total',
+        consultantTotal > 0
+          ? `$${consultantTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+          : ''
+      );
+      fieldValueLookup.set('proposal_name', proposal.name);
+      fieldValueLookup.set('proposal_date',
+        proposal.dateSigned
+          ? new Date(proposal.dateSigned as Date).toLocaleDateString()
+          : ''
+      );
+
+      // Populate firm profile fields
+      const profile = await storage.getMyProfile(userId);
+      if (profile) {
+        fieldValueLookup.set('firm_name', profile.name || '');
+        fieldValueLookup.set('firm_phone', profile.phone || '');
+        fieldValueLookup.set('firm_email', profile.email || '');
+        fieldValueLookup.set('firm_address', [profile.addressLine1, profile.addressLine2].filter(Boolean).join(', '));
+        fieldValueLookup.set('firm_city', profile.city || '');
+        fieldValueLookup.set('firm_state', profile.state || '');
+        fieldValueLookup.set('firm_zip', profile.zip || '');
+        fieldValueLookup.set('firm_contact_name', profile.contactName || '');
+        fieldValueLookup.set('firm_contact_title', profile.contactTitle || '');
+      }
+
+      const docs = await getGoogleDocsClient(userId);
+      const drive = await getGoogleDriveClient(userId);
+
+      // Step 1: Copy template
+      const timestamp = Date.now();
+      const copiedFile = await drive.files.copy({
+        fileId: templateId,
+        requestBody: { name: `${outputName}_${timestamp}` },
+      });
+      const newDocId = copiedFile.data.id;
+      if (!newDocId) return res.status(500).json({ error: "Failed to copy template document" });
+
+      // Pre-read doc to detect {{consultant_phases_table}} before field replacement
+      const preDoc = await docs.documents.get({ documentId: newDocId });
+      let preDocText = '';
+      for (const element of preDoc.data.body?.content || []) {
+        if (element.paragraph?.elements) {
+          for (const el of element.paragraph.elements) {
+            preDocText += el.textRun?.content || '';
+          }
+        }
+      }
+      const hasConsultantTableTag = preDocText.includes('{{consultant_phases_table}}');
+
+      // Step 2: Replace field tags (skip consultant_phases_table — handled separately)
+      const fieldRequests: any[] = [];
+      for (const [tagName, value] of Array.from(fieldValueLookup.entries())) {
+        fieldRequests.push({
+          replaceAllText: {
+            containsText: { text: `{{${tagName}}}`, matchCase: true },
+            replaceText: value,
+          },
+        });
+      }
+      if (fieldRequests.length > 0) {
+        await docs.documents.batchUpdate({ documentId: newDocId, requestBody: { requests: fieldRequests } });
+      }
+
+      // Step 2.5: Insert consultant phases table if tag present and rows exist
+      if (hasConsultantTableTag && consultantRows.length > 0) {
+        await insertPhaseTable(docs, newDocId, '{{consultant_phases_table}}', consultantRows);
+      }
+
+      const documentUrl = `https://docs.google.com/document/d/${newDocId}/edit`;
+
+      // Save/update the contract record
+      const contract = await storage.upsertConsultantContract(req.params.id, consultant, documentUrl);
+
+      res.json({ docUrl: documentUrl, contract });
+    } catch (error: any) {
+      console.error('Error generating consultant contract:', error);
       res.status(500).json({ error: error.message });
     }
   });
