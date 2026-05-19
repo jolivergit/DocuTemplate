@@ -291,6 +291,9 @@ export interface LeadWithCompanies extends Lead {
 export const PROPOSAL_STATUSES = ["Draft", "Sent", "Revision", "Signed", "Declined"] as const;
 export type ProposalStatus = typeof PROPOSAL_STATUSES[number];
 
+export const PROPOSAL_TYPES = ["Standard", "Additional Services"] as const;
+export type ProposalType = typeof PROPOSAL_TYPES[number];
+
 export const FEE_TYPES = ["Fixed", "Hourly"] as const;
 export type FeeType = typeof FEE_TYPES[number];
 
@@ -320,6 +323,7 @@ export const proposals = pgTable("proposals", {
   name: text("name").notNull(),
   description: text("description"),
   status: text("status").notNull().default("Draft"),
+  proposalType: text("proposal_type").notNull().default("Standard"),
   docUrl: text("doc_url"),
   dateSent: timestamp("date_sent"),
   dateSigned: timestamp("date_signed"),
@@ -333,6 +337,7 @@ export const insertProposalSchema = createInsertSchema(proposals).omit({
   updatedAt: true,
 }).extend({
   status: z.enum(PROPOSAL_STATUSES).optional(),
+  proposalType: z.enum(PROPOSAL_TYPES).optional(),
   dateSent: z.string().optional().nullable(),
   dateSigned: z.string().optional().nullable(),
 });
@@ -364,8 +369,24 @@ export interface ProposalPhaseWithLines extends ProposalPhase {
   feeLines: ProposalFeeLine[];
 }
 
+// Additional Services line items (flat list, no phase hierarchy)
+export const proposalAdditionalLineItems = pgTable("proposal_additional_line_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  proposalId: varchar("proposal_id").references(() => proposals.id, { onDelete: "cascade" }).notNull(),
+  description: text("description").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export type ProposalAdditionalLineItem = typeof proposalAdditionalLineItems.$inferSelect;
+
+export const insertAdditionalLineItemSchema = createInsertSchema(proposalAdditionalLineItems).omit({
+  id: true,
+});
+
 export interface ProposalWithPhases extends Proposal {
   phases: ProposalPhaseWithLines[];
+  additionalLineItems: ProposalAdditionalLineItem[];
 }
 
 // ─── Invoices ───────────────────────────────────────────────────────────────────
@@ -457,8 +478,24 @@ export const consultantContracts = pgTable("consultant_contracts", {
 
 export type ConsultantContract = typeof consultantContracts.$inferSelect;
 
+// Billing snapshots for Additional Services line items on invoices
+export const invoiceAdditionalLineItemSnapshots = pgTable("invoice_additional_line_item_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: varchar("invoice_id").references(() => invoices.id, { onDelete: "cascade" }).notNull(),
+  additionalLineItemId: varchar("additional_line_item_id").notNull(),
+  description: text("description").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }),
+  percentComplete: numeric("percent_complete", { precision: 5, scale: 2 }),
+  previousBilling: numeric("previous_billing", { precision: 12, scale: 2 }),
+  currentBilling: numeric("current_billing", { precision: 12, scale: 2 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export type InvoiceAdditionalLineItemSnapshot = typeof invoiceAdditionalLineItemSnapshots.$inferSelect;
+
 export interface InvoiceWithDetails extends Invoice {
   feeLineSnapshots: InvoiceFeeLineSnapshot[];
+  additionalLineItemSnapshots: InvoiceAdditionalLineItemSnapshot[];
   hoursEntries: HoursEntry[];
   expenseEntries: ExpenseEntry[];
 }

@@ -442,6 +442,120 @@ async function insertPhaseTable(
 }
 
 
+interface AdditionalServiceRow {
+  description: string;
+  amount: string | null;
+}
+
+async function insertAdditionalServicesTable(
+  docs: any,
+  docId: string,
+  tagToFind: string,
+  rows: AdditionalServiceRow[]
+): Promise<void> {
+  const docSnap = await docs.documents.get({ documentId: docId });
+  const docSnapContent = docSnap.data.body?.content || [];
+
+  let tagLocation: { startIndex: number; endIndex: number } | null = null;
+  for (const element of docSnapContent) {
+    if (element.paragraph?.elements) {
+      for (const el of element.paragraph.elements) {
+        if (el.textRun?.content) {
+          const text = el.textRun.content;
+          const startOffset = el.startIndex || 0;
+          const idx = text.indexOf(tagToFind);
+          if (idx !== -1) {
+            tagLocation = {
+              startIndex: startOffset + idx,
+              endIndex: startOffset + idx + tagToFind.length,
+            };
+            break;
+          }
+        }
+      }
+      if (tagLocation) break;
+    }
+  }
+
+  if (!tagLocation) return;
+
+  const numTableRows = rows.length + 1; // header + data rows
+  const numTableCols = 3; // Scope | Fee | —(total col)
+
+  await docs.documents.batchUpdate({
+    documentId: docId,
+    requestBody: {
+      requests: [
+        {
+          deleteContentRange: {
+            range: { startIndex: tagLocation.startIndex, endIndex: tagLocation.endIndex },
+          },
+        },
+        {
+          insertTable: {
+            rows: numTableRows,
+            columns: numTableCols,
+            location: { index: tagLocation.startIndex },
+          },
+        },
+      ],
+    },
+  });
+
+  // Re-fetch to get updated indices
+  const docAfter = await docs.documents.get({ documentId: docId });
+  const docAfterContent = docAfter.data.body?.content || [];
+
+  // Find all table cells (flat list, row-major order)
+  const cells: { startIndex: number }[] = [];
+  for (const element of docAfterContent) {
+    if (element.table) {
+      for (const row of element.table.tableRows || []) {
+        for (const cell of row.tableCells || []) {
+          const contentStart = cell.content?.[0]?.startIndex;
+          if (contentStart != null) cells.push({ startIndex: contentStart });
+        }
+      }
+    }
+  }
+
+  // Header row texts
+  const headers = ["Scope of Services", "Fee", ""];
+  const cellInsertions: { index: number; text: string }[] = [];
+  for (let i = 0; i < headers.length; i++) {
+    if (cells[i]) cellInsertions.push({ index: cells[i].startIndex, text: headers[i] });
+  }
+
+  // Data rows
+  let total = 0;
+  for (let r = 0; r < rows.length; r++) {
+    const rowData = rows[r];
+    const colStart = headers.length + r * numTableCols;
+    const amtNum = rowData.amount ? parseFloat(rowData.amount) : null;
+    if (amtNum && !isNaN(amtNum)) total += amtNum;
+    const amtStr = amtNum && !isNaN(amtNum)
+      ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(amtNum)
+      : "";
+    const rowTexts = [rowData.description, amtStr, ""];
+    for (let c = 0; c < numTableCols; c++) {
+      const cellIdx = colStart + c;
+      if (cells[cellIdx]) cellInsertions.push({ index: cells[cellIdx].startIndex, text: rowTexts[c] });
+    }
+  }
+
+  cellInsertions.sort((a, b) => b.index - a.index);
+  if (cellInsertions.length > 0) {
+    await docs.documents.batchUpdate({
+      documentId: docId,
+      requestBody: {
+        requests: cellInsertions.map(({ index, text }) => ({
+          insertText: { location: { index }, text },
+        })),
+      },
+    });
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.get("/auth/google", passport.authenticate("google", { 
@@ -954,6 +1068,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Detect {{additional_services_table}} special tag
+      const hasAsTable = fieldValueLookup.has('additional_services_table');
+      let additionalServicesData: AdditionalServiceRow[] = [];
+      if (hasAsTable) {
+        fieldValueLookup.delete('additional_services_table');
+        const asJsonFv = await storage.getFieldValueByName(userId, '_additional_services_json');
+        if (asJsonFv) {
+          try {
+            additionalServicesData = JSON.parse(asJsonFv.value);
+          } catch (e) {
+            console.error('Failed to parse _additional_services_json:', e);
+          }
+        }
+      }
+
       // Step 2: Replace field tags with replaceAllText (inherits surrounding styles)
       const fieldRequests: any[] = [];
       for (const [tagName, value] of Array.from(fieldValueLookup.entries())) {
@@ -978,6 +1107,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 2.5: Insert Google Docs table for {{proposal_phases_table}} special tag
       if (hasPhaseTable && phasesData.length > 0) {
         await insertPhaseTable(docs, newDocId, '{{proposal_phases_table}}', phasesData);
+      }
+
+      // Step 2.6: Insert Google Docs table for {{additional_services_table}} special tag
+      if (hasAsTable && additionalServicesData.length > 0) {
+        await insertAdditionalServicesTable(docs, newDocId, '{{additional_services_table}}', additionalServicesData);
       }
 
       // Step 3: For content tags, use HTML-to-Docs conversion for proper nested list formatting
@@ -1268,8 +1402,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as User).id;
       const leadId = parseInt(req.params.leadId, 10);
       if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
-      const { phases, ...proposalRaw } = req.body;
-      const proposal = await storage.createProposal(userId, { ...proposalRaw, leadId }, phases || []);
+      const { phases, additionalLineItems, ...proposalRaw } = req.body;
+      const proposal = await storage.createProposal(
+        userId,
+        { ...proposalRaw, leadId },
+        phases || [],
+        Array.isArray(additionalLineItems) ? additionalLineItems : undefined
+      );
       res.json(proposal);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -1279,14 +1418,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/proposals/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      const { phases } = req.body;
+      const { phases, additionalLineItems } = req.body;
       // Allowlist mutable fields — leadId and id are never allowed to change
-      const ALLOWED_FIELDS = ["name", "description", "status", "docUrl", "dateSent", "dateSigned"] as const;
+      const ALLOWED_FIELDS = ["name", "description", "status", "proposalType", "docUrl", "dateSent", "dateSigned"] as const;
       const updates: Partial<Record<typeof ALLOWED_FIELDS[number], unknown>> = {};
       for (const field of ALLOWED_FIELDS) {
         if (field in req.body) updates[field] = req.body[field];
       }
-      const proposal = await storage.updateProposal(userId, req.params.id, updates as Parameters<typeof storage.updateProposal>[2], phases);
+      const proposal = await storage.updateProposal(
+        userId,
+        req.params.id,
+        updates as Parameters<typeof storage.updateProposal>[2],
+        phases,
+        Array.isArray(additionalLineItems) ? additionalLineItems : undefined
+      );
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       res.json(proposal);
     } catch (error: any) {
@@ -1490,12 +1635,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as User).id;
       const leadId = parseInt(req.params.leadId, 10);
       if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
-      const { proposalId, feeLineInputs = [], hoursInputs = [], expenseInputs = [], notes, existingHoursIds, existingExpenseIds } = req.body;
+      const { proposalId, feeLineInputs = [], hoursInputs = [], expenseInputs = [], notes, existingHoursIds, existingExpenseIds, additionalLineItemInputs } = req.body;
       if (!proposalId) return res.status(400).json({ error: "proposalId is required" });
       const invoice = await storage.createInvoice(
         userId, leadId, proposalId, feeLineInputs, hoursInputs, expenseInputs, notes,
         Array.isArray(existingHoursIds) ? existingHoursIds : undefined,
-        Array.isArray(existingExpenseIds) ? existingExpenseIds : undefined
+        Array.isArray(existingExpenseIds) ? existingExpenseIds : undefined,
+        Array.isArray(additionalLineItemInputs) ? additionalLineItemInputs : undefined
       );
       res.json(invoice);
     } catch (error: any) {

@@ -91,17 +91,37 @@ function makeExpenseRow(): ExpenseInput {
   return { id: crypto.randomUUID(), date: "", expenseType: "Parking", billedDate: "", milesTraveled: "", ratePerMile: MILEAGE_RATE, amount: "" };
 }
 
+interface AsSnapshotInput {
+  lineItemId: string;
+  description: string;
+  amount: string | null;
+  percentComplete: string;
+}
+
+function buildAsSnapshots(proposals: ProposalWithPhases[]): AsSnapshotInput[] {
+  return proposals.flatMap((p) =>
+    (p.additionalLineItems || []).map((item) => ({
+      lineItemId: item.id,
+      description: item.description,
+      amount: item.amount,
+      percentComplete: "0",
+    }))
+  );
+}
+
 interface Props {
   leadId: number;
   proposal: ProposalWithPhases;
+  additionalServiceProposals?: ProposalWithPhases[];
   onBack: () => void;
   onCreated: (invoiceId: string) => void;
 }
 
-export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Props) {
+export function InvoiceBuilderPanel({ leadId, proposal, additionalServiceProposals = [], onBack, onCreated }: Props) {
   const { toast } = useToast();
 
   const [snapshots, setSnapshots] = useState<SnapshotInput[]>(() => buildSnapshotInputs(proposal));
+  const [asSnapshots, setAsSnapshots] = useState<AsSnapshotInput[]>(() => buildAsSnapshots(additionalServiceProposals));
   const [hoursRows, setHoursRows] = useState<HoursInput[]>([]);
   const [expenseRows, setExpenseRows] = useState<ExpenseInput[]>([]);
   const [notes, setNotes] = useState("");
@@ -189,7 +209,17 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
       return sum + (parseFloat(e.amount || "0") || 0);
     }, 0);
 
-  const grandTotal = feeSubtotal + hoursSubtotal + expenseSubtotal + attachedHoursSubtotal + attachedExpensesSubtotal;
+  const updateAsSnapshot = (lineItemId: string, pct: string) => {
+    setAsSnapshots((prev) => prev.map((s) => (s.lineItemId === lineItemId ? { ...s, percentComplete: pct } : s)));
+  };
+
+  const asSubtotal = asSnapshots.reduce((sum, s) => {
+    const amt = parseFloat(s.amount || "0") || 0;
+    const pct = parseFloat(s.percentComplete) || 0;
+    return sum + (amt * pct / 100);
+  }, 0);
+
+  const grandTotal = feeSubtotal + asSubtotal + hoursSubtotal + expenseSubtotal + attachedHoursSubtotal + attachedExpensesSubtotal;
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -218,6 +248,13 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
           amount: e.expenseType !== "Mileage" ? e.amount : undefined,
         }));
 
+      const additionalLineItemInputs = asSnapshots
+        .filter((s) => parseFloat(s.percentComplete) > 0)
+        .map((s) => ({
+          proposalAdditionalLineItemId: s.lineItemId,
+          percentComplete: s.percentComplete,
+        }));
+
       const res = await apiRequest("POST", `/api/leads/${leadId}/invoices`, {
         proposalId: proposal.id,
         feeLineInputs,
@@ -226,6 +263,7 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
         notes: notes.trim() || undefined,
         existingHoursIds: selectedHoursIds.size > 0 ? Array.from(selectedHoursIds) : undefined,
         existingExpenseIds: selectedExpenseIds.size > 0 ? Array.from(selectedExpenseIds) : undefined,
+        additionalLineItemInputs: additionalLineItemInputs.length > 0 ? additionalLineItemInputs : undefined,
       });
       return res.json();
     },
@@ -392,6 +430,82 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
           </table>
         </div>
       </div>
+
+      {/* Additional Services billing */}
+      {asSnapshots.length > 0 && (
+        <div className="rounded-md border bg-card">
+          <div className="px-4 py-3 border-b">
+            <h3 className="text-sm font-semibold">Additional Services</h3>
+            <p className="text-xs text-muted-foreground">Enter percent complete for each additional services line item.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/30">
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Scope of Services</th>
+                  <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs">Fee</th>
+                  <th className="text-center px-3 py-2 font-medium text-muted-foreground text-xs w-28">% Complete</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">This Invoice</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {additionalServiceProposals.map((asp) => (
+                  <>
+                    {additionalServiceProposals.length > 1 && (
+                      <tr key={`asp-${asp.id}`} className="bg-muted/10">
+                        <td colSpan={4} className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          {asp.name}
+                        </td>
+                      </tr>
+                    )}
+                    {(asp.additionalLineItems || []).map((item) => {
+                      const snap = asSnapshots.find((s) => s.lineItemId === item.id);
+                      if (!snap) return null;
+                      const pct = parseFloat(snap.percentComplete) || 0;
+                      const amt = parseFloat(item.amount || "0") || 0;
+                      const current = amt * pct / 100;
+                      return (
+                        <tr key={item.id}>
+                          <td className="px-4 py-3">
+                            <p className="text-sm">{item.description}</p>
+                          </td>
+                          <td className="px-3 py-3 text-right text-muted-foreground text-xs">
+                            {item.amount ? fmt(parseFloat(item.amount)) : <span className="italic">—</span>}
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="5"
+                                value={snap.percentComplete}
+                                onChange={(e) => updateAsSnapshot(item.id, e.target.value)}
+                                className="h-8 w-16 text-sm text-center"
+                                data-testid={`input-as-pct-${item.id}`}
+                              />
+                              <span className="text-xs text-muted-foreground">%</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-sm">
+                            {current > 0 ? fmt(current) : <span className="text-muted-foreground">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t bg-muted/10">
+                  <td colSpan={3} className="px-4 py-2.5 text-sm font-medium text-right">Add. Services Subtotal</td>
+                  <td className="px-4 py-2.5 text-right font-semibold">{fmt(asSubtotal)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Hours entries */}
       <div className="rounded-md border bg-card">
@@ -747,6 +861,12 @@ export function InvoiceBuilderPanel({ leadId, proposal, onBack, onCreated }: Pro
             <span className="text-muted-foreground">Fee Services</span>
             <span>{fmt(feeSubtotal)}</span>
           </div>
+          {asSubtotal > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Additional Services</span>
+              <span>{fmt(asSubtotal)}</span>
+            </div>
+          )}
           {hoursSubtotal > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Additional Hours</span>

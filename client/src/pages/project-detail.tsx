@@ -48,8 +48,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { LeadFormDialog } from "@/components/lead-form-dialog";
 import { ProposalFormDialog } from "@/components/proposal-form-dialog";
+import { AdditionalServicesFormDialog } from "@/components/additional-services-form-dialog";
 import { ProposalDetailPanel } from "@/components/proposal-detail-panel";
 import { InvoiceBuilderPanel } from "@/components/invoice-builder-panel";
 import { InvoiceDetailPanel } from "@/components/invoice-detail-panel";
@@ -236,6 +243,7 @@ function CompanySection({ role, company }: {
 function ProposalsTab({ leadId, projectName }: { leadId: number; projectName: string }) {
   const { toast } = useToast();
   const [showNew, setShowNew] = useState(false);
+  const [showNewAS, setShowNewAS] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<ProposalWithPhases | null>(null);
 
   const { data: proposals = [], isLoading } = useQuery<ProposalWithPhases[]>({
@@ -259,8 +267,15 @@ function ProposalsTab({ leadId, projectName }: { leadId: number; projectName: st
     );
   }
 
-  const grandTotal = (proposal: ProposalWithPhases) =>
-    proposal.phases.reduce((sum, ph) =>
+  const grandTotal = (proposal: ProposalWithPhases) => {
+    if (proposal.proposalType === "Additional Services") {
+      return (proposal.additionalLineItems || []).reduce((sum, item) => {
+        if (!item.amount) return sum;
+        const n = parseFloat(item.amount);
+        return isNaN(n) ? sum : sum + n;
+      }, 0);
+    }
+    return proposal.phases.reduce((sum, ph) =>
       sum + ph.feeLines.reduce((s, fl) => {
         if (fl.feeType === "Fixed" && fl.amount) {
           const n = parseFloat(fl.amount);
@@ -268,6 +283,7 @@ function ProposalsTab({ leadId, projectName }: { leadId: number; projectName: st
         }
         return s;
       }, 0), 0);
+  };
 
   return (
     <div className="space-y-4">
@@ -275,10 +291,23 @@ function ProposalsTab({ leadId, projectName }: { leadId: number; projectName: st
         <p className="text-sm text-muted-foreground">
           {proposals.length === 0 ? "No proposals yet" : `${proposals.length} proposal${proposals.length !== 1 ? "s" : ""}`}
         </p>
-        <Button size="sm" onClick={() => setShowNew(true)} data-testid="button-new-proposal">
-          <Plus className="w-3.5 h-3.5" />
-          New Proposal
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" data-testid="button-new-proposal">
+              <Plus className="w-3.5 h-3.5" />
+              New Proposal
+              <ChevronDown className="w-3 h-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setShowNew(true)} data-testid="menu-new-standard-proposal">
+              Standard Proposal
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowNewAS(true)} data-testid="menu-new-as-proposal">
+              Additional Services
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {isLoading && (
@@ -314,6 +343,11 @@ function ProposalsTab({ leadId, projectName }: { leadId: number; projectName: st
                     >
                       {proposal.status}
                     </Badge>
+                    {proposal.proposalType === "Additional Services" && (
+                      <Badge variant="secondary" className="text-xs" data-testid={`badge-as-${proposal.id}`}>
+                        Add. Services
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm font-medium">{proposal.name}</p>
                   {proposal.description && (
@@ -331,7 +365,9 @@ function ProposalsTab({ leadId, projectName }: { leadId: number; projectName: st
                 <span>Created {new Date(proposal.createdAt).toLocaleDateString()}</span>
                 {proposal.dateSent && <span>Sent {new Date(proposal.dateSent).toLocaleDateString()}</span>}
                 {proposal.dateSigned && <span>Signed {new Date(proposal.dateSigned).toLocaleDateString()}</span>}
-                <span>{proposal.phases.length} phase{proposal.phases.length !== 1 ? "s" : ""}</span>
+                {proposal.proposalType === "Additional Services"
+                  ? <span>{(proposal.additionalLineItems || []).length} line item{(proposal.additionalLineItems || []).length !== 1 ? "s" : ""}</span>
+                  : <span>{proposal.phases.length} phase{proposal.phases.length !== 1 ? "s" : ""}</span>}
               </div>
             </button>
           );
@@ -343,6 +379,11 @@ function ProposalsTab({ leadId, projectName }: { leadId: number; projectName: st
         onOpenChange={setShowNew}
         leadId={leadId}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] })}
+      />
+      <AdditionalServicesFormDialog
+        open={showNewAS}
+        onOpenChange={setShowNewAS}
+        leadId={leadId}
       />
     </div>
   );
@@ -953,13 +994,15 @@ function InvoicesTab({ leadId, lead }: { leadId: number; lead: LeadWithCompanies
     },
   });
 
-  const signedProposal = proposals.find((p) => p.status === "Signed");
+  const signedProposal = proposals.find((p) => p.status === "Signed" && p.proposalType !== "Additional Services");
+  const signedAsProposals = proposals.filter((p) => p.status === "Signed" && p.proposalType === "Additional Services");
 
   if (view.type === "builder" && signedProposal) {
     return (
       <InvoiceBuilderPanel
         leadId={leadId}
         proposal={signedProposal}
+        additionalServiceProposals={signedAsProposals}
         onBack={() => setView({ type: "list" })}
         onCreated={(invoiceId) => setView({ type: "invoice", invoiceId })}
       />

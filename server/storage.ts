@@ -10,8 +10,10 @@ import {
   proposals,
   proposalPhases,
   proposalFeeLines,
+  proposalAdditionalLineItems,
   invoices,
   invoiceFeeLineSnapshots,
+  invoiceAdditionalLineItemSnapshots,
   hoursEntries,
   expenseEntries,
   projectComments,
@@ -42,8 +44,10 @@ import {
   type ProposalFeeLine,
   type ProposalPhaseWithLines,
   type ProposalWithPhases,
+  type ProposalAdditionalLineItem,
   type Invoice,
   type InvoiceFeeLineSnapshot,
+  type InvoiceAdditionalLineItemSnapshot,
   type HoursEntry,
   type ExpenseEntry,
   type ProjectComment,
@@ -110,15 +114,15 @@ export interface IStorage {
   // Proposals
   getProposals(userId: string, leadId: number): Promise<ProposalWithPhases[]>;
   getProposalById(userId: string, proposalId: string): Promise<ProposalWithPhases | undefined>;
-  createProposal(userId: string, proposal: InsertProposal, phases: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[]): Promise<ProposalWithPhases>;
-  updateProposal(userId: string, proposalId: string, updates: Partial<InsertProposal>, phases?: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[]): Promise<ProposalWithPhases | undefined>;
+  createProposal(userId: string, proposal: InsertProposal, phases: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[], additionalLineItems?: { description: string; amount: string | null; sortOrder: number }[]): Promise<ProposalWithPhases>;
+  updateProposal(userId: string, proposalId: string, updates: Partial<InsertProposal>, phases?: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[], additionalLineItems?: { description: string; amount: string | null; sortOrder: number }[]): Promise<ProposalWithPhases | undefined>;
   deleteProposal(userId: string, proposalId: string): Promise<boolean>;
   signProposal(userId: string, proposalId: string): Promise<ProposalWithPhases | undefined>;
 
   // Invoices
   getInvoices(userId: string, leadId: number): Promise<Invoice[]>;
   getInvoiceById(userId: string, invoiceId: string): Promise<InvoiceWithDetails | undefined>;
-  createInvoice(userId: string, leadId: number, proposalId: string, feeLineInputs: { proposalFeeLineId: string; percentComplete?: string; hoursWorked?: string; ratePerHour?: string }[], hoursInputs: { date: string; description: string; hours: string; ratePerHour: string }[], expenseInputs: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }[], notes?: string, existingHoursIds?: string[], existingExpenseIds?: string[]): Promise<InvoiceWithDetails>;
+  createInvoice(userId: string, leadId: number, proposalId: string, feeLineInputs: { proposalFeeLineId: string; percentComplete?: string; hoursWorked?: string; ratePerHour?: string }[], hoursInputs: { date: string; description: string; hours: string; ratePerHour: string }[], expenseInputs: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }[], notes?: string, existingHoursIds?: string[], existingExpenseIds?: string[], additionalLineItemInputs?: { additionalLineItemId: string; description: string; amount: string | null; percentComplete: string }[]): Promise<InvoiceWithDetails>;
   updateInvoiceStatus(userId: string, invoiceId: string, status: string): Promise<Invoice | undefined>;
   updateInvoiceDocUrl(userId: string, invoiceId: string, docUrl: string): Promise<Invoice | undefined>;
   deleteInvoice(userId: string, invoiceId: string): Promise<boolean>;
@@ -576,7 +580,14 @@ export class DatabaseStorage implements IStorage {
       .where(eq(proposalPhases.proposalId, proposal.id))
       .orderBy(proposalPhases.sortOrder);
 
-    if (phases.length === 0) return { ...proposal, phases: [] };
+    if (phases.length === 0) {
+      const additionalLineItemsEmpty = await db
+        .select()
+        .from(proposalAdditionalLineItems)
+        .where(eq(proposalAdditionalLineItems.proposalId, proposal.id))
+        .orderBy(proposalAdditionalLineItems.sortOrder);
+      return { ...proposal, phases: [], additionalLineItems: additionalLineItemsEmpty };
+    }
 
     const phaseIds = phases.map(p => p.id);
     const allFeeLines = await db
@@ -590,7 +601,13 @@ export class DatabaseStorage implements IStorage {
       feeLines: allFeeLines.filter(fl => fl.phaseId === phase.id),
     }));
 
-    return { ...proposal, phases: phasesWithLines };
+    const additionalLineItems: ProposalAdditionalLineItem[] = await db
+      .select()
+      .from(proposalAdditionalLineItems)
+      .where(eq(proposalAdditionalLineItems.proposalId, proposal.id))
+      .orderBy(proposalAdditionalLineItems.sortOrder);
+
+    return { ...proposal, phases: phasesWithLines, additionalLineItems };
   }
 
   async getProposals(userId: string, leadId: number): Promise<ProposalWithPhases[]> {
@@ -627,7 +644,8 @@ export class DatabaseStorage implements IStorage {
   async createProposal(
     userId: string,
     proposalData: InsertProposal,
-    phases: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[]
+    phases: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[],
+    additionalLineItemsInput?: { description: string; amount: string | null; sortOrder: number }[]
   ): Promise<ProposalWithPhases> {
     const owned = await this.verifyLeadOwnership(userId, proposalData.leadId);
     if (!owned) throw new Error('Lead not found or access denied');
@@ -658,14 +676,28 @@ export class DatabaseStorage implements IStorage {
       phasesWithLines.push({ ...phase, feeLines: savedLines });
     }
 
-    return { ...proposal, phases: phasesWithLines };
+    let savedAdditionalItems: ProposalAdditionalLineItem[] = [];
+    if (additionalLineItemsInput && additionalLineItemsInput.length > 0) {
+      savedAdditionalItems = await db
+        .insert(proposalAdditionalLineItems)
+        .values(additionalLineItemsInput.map(item => ({
+          proposalId: proposal.id,
+          description: item.description,
+          amount: item.amount || null,
+          sortOrder: item.sortOrder,
+        })))
+        .returning();
+    }
+
+    return { ...proposal, phases: phasesWithLines, additionalLineItems: savedAdditionalItems };
   }
 
   async updateProposal(
     userId: string,
     proposalId: string,
     updates: Partial<InsertProposal>,
-    phases?: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[]
+    phases?: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[],
+    additionalLineItemsInput?: { description: string; amount: string | null; sortOrder: number }[]
   ): Promise<ProposalWithPhases | undefined> {
     const existing = await this.getProposalById(userId, proposalId);
     if (!existing) return undefined;
@@ -705,6 +737,20 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    if (additionalLineItemsInput !== undefined) {
+      await db.delete(proposalAdditionalLineItems).where(eq(proposalAdditionalLineItems.proposalId, proposalId));
+      if (additionalLineItemsInput.length > 0) {
+        await db.insert(proposalAdditionalLineItems).values(
+          additionalLineItemsInput.map(item => ({
+            proposalId,
+            description: item.description,
+            amount: item.amount || null,
+            sortOrder: item.sortOrder,
+          }))
+        );
+      }
+    }
+
     return this.buildProposalWithPhases(updated);
   }
 
@@ -725,10 +771,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(proposals.id, proposalId))
       .returning();
 
-    await db
-      .update(leads)
-      .set({ status: 'Active Project', updatedAt: sql`CURRENT_TIMESTAMP` })
-      .where(and(eq(leads.id, existing.leadId), eq(leads.userId, userId)));
+    // Only advance lead status for Standard proposals, not Additional Services
+    if (existing.proposalType !== 'Additional Services') {
+      await db
+        .update(leads)
+        .set({ status: 'Active Project', updatedAt: sql`CURRENT_TIMESTAMP` })
+        .where(and(eq(leads.id, existing.leadId), eq(leads.userId, userId)));
+    }
 
     return this.buildProposalWithPhases(updated);
   }
@@ -747,13 +796,14 @@ export class DatabaseStorage implements IStorage {
     const owned = await this.verifyLeadOwnership(userId, invoice.leadId);
     if (!owned) return undefined;
 
-    const [snapshots, hours, expenses] = await Promise.all([
+    const [snapshots, additionalSnapshots, hours, expenses] = await Promise.all([
       db.select().from(invoiceFeeLineSnapshots).where(eq(invoiceFeeLineSnapshots.invoiceId, invoiceId)).orderBy(invoiceFeeLineSnapshots.sortOrder),
+      db.select().from(invoiceAdditionalLineItemSnapshots).where(eq(invoiceAdditionalLineItemSnapshots.invoiceId, invoiceId)).orderBy(invoiceAdditionalLineItemSnapshots.sortOrder),
       db.select().from(hoursEntries).where(eq(hoursEntries.invoiceId, invoiceId)),
       db.select().from(expenseEntries).where(eq(expenseEntries.invoiceId, invoiceId)),
     ]);
 
-    return { ...invoice, feeLineSnapshots: snapshots, hoursEntries: hours, expenseEntries: expenses };
+    return { ...invoice, feeLineSnapshots: snapshots, additionalLineItemSnapshots: additionalSnapshots, hoursEntries: hours, expenseEntries: expenses };
   }
 
   async createInvoice(
@@ -765,7 +815,8 @@ export class DatabaseStorage implements IStorage {
     expenseInputs: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }[],
     notes?: string,
     existingHoursIds?: string[],
-    existingExpenseIds?: string[]
+    existingExpenseIds?: string[],
+    additionalLineItemInputs?: { additionalLineItemId: string; description: string; amount: string | null; percentComplete: string }[]
   ): Promise<InvoiceWithDetails> {
     const owned = await this.verifyLeadOwnership(userId, leadId);
     if (!owned) throw new Error('Lead not found or access denied');
@@ -920,9 +971,49 @@ export class DatabaseStorage implements IStorage {
       savedExpenses = [...savedExpenses, ...attachedExpenses];
     }
 
+    // Handle Additional Services line item snapshots
+    let savedAdditionalSnapshots: InvoiceAdditionalLineItemSnapshot[] = [];
+    if (additionalLineItemInputs && additionalLineItemInputs.length > 0) {
+      // Calculate previous billing for each additional line item across prior invoices
+      const priorAdditionalSnapshots = priorInvoiceIds.length > 0
+        ? await db.select().from(invoiceAdditionalLineItemSnapshots)
+            .where(inArray(invoiceAdditionalLineItemSnapshots.invoiceId, priorInvoiceIds))
+        : [];
+      const prevAdditionalBillingMap = new Map<string, number>();
+      for (const snap of priorAdditionalSnapshots) {
+        const billed = parseFloat(snap.currentBilling || '0');
+        prevAdditionalBillingMap.set(snap.additionalLineItemId, (prevAdditionalBillingMap.get(snap.additionalLineItemId) || 0) + billed);
+      }
+
+      const additionalSnapshotValues: (typeof invoiceAdditionalLineItemSnapshots.$inferInsert)[] = [];
+      let addSortIdx = 0;
+      for (const input of additionalLineItemInputs) {
+        const baseFee = input.amount ? parseFloat(input.amount) : null;
+        const prevBilling = prevAdditionalBillingMap.get(input.additionalLineItemId) || 0;
+        let currentBilling = '0.00';
+        if (baseFee !== null) {
+          const pct = parseFloat(input.percentComplete || '0');
+          const earned = baseFee * pct / 100;
+          currentBilling = Math.max(0, earned - prevBilling).toFixed(2);
+        }
+        additionalSnapshotValues.push({
+          invoiceId: invoice.id,
+          additionalLineItemId: input.additionalLineItemId,
+          description: input.description,
+          amount: input.amount || null,
+          percentComplete: input.percentComplete || '0',
+          previousBilling: prevBilling.toFixed(2),
+          currentBilling,
+          sortOrder: addSortIdx++,
+        });
+      }
+      savedAdditionalSnapshots = await db.insert(invoiceAdditionalLineItemSnapshots).values(additionalSnapshotValues).returning();
+    }
+
     return {
       ...invoice,
       feeLineSnapshots: savedSnapshots,
+      additionalLineItemSnapshots: savedAdditionalSnapshots,
       hoursEntries: savedHours,
       expenseEntries: savedExpenses,
     };

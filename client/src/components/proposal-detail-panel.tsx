@@ -28,6 +28,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ProposalFormDialog } from "@/components/proposal-form-dialog";
+import { AdditionalServicesFormDialog } from "@/components/additional-services-form-dialog";
 import {
   type ProposalWithPhases,
   type ProposalStatus,
@@ -307,7 +308,11 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
       queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId] });
-      toast({ title: "Proposal signed — lead is now an Active Project" });
+      if (isAdditionalServices) {
+        toast({ title: "Additional Services proposal signed" });
+      } else {
+        toast({ title: "Proposal signed — lead is now an Active Project" });
+      }
     },
     onError: (err: Error) => {
       toast({ title: "Failed to sign proposal", description: err.message, variant: "destructive" });
@@ -343,18 +348,18 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
       await fetch("/api/field-values/by-prefix", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prefixes: ["proposal_", "project_name", "_proposal_phases"] }),
+        body: JSON.stringify({ prefixes: ["proposal_", "project_name", "_proposal_phases", "_additional_services"] }),
       });
-
-      const grandTotal = proposal.phases.reduce((sum, ph) => sum + phaseTotal(ph), 0);
 
       const profileRes = await fetch("/api/profile");
       const profile = profileRes.ok ? await profileRes.json() : null;
 
+      const totalStr = grandTotal > 0 ? `$${grandTotal.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "";
+
       const fieldMappings: { name: string; value: string }[] = [
         { name: "project_name", value: projectName || "" },
         { name: "proposal_name", value: proposal.name },
-        { name: "proposal_total", value: grandTotal > 0 ? `$${grandTotal.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "" },
+        { name: "proposal_total", value: totalStr },
         { name: "proposal_date", value: proposal.dateSent ? new Date(proposal.dateSent).toLocaleDateString() : new Date().toLocaleDateString() },
         ...(profile ? [
           { name: "firm_name", value: profile.name || "" },
@@ -369,15 +374,6 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
         ] : []),
       ];
 
-      const phasesRows = proposal.phases.flatMap(phase =>
-        phase.feeLines.map(fl => ({
-          phase: phase.name,
-          consultant: fl.consultant,
-          feeType: fl.feeType,
-          amount: fl.amount,
-        }))
-      );
-
       const allWrites = [
         ...fieldMappings.filter((f) => f.value).map((f) =>
           fetch("/api/field-values/upsert-by-name", {
@@ -386,14 +382,41 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
             body: JSON.stringify(f),
           })
         ),
-        phasesRows.length > 0
-          ? fetch("/api/field-values/upsert-by-name", {
+      ];
+
+      if (isAdditionalServices) {
+        const asRows = (proposal.additionalLineItems || []).map((item) => ({
+          description: item.description,
+          amount: item.amount,
+        }));
+        if (asRows.length > 0) {
+          allWrites.push(
+            fetch("/api/field-values/upsert-by-name", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: "_additional_services_json", value: JSON.stringify(asRows) }),
+            })
+          );
+        }
+      } else {
+        const phasesRows = proposal.phases.flatMap(phase =>
+          phase.feeLines.map(fl => ({
+            phase: phase.name,
+            consultant: fl.consultant,
+            feeType: fl.feeType,
+            amount: fl.amount,
+          }))
+        );
+        if (phasesRows.length > 0) {
+          allWrites.push(
+            fetch("/api/field-values/upsert-by-name", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ name: "_proposal_phases_json", value: JSON.stringify(phasesRows) }),
             })
-          : Promise.resolve(),
-      ];
+          );
+        }
+      }
 
       await Promise.all(allWrites);
 
@@ -407,7 +430,14 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
     }
   };
 
-  const grandTotal = proposal.phases.reduce((sum, ph) => sum + phaseTotal(ph), 0);
+  const isAdditionalServices = proposal.proposalType === "Additional Services";
+  const grandTotal = isAdditionalServices
+    ? (proposal.additionalLineItems || []).reduce((sum, item) => {
+        if (!item.amount) return sum;
+        const n = parseFloat(item.amount);
+        return isNaN(n) ? sum : sum + n;
+      }, 0)
+    : proposal.phases.reduce((sum, ph) => sum + phaseTotal(ph), 0);
   const isActionable = proposal.status !== "Signed" && proposal.status !== "Declined";
 
   // Derive consultants with non-zero fees (for signed proposals)
@@ -528,8 +558,8 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
         )}
       </div>
 
-      {/* Fee breakdown */}
-      {proposal.phases.length > 0 && (
+      {/* Fee breakdown — Standard proposals */}
+      {!isAdditionalServices && proposal.phases.length > 0 && (
         <div className="rounded-md border bg-card">
           <div className="px-4 py-3 border-b flex items-center justify-between">
             <h3 className="text-sm font-semibold">Fee Breakdown</h3>
@@ -560,6 +590,28 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Line items — Additional Services proposals */}
+      {isAdditionalServices && (proposal.additionalLineItems || []).length > 0 && (
+        <div className="rounded-md border bg-card">
+          <div className="px-4 py-3 border-b flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Scope of Services</h3>
+            {grandTotal > 0 && (
+              <span className="text-sm font-semibold">Total: {fmt(grandTotal.toFixed(2))}</span>
+            )}
+          </div>
+          <div className="divide-y">
+            {(proposal.additionalLineItems || []).map((item) => (
+              <div key={item.id} className="grid grid-cols-[1fr_auto] gap-4 px-4 py-2.5 text-sm">
+                <span>{item.description}</span>
+                <span className="font-medium text-right min-w-[80px]">
+                  {item.amount ? fmt(item.amount) : <span className="text-muted-foreground italic text-xs">—</span>}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -624,12 +676,21 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
       )}
 
       {/* Dialogs */}
-      <ProposalFormDialog
-        open={showEdit}
-        onOpenChange={setShowEdit}
-        leadId={leadId}
-        existing={proposal}
-      />
+      {isAdditionalServices ? (
+        <AdditionalServicesFormDialog
+          open={showEdit}
+          onOpenChange={setShowEdit}
+          leadId={leadId}
+          existing={proposal}
+        />
+      ) : (
+        <ProposalFormDialog
+          open={showEdit}
+          onOpenChange={setShowEdit}
+          leadId={leadId}
+          existing={proposal}
+        />
+      )}
 
       {contractDialogConsultant && (
         <ConsultantContractDialog
@@ -670,7 +731,9 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
           <AlertDialogHeader>
             <AlertDialogTitle>Mark Proposal as Signed</AlertDialogTitle>
             <AlertDialogDescription>
-              Signing this proposal will automatically advance the lead status to "Active Project". Continue?
+              {isAdditionalServices
+                ? "Mark this Additional Services proposal as signed? This will not change the project status."
+                : "Signing this proposal will automatically advance the lead status to \"Active Project\". Continue?"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
