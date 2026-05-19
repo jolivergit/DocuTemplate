@@ -422,7 +422,7 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
 
       queryClient.invalidateQueries({ queryKey: ["/api/field-values"] });
       toast({ title: "Loaded to Doc Builder", description: "Proposal and firm info pre-filled as field values." });
-      setLocation("/doc-builder");
+      setLocation(`/doc-builder?returnTo=proposal&returnToId=${proposal.id}`);
     } catch (e: unknown) {
       toast({ title: "Failed to load to Doc Builder", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
     } finally {

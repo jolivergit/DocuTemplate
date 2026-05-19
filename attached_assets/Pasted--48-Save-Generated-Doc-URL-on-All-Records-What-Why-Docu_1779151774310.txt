@@ -1,0 +1,26 @@
+#48 - Save Generated Doc URL on All Records
+What & Why
+Document generation already works for proposals and invoices, but the URL of the generated Google Doc is only automatically saved back to the invoice record. For proposals, the URL is shown in the doc builder dialog but never written back to the proposal. This should be consistent: any time a document is generated that originated from a specific record (proposal, invoice, or others added in the future), the URL is saved back to that record immediately after generation, so there's always a direct link to the latest generated document from within the record's detail view.
+
+Done looks like
+After generating a document from the doc builder that was loaded from a proposal ("Load to Doc Builder"), the generated URL is automatically saved back to that proposal's doc_url field.
+The proposal detail panel shows the saved doc URL as a clickable "Open Document" link (same pattern as invoices already use).
+The doc builder generation flow supports receiving a returnTo context (record type + ID) so it knows where to save the URL after generation. This context is set when "Load to Doc Builder" is triggered from a specific record.
+Invoices already auto-save correctly — no change needed there.
+Any future record types that generate documents (Additional Services proposals, consultant contracts) follow the same pattern from the start.
+If a document is generated from the doc builder without a specific record context (i.e., a standalone template test), no save-back is attempted — the URL is still shown in the dialog as today.
+Out of scope
+Changing how templates themselves are stored or named.
+Version history of generated documents.
+Saving URLs for consultant contracts (handled within Task #47 which already plans per-consultant docUrl storage).
+Steps
+Return context on Load to Doc Builder — When "Load to Doc Builder" is triggered from a proposal (or any future record), store the originating record type and ID (e.g., { type: "proposal", id: 42 }) in the doc builder's session state or as a query parameter, so the generation step knows where to save back.
+Auto-save after generation — In the generation flow, after a successful document creation, if a return context is present, call the appropriate API endpoint to save the doc URL back to that record (e.g., PATCH /api/proposals/:id with { docUrl }). Do this automatically without requiring the user to take an extra step.
+Proposal detail panel doc link — Display the saved docUrl on the proposal detail panel as a clickable link (matching the existing invoice detail panel pattern). Show a subtle "regenerate" affordance that triggers "Load to Doc Builder" again if needed.
+Consistent pattern documentation — Ensure the same save-back pattern is wired up for Additional Services proposals (Task #46) and consultant contracts (Task #47) as those records are built.
+Relevant files
+client/src/components/generate-document-dialog.tsx
+client/src/components/proposal-detail-panel.tsx
+client/src/components/invoice-detail-panel.tsx
+client/src/pages/doc-builder.tsx
+server/routes.ts

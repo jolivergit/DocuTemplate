@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Sparkles, ExternalLink } from "lucide-react";
+import { Loader2, Sparkles, ExternalLink, Check } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { z } from "zod";
 import type { ParsedTemplate, TagMapping } from "@shared/schema";
 
@@ -31,12 +31,18 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+export interface ReturnContext {
+  type: "proposal";
+  id: string;
+}
+
 interface GenerateDocumentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   template: ParsedTemplate;
   tagMappings: TagMapping[];
   sectionOrder: string[];
+  returnContext?: ReturnContext | null;
 }
 
 export function GenerateDocumentDialog({
@@ -45,14 +51,32 @@ export function GenerateDocumentDialog({
   template,
   tagMappings,
   sectionOrder,
+  returnContext,
 }: GenerateDocumentDialogProps) {
   const { toast } = useToast();
   const [generatedDocUrl, setGeneratedDocUrl] = useState<string | null>(null);
-  
+  const [savedBack, setSavedBack] = useState(false);
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       outputName: `${template.documentName} - Generated`,
+    },
+  });
+
+  const saveBackMutation = useMutation({
+    mutationFn: async (docUrl: string) => {
+      if (!returnContext) return;
+      if (returnContext.type === "proposal") {
+        return apiRequest("PATCH", `/api/proposals/${returnContext.id}`, { docUrl });
+      }
+    },
+    onSuccess: () => {
+      setSavedBack(true);
+      if (returnContext?.type === "proposal") {
+        queryClient.invalidateQueries({ queryKey: ["/api/proposals", returnContext.id] });
+        queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      }
     },
   });
 
@@ -72,6 +96,9 @@ export function GenerateDocumentDialog({
         title: "Document generated",
         description: "Your document has been created successfully.",
       });
+      if (returnContext) {
+        saveBackMutation.mutate(data.documentUrl);
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -82,16 +109,17 @@ export function GenerateDocumentDialog({
     },
   });
 
-  // Calculate unique tag count by composite key (name:type) since template.allTags may have duplicates
   const uniqueTagCount = new Set(template.allTags.map(tag => `${tag.name}:${tag.tagType}`)).size;
 
   const handleSubmit = (data: FormData) => {
     setGeneratedDocUrl(null);
+    setSavedBack(false);
     generateMutation.mutate(data);
   };
 
   const handleClose = () => {
     setGeneratedDocUrl(null);
+    setSavedBack(false);
     form.reset();
     onOpenChange(false);
   };
@@ -128,6 +156,12 @@ export function GenerateDocumentDialog({
                     {template.sections.length}
                   </span>
                 </div>
+                {returnContext?.type === "proposal" && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Save URL to:</span>
+                    <span className="font-medium text-xs">Proposal record</span>
+                  </div>
+                )}
               </div>
 
               <FormField
@@ -180,14 +214,29 @@ export function GenerateDocumentDialog({
           </Form>
         ) : (
           <div className="space-y-4">
-            <div className="bg-primary/10 border border-primary/20 p-6 rounded-lg text-center">
-              <Sparkles className="w-12 h-12 mx-auto mb-3 text-primary" data-testid="icon-success" />
+            <div className="bg-muted/30 border p-6 rounded-lg text-center">
+              <Sparkles className="w-12 h-12 mx-auto mb-3 text-foreground" data-testid="icon-success" />
               <h3 className="text-lg font-semibold mb-2" data-testid="text-success-title">
-                Document Generated Successfully!
+                Document Generated
               </h3>
               <p className="text-sm text-muted-foreground mb-4" data-testid="text-success-description">
                 Your document has been created in Google Drive.
               </p>
+              {returnContext && (
+                <p className="text-xs text-muted-foreground mb-4 flex items-center justify-center gap-1.5" data-testid="text-saved-back">
+                  {savedBack ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Document URL saved to proposal
+                    </>
+                  ) : saveBackMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Saving URL to proposal…
+                    </>
+                  ) : null}
+                </p>
+              )}
               <Button
                 variant="default"
                 size="default"

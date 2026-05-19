@@ -1,16 +1,26 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearch } from "wouter";
 import { FileText, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { TemplateSelector } from "@/components/template-selector";
 import { TagsPanel } from "@/components/tags-panel";
 import { ContentLibrary } from "@/components/content-library";
-import { GenerateDocumentDialog } from "@/components/generate-document-dialog";
+import { GenerateDocumentDialog, type ReturnContext } from "@/components/generate-document-dialog";
 import { FieldValueDialog } from "@/components/field-value-dialog";
 import type { ParsedTemplate, ContentSnippet, Category, TagMapping, User as UserType, FieldValue, TagType } from "@shared/schema";
 
 export default function Home() {
+  const search = useSearch();
+  const returnContext = useMemo<ReturnContext | null>(() => {
+    const params = new URLSearchParams(search);
+    const type = params.get("returnTo");
+    const id = params.get("returnToId");
+    if (type === "proposal" && id) return { type: "proposal", id };
+    return null;
+  }, [search]);
+
   const [selectedTemplate, setSelectedTemplate] = useState<ParsedTemplate | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [selectedTagType, setSelectedTagType] = useState<TagType | null>(null);
@@ -393,6 +403,7 @@ export default function Home() {
           template={selectedTemplate}
           tagMappings={Array.from(tagMappings.values())}
           sectionOrder={sectionOrder}
+          returnContext={returnContext}
         />
       )}
 
