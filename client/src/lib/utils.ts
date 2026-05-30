@@ -21,6 +21,13 @@ const USD_WHOLE = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
+const USD_FLEX = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
 /** Format a number as USD with 2 decimal places. e.g. $1,234.56 */
 export function formatCurrency(n: number): string {
   return USD_DECIMAL.format(n);
@@ -44,4 +51,16 @@ export function formatCurrencyOrDash(value: string | number | null | undefined):
   const n = typeof value === "string" ? parseFloat(value) : value;
   if (isNaN(n)) return "—";
   return USD_WHOLE.format(n);
+}
+
+/**
+ * Format a possibly-null/undefined string or number as USD with 0–2 decimal places
+ * (shows cents only when non-zero), or "—" if absent/NaN.
+ * Matches the original minimumFractionDigits:0 / maximumFractionDigits:2 behavior.
+ */
+export function formatCurrencyFlexOrDash(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const n = typeof value === "string" ? parseFloat(value) : value;
+  if (isNaN(n)) return "—";
+  return USD_FLEX.format(n);
 }
