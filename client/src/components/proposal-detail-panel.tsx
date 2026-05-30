@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrencyOrDash, formatCurrencyWhole, parseCurrency } from "@/lib/utils";
 import { ProposalFormDialog } from "@/components/proposal-form-dialog";
 import { AdditionalServicesFormDialog } from "@/components/additional-services-form-dialog";
 import {
@@ -43,12 +44,7 @@ const STATUS_COLORS: Record<ProposalStatus, string> = {
   Declined: "bg-muted text-muted-foreground",
 };
 
-function fmt(value: string | null | undefined): string {
-  if (!value) return "—";
-  const n = parseFloat(value);
-  if (isNaN(n)) return "—";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(n);
-}
+const fmt = formatCurrencyOrDash;
 
 function fmtDate(d: string | Date | null | undefined): string {
   if (!d) return "—";

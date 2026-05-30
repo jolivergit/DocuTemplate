@@ -22,11 +22,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrencyWhole } from "@/lib/utils";
 import { PROPOSAL_STATUSES, type ProposalWithPhases } from "@shared/schema";
-
-function fmt(n: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(n);
-}
 
 interface LineItemRow {
   id: string;
@@ -174,7 +171,7 @@ export function AdditionalServicesFormDialog({ open, onOpenChange, leadId, exist
               </div>
               <div className="flex items-center gap-3">
                 {grandTotal > 0 && (
-                  <span className="text-sm font-semibold">{fmt(grandTotal)}</span>
+                  <span className="text-sm font-semibold">{formatCurrencyWhole(grandTotal)}</span>
                 )}
                 <Button
                   type="button"
@@ -239,7 +236,7 @@ export function AdditionalServicesFormDialog({ open, onOpenChange, leadId, exist
               {grandTotal > 0 && (
                 <div className="px-3 py-2.5 bg-muted/10 border-t flex justify-between items-center">
                   <span className="text-xs font-medium text-muted-foreground">Total</span>
-                  <span className="text-sm font-semibold">{fmt(grandTotal)}</span>
+                  <span className="text-sm font-semibold">{formatCurrencyWhole(grandTotal)}</span>
                 </div>
               )}
             </div>

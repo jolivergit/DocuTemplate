@@ -23,7 +23,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency, parseCurrency } from "@/lib/utils";
 import type { InvoiceWithDetails, InvoiceStatus, LeadWithCompanies, FieldValue } from "@shared/schema";
+
+const fmt = (n: number | string | null | undefined): string => formatCurrency(parseCurrency(n));
 
 const STATUS_COLORS: Record<InvoiceStatus, string> = {
   Draft: "bg-secondary text-secondary-foreground",
@@ -35,13 +38,6 @@ const NEXT_STATUS: Partial<Record<InvoiceStatus, InvoiceStatus>> = {
   Draft: "Sent",
   Sent: "Paid",
 };
-
-function fmt(n: number | string | null | undefined): string {
-  if (n === null || n === undefined) return "$0.00";
-  const num = typeof n === "string" ? parseFloat(n) : n;
-  if (isNaN(num)) return "$0.00";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(num);
-}
 
 function fmtDate(d: string | Date | null | undefined): string {
   if (!d) return "—";

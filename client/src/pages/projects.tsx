@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LeadFormDialog } from "@/components/lead-form-dialog";
+import { formatCurrencyOrDash } from "@/lib/utils";
 import type { LeadWithCompanies, LeadStatus, LeadProbability } from "@shared/schema";
 import { LEAD_STATUSES, LEAD_PROBABILITIES } from "@shared/schema";
 
@@ -35,13 +36,6 @@ const PROBABILITY_COLORS: Record<LeadProbability, string> = {
   MEDIUM: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
   HIGH: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
 };
-
-function formatCurrency(value: string | null | undefined): string {
-  if (!value) return "—";
-  const num = parseFloat(value);
-  if (isNaN(num)) return "—";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(num);
-}
 
 export default function ProjectsPage() {
   const [search, setSearch] = useState("");
@@ -174,7 +168,7 @@ export default function ProjectsPage() {
                     <div>
                       <p className="text-xs text-muted-foreground">Potential Fee</p>
                       <p className="text-sm font-medium" data-testid={`text-project-fee-${lead.id}`}>
-                        {formatCurrency(lead.potentialFee)}
+                        {formatCurrencyOrDash(lead.potentialFee)}
                       </p>
                     </div>
                   </div>

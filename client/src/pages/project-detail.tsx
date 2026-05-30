@@ -54,6 +54,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { formatCurrencyOrDash, formatCurrency as formatCurrencyDecimal } from "@/lib/utils";
 import { LeadFormDialog } from "@/components/lead-form-dialog";
 import { ProposalFormDialog } from "@/components/proposal-form-dialog";
 import { AdditionalServicesFormDialog } from "@/components/additional-services-form-dialog";
@@ -104,17 +105,6 @@ const INVOICE_STATUS_COLORS: Record<string, string> = {
   Sent: "bg-secondary text-secondary-foreground",
   Paid: "bg-secondary text-secondary-foreground",
 };
-
-function formatCurrency(value: string | null | undefined): string {
-  if (!value) return "—";
-  const num = parseFloat(value);
-  if (isNaN(num)) return "—";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(num);
-}
-
-function fmtCurrency(n: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(n);
-}
 
 function DetailField({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -357,7 +347,7 @@ function ProposalsTab({ leadId, projectName }: { leadId: number; projectName: st
                 {total > 0 && (
                   <div className="text-right">
                     <p className="text-xs text-muted-foreground">Total Fee</p>
-                    <p className="text-sm font-semibold">{formatCurrency(total.toFixed(2))}</p>
+                    <p className="text-sm font-semibold">{formatCurrencyOrDash(total.toFixed(2))}</p>
                   </div>
                 )}
               </div>
@@ -751,7 +741,7 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm font-medium">{fmtCurrency(amount)}</span>
+                    <span className="text-sm font-medium">{formatCurrencyDecimal(amount)}</span>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -779,7 +769,7 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
         {allHours.length > 0 && (
           <div className="px-4 py-2.5 border-t flex justify-between items-center bg-muted/10">
             <span className="text-xs text-muted-foreground font-medium">Total</span>
-            <span className="text-sm font-semibold">{fmtCurrency(hoursTotal)}</span>
+            <span className="text-sm font-semibold">{formatCurrencyDecimal(hoursTotal)}</span>
           </div>
         )}
       </div>
@@ -863,7 +853,7 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
               const isEditing = editingExpenseId === e.id;
               const detail = e.expenseType === "Mileage"
                 ? `${e.milesTraveled} mi @ $${e.ratePerMile}/mi`
-                : fmtCurrency(parseFloat(e.amount || "0") || 0);
+                : formatCurrencyDecimal(parseFloat(e.amount || "0") || 0);
 
               if (isEditing) {
                 return (
@@ -933,7 +923,7 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
                     <p className="text-xs text-muted-foreground">{e.date} · {detail}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm font-medium">{fmtCurrency(amount)}</span>
+                    <span className="text-sm font-medium">{formatCurrencyDecimal(amount)}</span>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -961,7 +951,7 @@ function TimeExpensesTab({ leadId }: { leadId: number }) {
         {allExpenses.length > 0 && (
           <div className="px-4 py-2.5 border-t flex justify-between items-center bg-muted/10">
             <span className="text-xs text-muted-foreground font-medium">Total</span>
-            <span className="text-sm font-semibold">{fmtCurrency(expensesTotal)}</span>
+            <span className="text-sm font-semibold">{formatCurrencyDecimal(expensesTotal)}</span>
           </div>
         )}
       </div>
@@ -1330,7 +1320,7 @@ export default function ProjectDetailPage({ params }: Props) {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2 border-t">
             <DetailField label="Square Footage" value={lead.squareFootage ? Number(lead.squareFootage).toLocaleString() + " sq ft" : null} />
-            <DetailField label="Potential Fee" value={formatCurrency(lead.potentialFee)} />
+            <DetailField label="Potential Fee" value={formatCurrencyOrDash(lead.potentialFee)} />
             <DetailField label="Created" value={new Date(lead.createdAt).toLocaleDateString()} />
           </div>
         </div>

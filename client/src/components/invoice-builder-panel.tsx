@@ -18,14 +18,10 @@ import {
 } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency, parseCurrency } from "@/lib/utils";
 import { EXPENSE_TYPES, type ProposalWithPhases, type HoursEntry, type ExpenseEntry } from "@shared/schema";
 
-function fmt(n: number | string | null | undefined): string {
-  if (n === null || n === undefined) return "$0";
-  const num = typeof n === "string" ? parseFloat(n) : n;
-  if (isNaN(num)) return "$0";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(num);
-}
+const fmt = (n: number | string | null | undefined): string => formatCurrency(parseCurrency(n));
 
 function calcEarned(baseFee: string | null | undefined, pct: string): number {
   if (!baseFee) return 0;

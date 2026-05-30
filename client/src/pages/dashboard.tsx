@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardStats } from "@/lib/types";
+import { formatCurrencyWhole } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
   Lead: "bg-muted text-muted-foreground",
@@ -21,15 +22,6 @@ const PIPELINE_STAGES: { key: string; label: string; testId: string }[] = [
   { key: "Active Project", label: "Active Project", testId: "stat-active-projects" },
   { key: "Completed", label: "Completed", testId: "stat-completed" },
 ];
-
-function fmt(n: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(n);
-}
 
 function StatCard({
   title,
@@ -134,14 +126,14 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <StatCard
                 title="Outstanding Invoices"
-                value={fmt(stats?.sentInvoicesTotal ?? 0)}
+                value={formatCurrencyWhole(stats?.sentInvoicesTotal ?? 0)}
                 icon={CircleDollarSign}
                 sub="Sent, awaiting payment"
                 testId="stat-outstanding"
               />
               <StatCard
                 title="Paid Invoices"
-                value={fmt(stats?.paidInvoicesTotal ?? 0)}
+                value={formatCurrencyWhole(stats?.paidInvoicesTotal ?? 0)}
                 icon={CircleDollarSign}
                 sub="Total collected"
                 testId="stat-paid"

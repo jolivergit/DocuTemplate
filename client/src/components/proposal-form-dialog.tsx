@@ -25,6 +25,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrencyWhole } from "@/lib/utils";
 import {
   PHASE_TYPES,
   CONSULTANTS,
@@ -47,10 +48,6 @@ interface PhaseState {
 }
 
 type PhasesState = Record<string, PhaseState>;
-
-function fmt(n: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(n);
-}
 
 function initConsultantsState(): Record<string, ConsultantState> {
   const state: Record<string, ConsultantState> = {};
@@ -275,7 +272,7 @@ export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSav
                 <p className="text-xs text-muted-foreground mt-0.5">Select phases, then choose which consultants are involved in each.</p>
               </div>
               {grandTotal > 0 && (
-                <span className="text-sm font-semibold">{fmt(grandTotal)}</span>
+                <span className="text-sm font-semibold">{formatCurrencyWhole(grandTotal)}</span>
               )}
             </div>
 
@@ -333,7 +330,7 @@ export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSav
                           </div>
                           <div className="flex items-center gap-2">
                             {subtotal > 0 && (
-                              <Badge variant="secondary" className="text-xs">{fmt(subtotal)}</Badge>
+                              <Badge variant="secondary" className="text-xs">{formatCurrencyWhole(subtotal)}</Badge>
                             )}
                             <Button
                               variant="ghost"
