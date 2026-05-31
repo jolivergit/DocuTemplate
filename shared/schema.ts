@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, serial, numeric, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, serial, numeric, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -231,7 +231,9 @@ export const leads = pgTable("leads", {
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => ({
+  userIdIdx: index("leads_user_id_idx").on(t.userId),
+}));
 
 export const insertLeadSchema = createInsertSchema(leads).omit({
   id: true,
@@ -261,7 +263,9 @@ export const leadCompanies = pgTable("lead_companies", {
   city: text("city"),
   state: text("state"),
   zip: text("zip"),
-});
+}, (t) => ({
+  leadIdIdx: index("lead_companies_lead_id_idx").on(t.leadId),
+}));
 
 export const insertLeadCompanySchema = createInsertSchema(leadCompanies).omit({
   id: true,
@@ -329,7 +333,9 @@ export const proposals = pgTable("proposals", {
   dateSigned: timestamp("date_signed"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => ({
+  leadIdIdx: index("proposals_lead_id_idx").on(t.leadId),
+}));
 
 export const insertProposalSchema = createInsertSchema(proposals).omit({
   id: true,
@@ -350,7 +356,9 @@ export const proposalPhases = pgTable("proposal_phases", {
   proposalId: varchar("proposal_id").references(() => proposals.id, { onDelete: "cascade" }).notNull(),
   name: text("name").notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
-});
+}, (t) => ({
+  proposalIdIdx: index("proposal_phases_proposal_id_idx").on(t.proposalId),
+}));
 
 export type ProposalPhase = typeof proposalPhases.$inferSelect;
 
@@ -361,7 +369,9 @@ export const proposalFeeLines = pgTable("proposal_fee_lines", {
   feeType: text("fee_type").notNull().default("Fixed"),
   amount: numeric("amount", { precision: 12, scale: 2 }),
   sortOrder: integer("sort_order").notNull().default(0),
-});
+}, (t) => ({
+  phaseIdIdx: index("proposal_fee_lines_phase_id_idx").on(t.phaseId),
+}));
 
 export type ProposalFeeLine = typeof proposalFeeLines.$inferSelect;
 
@@ -376,7 +386,9 @@ export const proposalAdditionalLineItems = pgTable("proposal_additional_line_ite
   description: text("description").notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }),
   sortOrder: integer("sort_order").notNull().default(0),
-});
+}, (t) => ({
+  proposalIdIdx: index("proposal_additional_line_items_proposal_id_idx").on(t.proposalId),
+}));
 
 export type ProposalAdditionalLineItem = typeof proposalAdditionalLineItems.$inferSelect;
 
@@ -404,7 +416,9 @@ export const invoices = pgTable("invoices", {
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => ({
+  leadIdIdx: index("invoices_lead_id_idx").on(t.leadId),
+}));
 
 export type Invoice = typeof invoices.$inferSelect;
 
@@ -422,7 +436,9 @@ export const invoiceFeeLineSnapshots = pgTable("invoice_fee_line_snapshots", {
   hoursWorked: numeric("hours_worked", { precision: 10, scale: 2 }),
   ratePerHour: numeric("rate_per_hour", { precision: 10, scale: 2 }),
   sortOrder: integer("sort_order").notNull().default(0),
-});
+}, (t) => ({
+  invoiceIdIdx: index("invoice_fee_line_snapshots_invoice_id_idx").on(t.invoiceId),
+}));
 
 export type InvoiceFeeLineSnapshot = typeof invoiceFeeLineSnapshots.$inferSelect;
 
@@ -437,7 +453,10 @@ export const hoursEntries = pgTable("hours_entries", {
   description: text("description").notNull(),
   hours: numeric("hours", { precision: 10, scale: 2 }).notNull(),
   ratePerHour: numeric("rate_per_hour", { precision: 10, scale: 2 }).notNull(),
-});
+}, (t) => ({
+  invoiceIdIdx: index("hours_entries_invoice_id_idx").on(t.invoiceId),
+  leadIdIdx: index("hours_entries_lead_id_idx").on(t.leadId),
+}));
 
 export type HoursEntry = typeof hoursEntries.$inferSelect;
 export type ProjectHoursEntry = HoursEntry;
@@ -452,7 +471,10 @@ export const expenseEntries = pgTable("expense_entries", {
   milesTraveled: numeric("miles_traveled", { precision: 10, scale: 2 }),
   ratePerMile: numeric("rate_per_mile", { precision: 10, scale: 4 }),
   amount: numeric("amount", { precision: 12, scale: 2 }),
-});
+}, (t) => ({
+  invoiceIdIdx: index("expense_entries_invoice_id_idx").on(t.invoiceId),
+  leadIdIdx: index("expense_entries_lead_id_idx").on(t.leadId),
+}));
 
 export type ExpenseEntry = typeof expenseEntries.$inferSelect;
 export type ProjectExpenseEntry = ExpenseEntry;
@@ -474,7 +496,9 @@ export const consultantContracts = pgTable("consultant_contracts", {
   consultant: text("consultant").notNull(),
   docUrl: text("doc_url").notNull(),
   generatedAt: timestamp("generated_at").notNull().defaultNow(),
-});
+}, (t) => ({
+  proposalIdIdx: index("consultant_contracts_proposal_id_idx").on(t.proposalId),
+}));
 
 export type ConsultantContract = typeof consultantContracts.$inferSelect;
 
@@ -489,7 +513,9 @@ export const invoiceAdditionalLineItemSnapshots = pgTable("invoice_additional_li
   previousBilling: numeric("previous_billing", { precision: 12, scale: 2 }),
   currentBilling: numeric("current_billing", { precision: 12, scale: 2 }),
   sortOrder: integer("sort_order").notNull().default(0),
-});
+}, (t) => ({
+  invoiceIdIdx: index("invoice_additional_line_item_snapshots_invoice_id_idx").on(t.invoiceId),
+}));
 
 export type InvoiceAdditionalLineItemSnapshot = typeof invoiceAdditionalLineItemSnapshots.$inferSelect;
 
