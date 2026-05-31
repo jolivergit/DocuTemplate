@@ -2,8 +2,7 @@ import type { Express } from "express";
 import { requireAuth } from "../auth";
 import { storage } from "../storage";
 import { getGoogleClient } from "../google-client";
-import { insertPhaseTable } from "../services/google-docs";
-import type { PhaseRow } from "../services/google-docs";
+import { generateConsultantDocument } from "../services/doc-generation";
 import {
   proposalPhaseInputSchema,
   additionalLineItemInputSchema,
@@ -150,102 +149,20 @@ export function registerProposalRoutes(app: Express): void {
       if (!consultant || !templateId || !outputName) {
         return res.status(400).json({ error: "consultant, templateId, and outputName are required" });
       }
-
       const proposal = await storage.getProposalById(userId, req.params.id);
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       if (proposal.status !== "Signed") {
         return res.status(400).json({ error: "Proposal must be signed to generate consultant contracts" });
       }
-
-      const consultantRows: PhaseRow[] = proposal.phases.flatMap(phase =>
-        phase.feeLines
-          .filter(fl => fl.consultant === consultant && (fl.amount || fl.feeType === 'Hourly'))
-          .map(fl => ({
-            phase: phase.name,
-            consultant: fl.consultant,
-            feeType: fl.feeType,
-            amount: fl.amount ?? null,
-          }))
-      );
-
-      const consultantTotal = consultantRows.reduce((sum, row) => {
-        if (row.feeType === 'Fixed' && row.amount) {
-          const n = parseFloat(row.amount);
-          return isNaN(n) ? sum : sum + n;
-        }
-        return sum;
-      }, 0);
-
-      const fieldValueLookup = new Map<string, string>();
-      fieldValueLookup.set('consultant_name', consultant);
-      fieldValueLookup.set('consultant_total',
-        consultantTotal > 0
-          ? `$${consultantTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
-          : ''
-      );
-      fieldValueLookup.set('proposal_name', proposal.name);
-      fieldValueLookup.set('proposal_date',
-        proposal.dateSigned
-          ? new Date(proposal.dateSigned as Date).toLocaleDateString()
-          : ''
-      );
-
       const profile = await storage.getMyProfile(userId);
-      if (profile) {
-        fieldValueLookup.set('firm_name', profile.name || '');
-        fieldValueLookup.set('firm_phone', profile.phone || '');
-        fieldValueLookup.set('firm_email', profile.email || '');
-        fieldValueLookup.set('firm_address', [profile.addressLine1, profile.addressLine2].filter(Boolean).join(', '));
-        fieldValueLookup.set('firm_city', profile.city || '');
-        fieldValueLookup.set('firm_state', profile.state || '');
-        fieldValueLookup.set('firm_zip', profile.zip || '');
-        fieldValueLookup.set('firm_contact_name', profile.contactName || '');
-        fieldValueLookup.set('firm_contact_title', profile.contactTitle || '');
-      }
-
       const { docs, drive } = await getGoogleClient(userId);
-
-      const timestamp = Date.now();
-      const copiedFile = await drive.files.copy({
-        fileId: templateId,
-        requestBody: { name: `${outputName}_${timestamp}` },
-      });
-      const newDocId = copiedFile.data.id;
-      if (!newDocId) return res.status(500).json({ error: "Failed to copy template document" });
-
-      const preDoc = await docs.documents.get({ documentId: newDocId });
-      let preDocText = '';
-      for (const element of preDoc.data.body?.content || []) {
-        if (element.paragraph?.elements) {
-          for (const el of element.paragraph.elements) {
-            preDocText += el.textRun?.content || '';
-          }
-        }
-      }
-      const hasConsultantTableTag = preDocText.includes('{{consultant_phases_table}}');
-
-      const fieldRequests: Array<{ replaceAllText: { containsText: { text: string; matchCase: boolean }; replaceText: string } }> = [];
-      for (const [tagName, value] of Array.from(fieldValueLookup.entries())) {
-        fieldRequests.push({
-          replaceAllText: {
-            containsText: { text: `{{${tagName}}}`, matchCase: true },
-            replaceText: value,
-          },
-        });
-      }
-      if (fieldRequests.length > 0) {
-        await docs.documents.batchUpdate({ documentId: newDocId, requestBody: { requests: fieldRequests } });
-      }
-
-      if (hasConsultantTableTag && consultantRows.length > 0) {
-        await insertPhaseTable(docs, newDocId, '{{consultant_phases_table}}', consultantRows);
-      }
-
-      const documentUrl = `https://docs.google.com/document/d/${newDocId}/edit`;
+      const { documentUrl } = await generateConsultantDocument(
+        proposal, consultant, templateId, outputName, profile, docs, drive
+      );
       const contract = await storage.upsertConsultantContract(req.params.id, consultant, documentUrl);
       res.json({ docUrl: documentUrl, contract });
     } catch (error) {
-      console.error('Error generating consultant contract:', error);
+      console.error("Error generating consultant contract:", error);
       res.status(500).json({ error: (error as Error).message });
     }
   });
