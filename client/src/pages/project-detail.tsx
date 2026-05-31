@@ -197,11 +197,6 @@ export default function ProjectDetailPage({ params }: Props) {
 
   const { data: lead, isLoading } = useQuery<LeadWithCompanies>({
     queryKey: ["/api/leads", leadId],
-    queryFn: async () => {
-      const r = await fetch(`/api/leads/${leadId}`);
-      if (!r.ok) throw new Error(`Failed to load project: ${r.status}`);
-      return r.json() as Promise<LeadWithCompanies>;
-    },
     enabled: !isNaN(leadId),
   });
 

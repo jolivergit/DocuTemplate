@@ -95,29 +95,14 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
 
   const { data: allHours = [], isLoading: hoursLoading } = useQuery<HoursEntry[]>({
     queryKey: ["/api/leads", leadId, "hours"],
-    queryFn: async () => {
-      const r = await fetch(`/api/leads/${leadId}/hours`);
-      if (!r.ok) throw new Error("Failed to load hours");
-      return r.json();
-    },
   });
 
   const { data: allExpenses = [], isLoading: expensesLoading } = useQuery<ExpenseEntry[]>({
     queryKey: ["/api/leads", leadId, "expenses"],
-    queryFn: async () => {
-      const r = await fetch(`/api/leads/${leadId}/expenses`);
-      if (!r.ok) throw new Error("Failed to load expenses");
-      return r.json();
-    },
   });
 
   const { data: invoices = [] } = useQuery<Invoice[]>({
     queryKey: ["/api/leads", leadId, "invoices"],
-    queryFn: async () => {
-      const r = await fetch(`/api/leads/${leadId}/invoices`);
-      if (!r.ok) throw new Error("Failed to load invoices");
-      return r.json();
-    },
   });
 
   const invoiceMap = new Map(invoices.map((inv) => [inv.id, inv.invoiceNumber]));
@@ -170,15 +155,12 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
   }
 
   const addHoursMutation = useMutation({
-    mutationFn: async () => {
-      const r = await apiRequest("POST", `/api/leads/${leadId}/hours`, {
-        date: hDate,
-        description: hDesc,
-        hours: hHours,
-        ratePerHour: hRate,
-      });
-      return r.json();
-    },
+    mutationFn: () => apiRequest("POST", `/api/leads/${leadId}/hours`, {
+      date: hDate,
+      description: hDesc,
+      hours: hHours,
+      ratePerHour: hRate,
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "hours"] });
       setShowHoursForm(false);
@@ -198,8 +180,7 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
       } else {
         body.amount = eAmount;
       }
-      const r = await apiRequest("POST", `/api/leads/${leadId}/expenses`, body);
-      return r.json();
+      return apiRequest("POST", `/api/leads/${leadId}/expenses`, body);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "expenses"] });
@@ -212,15 +193,12 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
   });
 
   const updateHoursMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const r = await apiRequest("PATCH", `/api/hours/${id}`, {
-        date: ehDate,
-        description: ehDesc,
-        hours: ehHours,
-        ratePerHour: ehRate,
-      });
-      return r.json();
-    },
+    mutationFn: (id: string) => apiRequest("PATCH", `/api/hours/${id}`, {
+      date: ehDate,
+      description: ehDesc,
+      hours: ehHours,
+      ratePerHour: ehRate,
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "hours"] });
       setEditingHoursId(null);
@@ -249,8 +227,7 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
       } else {
         body.amount = eeAmount;
       }
-      const r = await apiRequest("PATCH", `/api/expenses/${id}`, body);
-      return r.json();
+      return apiRequest("PATCH", `/api/expenses/${id}`, body);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "expenses"] });

@@ -127,20 +127,10 @@ export function InvoiceBuilderPanel({ leadId, proposal, additionalServiceProposa
 
   const { data: projectHours = [] } = useQuery<HoursEntry[]>({
     queryKey: ["/api/leads", leadId, "hours"],
-    queryFn: async () => {
-      const r = await fetch(`/api/leads/${leadId}/hours`);
-      if (!r.ok) return [];
-      return r.json();
-    },
   });
 
   const { data: projectExpenses = [] } = useQuery<ExpenseEntry[]>({
     queryKey: ["/api/leads", leadId, "expenses"],
-    queryFn: async () => {
-      const r = await fetch(`/api/leads/${leadId}/expenses`);
-      if (!r.ok) return [];
-      return r.json();
-    },
   });
 
   const unattachedHours = projectHours.filter((h) => !h.invoiceId);
@@ -149,11 +139,6 @@ export function InvoiceBuilderPanel({ leadId, proposal, additionalServiceProposa
   // Fetch prior billing summary so we can show Previous Billing and Current Billing per line
   const { data: billingSummary = {} } = useQuery<Record<string, number>>({
     queryKey: ["/api/proposals", proposal.id, "billing-summary"],
-    queryFn: async () => {
-      const r = await fetch(`/api/proposals/${proposal.id}/billing-summary`);
-      if (!r.ok) return {};
-      return r.json();
-    },
   });
 
   const updateSnapshot = (feeLineId: string, field: keyof SnapshotInput, value: string) => {

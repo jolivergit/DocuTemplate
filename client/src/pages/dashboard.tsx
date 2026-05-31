@@ -53,11 +53,6 @@ function StatCard({
 export default function DashboardPage() {
   const { data: stats, isLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard"],
-    queryFn: async () => {
-      const r = await fetch("/api/dashboard");
-      if (!r.ok) throw new Error("Failed to load dashboard");
-      return r.json();
-    },
     staleTime: 30_000,
   });
 

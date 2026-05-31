@@ -15,11 +15,6 @@ export function NotesTab({ leadId }: { leadId: number }) {
 
   const { data: comments = [], isLoading: commentsLoading } = useQuery<ProjectComment[]>({
     queryKey: ["/api/leads", leadId, "comments"],
-    queryFn: async () => {
-      const r = await fetch(`/api/leads/${leadId}/comments`);
-      if (!r.ok) throw new Error("Failed to load comments");
-      return r.json();
-    },
   });
 
   const addCommentMutation = useMutation({

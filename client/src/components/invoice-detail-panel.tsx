@@ -70,20 +70,10 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
 
   const { data: invoice, isLoading } = useQuery<InvoiceWithDetails>({
     queryKey: ["/api/invoices", invoiceId],
-    queryFn: async () => {
-      const r = await fetch(`/api/invoices/${invoiceId}`);
-      if (!r.ok) throw new Error("Failed to load invoice");
-      return r.json();
-    },
   });
 
   const { data: templates = [], isLoading: templatesLoading } = useQuery<DriveFile[]>({
     queryKey: ["/api/google-drive/files"],
-    queryFn: async () => {
-      const r = await fetch("/api/google-drive/files");
-      if (!r.ok) return [];
-      return r.json();
-    },
     enabled: showGeneratePanel,
     staleTime: 60_000,
   });
@@ -187,43 +177,24 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
     setIsGenerating(true);
     try {
       // Step 1: Clear stale invoice context fields before loading fresh values
-      await fetch("/api/field-values/by-prefix", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prefixes: ["invoice_", "fee_line_", "hours_entry_", "expense_entry_", "project_name", "client_"] }),
+      await apiRequest("DELETE", "/api/field-values/by-prefix", {
+        prefixes: ["invoice_", "fee_line_", "hours_entry_", "expense_entry_", "project_name", "client_"],
       });
 
       // Step 2: Upsert all invoice field values
       const fieldMappings = buildInvoiceFieldMappings(invoice);
-      const upsertResults = await Promise.all(
-        fieldMappings.map((fv) =>
-          fetch("/api/field-values/upsert-by-name", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(fv),
-          })
-        )
+      await Promise.all(
+        fieldMappings.map((fv) => apiRequest("POST", "/api/field-values/upsert-by-name", fv))
       );
-      const failedUpsert = upsertResults.find((r) => !r.ok);
-      if (failedUpsert) {
-        const err = await failedUpsert.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error || `Upsert failed: HTTP ${failedUpsert.status}`);
-      }
 
-      // Step 2: Fetch all current field values (now includes the freshly upserted ones)
-      const fvRes = await fetch("/api/field-values");
-      if (!fvRes.ok) throw new Error("Failed to fetch field values");
-      const allFieldValues: FieldValue[] = await fvRes.json();
+      // Step 3: Fetch all current field values (now includes the freshly upserted ones)
+      const allFieldValues = await apiRequest<FieldValue[]>("GET", "/api/field-values");
       const fvByName = new Map(allFieldValues.map((fv) => [fv.name, fv]));
 
-      // Step 3: Parse template to discover its tags
-      const parseRes = await fetch("/api/templates/parse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileId: selectedTemplateId }),
+      // Step 4: Parse template to discover its tags
+      const parsed = await apiRequest<{ tags: ParsedTag[] }>("POST", "/api/templates/parse", {
+        fileId: selectedTemplateId,
       });
-      if (!parseRes.ok) throw new Error("Failed to parse template");
-      const parsed = await parseRes.json() as { tags: ParsedTag[] };
 
       // Step 4: Build tagMappings — map each template tag to its stored field value (or empty custom content)
       const tagMappings = parsed.tags.map((tag: ParsedTag) => {
@@ -248,30 +219,16 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
 
       // Step 5: Generate the document
       const outputName = `Invoice_${invoice.invoiceNumber}_${lead.projectName.replace(/\s+/g, "_")}`;
-      const genRes = await fetch("/api/documents/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          templateId: selectedTemplateId,
-          templateName: template.name,
-          outputName,
-          tagMappings,
-          sectionOrder: [],
-        }),
+      const { documentUrl } = await apiRequest<{ documentUrl: string }>("POST", "/api/documents/generate", {
+        templateId: selectedTemplateId,
+        templateName: template.name,
+        outputName,
+        tagMappings,
+        sectionOrder: [],
       });
-      if (!genRes.ok) {
-        const err = await genRes.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error || "Document generation failed");
-      }
-      const { documentUrl } = await genRes.json() as { documentUrl: string };
 
       // Step 6: Auto-save the document URL to this invoice
-      const saveRes = await fetch(`/api/invoices/${invoiceId}/doc-url`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ docUrl: documentUrl }),
-      });
-      if (!saveRes.ok) throw new Error("Failed to save document URL to invoice");
+      await apiRequest("PATCH", `/api/invoices/${invoiceId}/doc-url`, { docUrl: documentUrl });
 
       queryClient.invalidateQueries({ queryKey: ["/api/invoices", invoiceId] });
       queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "invoices"] });

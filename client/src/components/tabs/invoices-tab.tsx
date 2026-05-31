@@ -24,20 +24,10 @@ export function InvoicesTab({ leadId, lead }: { leadId: number; lead: LeadWithCo
 
   const { data: proposals = [] } = useQuery<ProposalWithPhases[]>({
     queryKey: ["/api/leads", leadId, "proposals"],
-    queryFn: async () => {
-      const r = await fetch(`/api/leads/${leadId}/proposals`);
-      if (!r.ok) throw new Error("Failed to load proposals");
-      return r.json();
-    },
   });
 
   const { data: invoices = [], isLoading: invoicesLoading } = useQuery<Invoice[]>({
     queryKey: ["/api/leads", leadId, "invoices"],
-    queryFn: async () => {
-      const r = await fetch(`/api/leads/${leadId}/invoices`);
-      if (!r.ok) throw new Error("Failed to load invoices");
-      return r.json();
-    },
   });
 
   const signedProposal = proposals.find((p) => p.status === "Signed" && p.proposalType !== "Additional Services");

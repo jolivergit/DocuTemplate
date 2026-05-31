@@ -341,14 +341,16 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
   const handleLoadToDocBuilder = async () => {
     setIsLoadingDocBuilder(true);
     try {
-      await fetch("/api/field-values/by-prefix", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prefixes: ["proposal_", "project_name", "_proposal_phases", "_additional_services"] }),
+      await apiRequest("DELETE", "/api/field-values/by-prefix", {
+        prefixes: ["proposal_", "project_name", "_proposal_phases", "_additional_services"],
       });
 
-      const profileRes = await fetch("/api/profile");
-      const profile = profileRes.ok ? await profileRes.json() : null;
+      let profile: Record<string, string> | null = null;
+      try {
+        profile = await apiRequest("GET", "/api/profile");
+      } catch {
+        profile = null;
+      }
 
       const totalStr = grandTotal > 0 ? `$${grandTotal.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "";
 
@@ -372,11 +374,7 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
 
       const allWrites = [
         ...fieldMappings.filter((f) => f.value).map((f) =>
-          fetch("/api/field-values/upsert-by-name", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(f),
-          })
+          apiRequest("POST", "/api/field-values/upsert-by-name", f)
         ),
       ];
 
@@ -387,10 +385,9 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
         }));
         if (asRows.length > 0) {
           allWrites.push(
-            fetch("/api/field-values/upsert-by-name", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: "_additional_services_json", value: JSON.stringify(asRows) }),
+            apiRequest("POST", "/api/field-values/upsert-by-name", {
+              name: "_additional_services_json",
+              value: JSON.stringify(asRows),
             })
           );
         }
@@ -405,10 +402,9 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
         );
         if (phasesRows.length > 0) {
           allWrites.push(
-            fetch("/api/field-values/upsert-by-name", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: "_proposal_phases_json", value: JSON.stringify(phasesRows) }),
+            apiRequest("POST", "/api/field-values/upsert-by-name", {
+              name: "_proposal_phases_json",
+              value: JSON.stringify(phasesRows),
             })
           );
         }

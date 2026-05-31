@@ -34,10 +34,12 @@ export default function ProfilePage() {
   const { data: profile, isLoading } = useQuery<Profile | null>({
     queryKey: ["/api/profile"],
     queryFn: async () => {
-      const r = await fetch("/api/profile");
-      if (r.status === 404) return null;
-      if (!r.ok) throw new Error("Failed to load profile");
-      return r.json();
+      try {
+        return await apiRequest<Profile>("GET", "/api/profile");
+      } catch (e) {
+        if (e instanceof Error && e.message.startsWith("404")) return null;
+        throw e;
+      }
     },
   });
 
@@ -77,8 +79,7 @@ export default function ProfilePage() {
   const saveMutation = useMutation({
     mutationFn: async (values: ProfileFormValues) => {
       // Save profile
-      const saved = await apiRequest("PATCH", "/api/profile", values);
-      const savedProfile: Profile = await saved.json();
+      const savedProfile = await apiRequest<Profile>("PATCH", "/api/profile", values);
 
       // Sync firm field values to Doc Builder so {{firm_name}} etc. are always current
       const firmFields = [
@@ -96,13 +97,7 @@ export default function ProfilePage() {
       await Promise.all(
         firmFields
           .filter((f) => f.value)
-          .map((f) =>
-            fetch("/api/field-values/upsert-by-name", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(f),
-            })
-          )
+          .map((f) => apiRequest("POST", "/api/field-values/upsert-by-name", f))
       );
 
       return savedProfile;

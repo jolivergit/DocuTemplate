@@ -36,11 +36,6 @@ export function ProposalsTab({ leadId, projectName }: { leadId: number; projectN
 
   const { data: proposals = [], isLoading } = useQuery<ProposalWithPhases[]>({
     queryKey: ["/api/leads", leadId, "proposals"],
-    queryFn: async () => {
-      const r = await fetch(`/api/leads/${leadId}/proposals`);
-      if (!r.ok) throw new Error("Failed to load proposals");
-      return r.json();
-    },
   });
 
   if (selectedProposal) {
