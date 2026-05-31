@@ -64,177 +64,179 @@ export async function createInvoice(
   if (!proposalRow || proposalRow.leadId !== leadId) throw new Error('Proposal not found or does not belong to this lead');
   if (proposalRow.status !== 'Signed') throw new Error('Invoices can only be created against a signed proposal');
 
-  const existingInvoices = await db.select({ num: invoices.invoiceNumber }).from(invoices).where(eq(invoices.leadId, leadId));
-  const nextNumber = existingInvoices.length > 0 ? Math.max(...existingInvoices.map(i => i.num)) + 1 : 1;
+  return await db.transaction(async (tx) => {
+    const existingInvoices = await tx.select({ num: invoices.invoiceNumber }).from(invoices).where(eq(invoices.leadId, leadId));
+    const nextNumber = existingInvoices.length > 0 ? Math.max(...existingInvoices.map(i => i.num)) + 1 : 1;
 
-  const [invoice] = await db
-    .insert(invoices)
-    .values({ leadId, proposalId, invoiceNumber: nextNumber, notes: notes || null })
-    .returning();
+    const [invoice] = await tx
+      .insert(invoices)
+      .values({ leadId, proposalId, invoiceNumber: nextNumber, notes: notes || null })
+      .returning();
 
-  const proposalFeeLineIds = feeLineInputs.map(f => f.proposalFeeLineId);
-  const allProposalFeeLines = proposalFeeLineIds.length > 0
-    ? await db.select().from(proposalFeeLines).where(inArray(proposalFeeLines.id, proposalFeeLineIds))
-    : [];
-
-  if (allProposalFeeLines.length > 0) {
-    const phaseIds = allProposalFeeLines.map(fl => fl.phaseId);
-    const validPhases = await db.select({ id: proposalPhases.id }).from(proposalPhases).where(and(inArray(proposalPhases.id, phaseIds), eq(proposalPhases.proposalId, proposalId)));
-    const validPhaseIds = new Set(validPhases.map(p => p.id));
-    const invalidLine = allProposalFeeLines.find(fl => !validPhaseIds.has(fl.phaseId));
-    if (invalidLine) throw new Error('One or more fee lines do not belong to this proposal');
-  }
-
-  const previousBillingMap = new Map<string, number>();
-  const priorInvoices = await db
-    .select({ id: invoices.id })
-    .from(invoices)
-    .where(and(eq(invoices.leadId, leadId), eq(invoices.proposalId, proposalId)));
-  const priorInvoiceIds = priorInvoices.map(i => i.id).filter(id => id !== invoice.id);
-
-  if (priorInvoiceIds.length > 0) {
-    const priorSnapshots = await db
-      .select()
-      .from(invoiceFeeLineSnapshots)
-      .where(inArray(invoiceFeeLineSnapshots.invoiceId, priorInvoiceIds));
-    for (const snap of priorSnapshots) {
-      const billed = parseFloat(snap.currentBilling || '0');
-      previousBillingMap.set(snap.proposalFeeLineId, (previousBillingMap.get(snap.proposalFeeLineId) || 0) + billed);
-    }
-  }
-
-  const snapshotValues: (typeof invoiceFeeLineSnapshots.$inferInsert)[] = [];
-  let sortIdx = 0;
-  for (const input of feeLineInputs) {
-    const feeLine = allProposalFeeLines.find(fl => fl.id === input.proposalFeeLineId);
-    if (!feeLine) continue;
-
-    const baseFee = feeLine.amount ? parseFloat(feeLine.amount) : null;
-    const prevBilling = previousBillingMap.get(feeLine.id) || 0;
-    let percentComplete: string | null = null;
-    let earned: string | null = null;
-    let currentBilling: string | null = null;
-    let hoursWorked: string | null = null;
-    let ratePerHour: string | null = null;
-
-    if (feeLine.feeType === 'Fixed' && baseFee !== null) {
-      const pct = parseFloat(input.percentComplete || '0');
-      const earnedVal = baseFee * pct / 100;
-      const curBilling = Math.max(0, earnedVal - prevBilling);
-      percentComplete = pct.toFixed(2);
-      earned = earnedVal.toFixed(2);
-      currentBilling = curBilling.toFixed(2);
-    } else if (feeLine.feeType === 'Hourly') {
-      hoursWorked = input.hoursWorked || '0';
-      ratePerHour = input.ratePerHour || '0';
-      const earnedVal = parseFloat(hoursWorked) * parseFloat(ratePerHour);
-      earned = earnedVal.toFixed(2);
-      currentBilling = earnedVal.toFixed(2);
-    }
-
-    snapshotValues.push({
-      invoiceId: invoice.id,
-      proposalFeeLineId: feeLine.id,
-      consultant: feeLine.consultant,
-      feeType: feeLine.feeType,
-      baseFee: baseFee !== null ? baseFee.toFixed(2) : null,
-      percentComplete,
-      earned,
-      previousBilling: prevBilling.toFixed(2),
-      currentBilling,
-      hoursWorked,
-      ratePerHour,
-      sortOrder: sortIdx++,
-    });
-  }
-
-  let savedSnapshots: InvoiceFeeLineSnapshot[] = [];
-  if (snapshotValues.length > 0) {
-    savedSnapshots = await db.insert(invoiceFeeLineSnapshots).values(snapshotValues).returning();
-  }
-
-  let savedHours: HoursEntry[] = [];
-  if (hoursInputs.length > 0) {
-    savedHours = await db.insert(hoursEntries).values(hoursInputs.map(h => ({ invoiceId: invoice.id, leadId, ...h }))).returning();
-  }
-
-  if (existingHoursIds && existingHoursIds.length > 0) {
-    await db.update(hoursEntries)
-      .set({ invoiceId: invoice.id })
-      .where(and(inArray(hoursEntries.id, existingHoursIds), eq(hoursEntries.leadId, leadId), isNull(hoursEntries.invoiceId)));
-    const attachedHours = await db.select().from(hoursEntries)
-      .where(and(inArray(hoursEntries.id, existingHoursIds), eq(hoursEntries.invoiceId, invoice.id)));
-    savedHours = [...savedHours, ...attachedHours];
-  }
-
-  let savedExpenses: ExpenseEntry[] = [];
-  if (expenseInputs.length > 0) {
-    savedExpenses = await db.insert(expenseEntries).values(
-      expenseInputs.map(e => ({
-        invoiceId: invoice.id,
-        leadId,
-        date: e.date,
-        expenseType: e.expenseType,
-        billedDate: e.billedDate || null,
-        milesTraveled: e.milesTraveled || null,
-        ratePerMile: e.ratePerMile || null,
-        amount: e.amount || null,
-      }))
-    ).returning();
-  }
-
-  if (existingExpenseIds && existingExpenseIds.length > 0) {
-    await db.update(expenseEntries)
-      .set({ invoiceId: invoice.id })
-      .where(and(inArray(expenseEntries.id, existingExpenseIds), eq(expenseEntries.leadId, leadId), isNull(expenseEntries.invoiceId)));
-    const attachedExpenses = await db.select().from(expenseEntries)
-      .where(and(inArray(expenseEntries.id, existingExpenseIds), eq(expenseEntries.invoiceId, invoice.id)));
-    savedExpenses = [...savedExpenses, ...attachedExpenses];
-  }
-
-  let savedAdditionalSnapshots: InvoiceAdditionalLineItemSnapshot[] = [];
-  if (additionalLineItemInputs && additionalLineItemInputs.length > 0) {
-    const priorAdditionalSnapshots = priorInvoiceIds.length > 0
-      ? await db.select().from(invoiceAdditionalLineItemSnapshots).where(inArray(invoiceAdditionalLineItemSnapshots.invoiceId, priorInvoiceIds))
+    const proposalFeeLineIds = feeLineInputs.map(f => f.proposalFeeLineId);
+    const allProposalFeeLines = proposalFeeLineIds.length > 0
+      ? await tx.select().from(proposalFeeLines).where(inArray(proposalFeeLines.id, proposalFeeLineIds))
       : [];
-    const prevAdditionalBillingMap = new Map<string, number>();
-    for (const snap of priorAdditionalSnapshots) {
-      const billed = parseFloat(snap.currentBilling || '0');
-      prevAdditionalBillingMap.set(snap.additionalLineItemId, (prevAdditionalBillingMap.get(snap.additionalLineItemId) || 0) + billed);
+
+    if (allProposalFeeLines.length > 0) {
+      const phaseIds = allProposalFeeLines.map(fl => fl.phaseId);
+      const validPhases = await tx.select({ id: proposalPhases.id }).from(proposalPhases).where(and(inArray(proposalPhases.id, phaseIds), eq(proposalPhases.proposalId, proposalId)));
+      const validPhaseIds = new Set(validPhases.map(p => p.id));
+      const invalidLine = allProposalFeeLines.find(fl => !validPhaseIds.has(fl.phaseId));
+      if (invalidLine) throw new Error('One or more fee lines do not belong to this proposal');
     }
 
-    const additionalSnapshotValues: (typeof invoiceAdditionalLineItemSnapshots.$inferInsert)[] = [];
-    let addSortIdx = 0;
-    for (const input of additionalLineItemInputs) {
-      const baseFee = input.amount ? parseFloat(input.amount) : null;
-      const prevBilling = prevAdditionalBillingMap.get(input.additionalLineItemId) || 0;
-      let currentBilling = '0.00';
-      if (baseFee !== null) {
-        const pct = parseFloat(input.percentComplete || '0');
-        const earned = baseFee * pct / 100;
-        currentBilling = Math.max(0, earned - prevBilling).toFixed(2);
+    const previousBillingMap = new Map<string, number>();
+    const priorInvoices = await tx
+      .select({ id: invoices.id })
+      .from(invoices)
+      .where(and(eq(invoices.leadId, leadId), eq(invoices.proposalId, proposalId)));
+    const priorInvoiceIds = priorInvoices.map(i => i.id).filter(id => id !== invoice.id);
+
+    if (priorInvoiceIds.length > 0) {
+      const priorSnapshots = await tx
+        .select()
+        .from(invoiceFeeLineSnapshots)
+        .where(inArray(invoiceFeeLineSnapshots.invoiceId, priorInvoiceIds));
+      for (const snap of priorSnapshots) {
+        const billed = parseFloat(snap.currentBilling || '0');
+        previousBillingMap.set(snap.proposalFeeLineId, (previousBillingMap.get(snap.proposalFeeLineId) || 0) + billed);
       }
-      additionalSnapshotValues.push({
+    }
+
+    const snapshotValues: (typeof invoiceFeeLineSnapshots.$inferInsert)[] = [];
+    let sortIdx = 0;
+    for (const input of feeLineInputs) {
+      const feeLine = allProposalFeeLines.find(fl => fl.id === input.proposalFeeLineId);
+      if (!feeLine) continue;
+
+      const baseFee = feeLine.amount ? parseFloat(feeLine.amount) : null;
+      const prevBilling = previousBillingMap.get(feeLine.id) || 0;
+      let percentComplete: string | null = null;
+      let earned: string | null = null;
+      let currentBilling: string | null = null;
+      let hoursWorked: string | null = null;
+      let ratePerHour: string | null = null;
+
+      if (feeLine.feeType === 'Fixed' && baseFee !== null) {
+        const pct = parseFloat(input.percentComplete || '0');
+        const earnedVal = baseFee * pct / 100;
+        const curBilling = Math.max(0, earnedVal - prevBilling);
+        percentComplete = pct.toFixed(2);
+        earned = earnedVal.toFixed(2);
+        currentBilling = curBilling.toFixed(2);
+      } else if (feeLine.feeType === 'Hourly') {
+        hoursWorked = input.hoursWorked || '0';
+        ratePerHour = input.ratePerHour || '0';
+        const earnedVal = parseFloat(hoursWorked) * parseFloat(ratePerHour);
+        earned = earnedVal.toFixed(2);
+        currentBilling = earnedVal.toFixed(2);
+      }
+
+      snapshotValues.push({
         invoiceId: invoice.id,
-        additionalLineItemId: input.additionalLineItemId,
-        description: input.description,
-        amount: input.amount || null,
-        percentComplete: input.percentComplete || '0',
+        proposalFeeLineId: feeLine.id,
+        consultant: feeLine.consultant,
+        feeType: feeLine.feeType,
+        baseFee: baseFee !== null ? baseFee.toFixed(2) : null,
+        percentComplete,
+        earned,
         previousBilling: prevBilling.toFixed(2),
         currentBilling,
-        sortOrder: addSortIdx++,
+        hoursWorked,
+        ratePerHour,
+        sortOrder: sortIdx++,
       });
     }
-    savedAdditionalSnapshots = await db.insert(invoiceAdditionalLineItemSnapshots).values(additionalSnapshotValues).returning();
-  }
 
-  return {
-    ...invoice,
-    feeLineSnapshots: savedSnapshots,
-    additionalLineItemSnapshots: savedAdditionalSnapshots,
-    hoursEntries: savedHours,
-    expenseEntries: savedExpenses,
-  };
+    let savedSnapshots: InvoiceFeeLineSnapshot[] = [];
+    if (snapshotValues.length > 0) {
+      savedSnapshots = await tx.insert(invoiceFeeLineSnapshots).values(snapshotValues).returning();
+    }
+
+    let savedHours: HoursEntry[] = [];
+    if (hoursInputs.length > 0) {
+      savedHours = await tx.insert(hoursEntries).values(hoursInputs.map(h => ({ invoiceId: invoice.id, leadId, ...h }))).returning();
+    }
+
+    if (existingHoursIds && existingHoursIds.length > 0) {
+      await tx.update(hoursEntries)
+        .set({ invoiceId: invoice.id })
+        .where(and(inArray(hoursEntries.id, existingHoursIds), eq(hoursEntries.leadId, leadId), isNull(hoursEntries.invoiceId)));
+      const attachedHours = await tx.select().from(hoursEntries)
+        .where(and(inArray(hoursEntries.id, existingHoursIds), eq(hoursEntries.invoiceId, invoice.id)));
+      savedHours = [...savedHours, ...attachedHours];
+    }
+
+    let savedExpenses: ExpenseEntry[] = [];
+    if (expenseInputs.length > 0) {
+      savedExpenses = await tx.insert(expenseEntries).values(
+        expenseInputs.map(e => ({
+          invoiceId: invoice.id,
+          leadId,
+          date: e.date,
+          expenseType: e.expenseType,
+          billedDate: e.billedDate || null,
+          milesTraveled: e.milesTraveled || null,
+          ratePerMile: e.ratePerMile || null,
+          amount: e.amount || null,
+        }))
+      ).returning();
+    }
+
+    if (existingExpenseIds && existingExpenseIds.length > 0) {
+      await tx.update(expenseEntries)
+        .set({ invoiceId: invoice.id })
+        .where(and(inArray(expenseEntries.id, existingExpenseIds), eq(expenseEntries.leadId, leadId), isNull(expenseEntries.invoiceId)));
+      const attachedExpenses = await tx.select().from(expenseEntries)
+        .where(and(inArray(expenseEntries.id, existingExpenseIds), eq(expenseEntries.invoiceId, invoice.id)));
+      savedExpenses = [...savedExpenses, ...attachedExpenses];
+    }
+
+    let savedAdditionalSnapshots: InvoiceAdditionalLineItemSnapshot[] = [];
+    if (additionalLineItemInputs && additionalLineItemInputs.length > 0) {
+      const priorAdditionalSnapshots = priorInvoiceIds.length > 0
+        ? await tx.select().from(invoiceAdditionalLineItemSnapshots).where(inArray(invoiceAdditionalLineItemSnapshots.invoiceId, priorInvoiceIds))
+        : [];
+      const prevAdditionalBillingMap = new Map<string, number>();
+      for (const snap of priorAdditionalSnapshots) {
+        const billed = parseFloat(snap.currentBilling || '0');
+        prevAdditionalBillingMap.set(snap.additionalLineItemId, (prevAdditionalBillingMap.get(snap.additionalLineItemId) || 0) + billed);
+      }
+
+      const additionalSnapshotValues: (typeof invoiceAdditionalLineItemSnapshots.$inferInsert)[] = [];
+      let addSortIdx = 0;
+      for (const input of additionalLineItemInputs) {
+        const baseFee = input.amount ? parseFloat(input.amount) : null;
+        const prevBilling = prevAdditionalBillingMap.get(input.additionalLineItemId) || 0;
+        let currentBilling = '0.00';
+        if (baseFee !== null) {
+          const pct = parseFloat(input.percentComplete || '0');
+          const earned = baseFee * pct / 100;
+          currentBilling = Math.max(0, earned - prevBilling).toFixed(2);
+        }
+        additionalSnapshotValues.push({
+          invoiceId: invoice.id,
+          additionalLineItemId: input.additionalLineItemId,
+          description: input.description,
+          amount: input.amount || null,
+          percentComplete: input.percentComplete || '0',
+          previousBilling: prevBilling.toFixed(2),
+          currentBilling,
+          sortOrder: addSortIdx++,
+        });
+      }
+      savedAdditionalSnapshots = await tx.insert(invoiceAdditionalLineItemSnapshots).values(additionalSnapshotValues).returning();
+    }
+
+    return {
+      ...invoice,
+      feeLineSnapshots: savedSnapshots,
+      additionalLineItemSnapshots: savedAdditionalSnapshots,
+      hoursEntries: savedHours,
+      expenseEntries: savedExpenses,
+    };
+  });
 }
 
 export async function updateInvoiceStatus(userId: string, invoiceId: string, status: string): Promise<Invoice | undefined> {

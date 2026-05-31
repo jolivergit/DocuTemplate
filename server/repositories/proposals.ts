@@ -95,48 +95,50 @@ export async function createProposal(
   const owned = await verifyLeadOwnership(userId, proposalData.leadId);
   if (!owned) throw new Error('Lead not found or access denied');
 
-  const [proposal] = await db
-    .insert(proposals)
-    .values(toProposalDbValues(proposalData) as typeof proposals.$inferInsert)
-    .returning();
-
-  const phasesWithLines: ProposalPhaseWithLines[] = [];
-  for (const phaseData of phases) {
-    const [phase] = await db
-      .insert(proposalPhases)
-      .values({ proposalId: proposal.id, name: phaseData.name, sortOrder: phaseData.sortOrder })
+  return await db.transaction(async (tx) => {
+    const [proposal] = await tx
+      .insert(proposals)
+      .values(toProposalDbValues(proposalData) as typeof proposals.$inferInsert)
       .returning();
-    const feeLineRows = phaseData.feeLines.filter(fl => fl.amount || fl.feeType === 'Hourly');
-    let savedLines: ProposalFeeLine[] = [];
-    if (feeLineRows.length > 0) {
-      savedLines = await db
-        .insert(proposalFeeLines)
-        .values(feeLineRows.map(fl => ({
-          phaseId: phase.id,
-          consultant: fl.consultant,
-          feeType: fl.feeType,
-          amount: fl.amount || null,
-          sortOrder: fl.sortOrder,
+
+    const phasesWithLines: ProposalPhaseWithLines[] = [];
+    for (const phaseData of phases) {
+      const [phase] = await tx
+        .insert(proposalPhases)
+        .values({ proposalId: proposal.id, name: phaseData.name, sortOrder: phaseData.sortOrder })
+        .returning();
+      const feeLineRows = phaseData.feeLines.filter(fl => fl.amount || fl.feeType === 'Hourly');
+      let savedLines: ProposalFeeLine[] = [];
+      if (feeLineRows.length > 0) {
+        savedLines = await tx
+          .insert(proposalFeeLines)
+          .values(feeLineRows.map(fl => ({
+            phaseId: phase.id,
+            consultant: fl.consultant,
+            feeType: fl.feeType,
+            amount: fl.amount || null,
+            sortOrder: fl.sortOrder,
+          })))
+          .returning();
+      }
+      phasesWithLines.push({ ...phase, feeLines: savedLines });
+    }
+
+    let savedAdditionalItems: ProposalAdditionalLineItem[] = [];
+    if (additionalLineItemsInput && additionalLineItemsInput.length > 0) {
+      savedAdditionalItems = await tx
+        .insert(proposalAdditionalLineItems)
+        .values(additionalLineItemsInput.map(item => ({
+          proposalId: proposal.id,
+          description: item.description,
+          amount: item.amount || null,
+          sortOrder: item.sortOrder,
         })))
         .returning();
     }
-    phasesWithLines.push({ ...phase, feeLines: savedLines });
-  }
 
-  let savedAdditionalItems: ProposalAdditionalLineItem[] = [];
-  if (additionalLineItemsInput && additionalLineItemsInput.length > 0) {
-    savedAdditionalItems = await db
-      .insert(proposalAdditionalLineItems)
-      .values(additionalLineItemsInput.map(item => ({
-        proposalId: proposal.id,
-        description: item.description,
-        amount: item.amount || null,
-        sortOrder: item.sortOrder,
-      })))
-      .returning();
-  }
-
-  return { ...proposal, phases: phasesWithLines, additionalLineItems: savedAdditionalItems };
+    return { ...proposal, phases: phasesWithLines, additionalLineItems: savedAdditionalItems };
+  });
 }
 
 export async function updateProposal(
@@ -151,51 +153,56 @@ export async function updateProposal(
 
   const { leadId: _leadId, id: _id, userId: _userId, ...safeUpdates } = updates as Record<string, unknown>;
   void _leadId; void _id; void _userId;
-  const [updated] = await db
-    .update(proposals)
-    .set({ ...toProposalDbValues(safeUpdates as Partial<InsertProposal>), updatedAt: sql`CURRENT_TIMESTAMP` } as Parameters<ReturnType<typeof db.update>["set"]>[0])
-    .where(eq(proposals.id, proposalId))
-    .returning();
 
-  if (phases !== undefined) {
-    const existingPhaseIds = existing.phases.map(p => p.id);
-    if (existingPhaseIds.length > 0) {
-      await db.delete(proposalFeeLines).where(inArray(proposalFeeLines.phaseId, existingPhaseIds));
+  const updated = await db.transaction(async (tx) => {
+    const [updatedProposal] = await tx
+      .update(proposals)
+      .set({ ...toProposalDbValues(safeUpdates as Partial<InsertProposal>), updatedAt: sql`CURRENT_TIMESTAMP` } as Parameters<ReturnType<typeof tx.update>["set"]>[0])
+      .where(eq(proposals.id, proposalId))
+      .returning();
+
+    if (phases !== undefined) {
+      const existingPhaseIds = existing.phases.map(p => p.id);
+      if (existingPhaseIds.length > 0) {
+        await tx.delete(proposalFeeLines).where(inArray(proposalFeeLines.phaseId, existingPhaseIds));
+      }
+      await tx.delete(proposalPhases).where(eq(proposalPhases.proposalId, proposalId));
+      for (const phaseData of phases) {
+        const [phase] = await tx
+          .insert(proposalPhases)
+          .values({ proposalId, name: phaseData.name, sortOrder: phaseData.sortOrder })
+          .returning();
+        const feeLineRows = phaseData.feeLines.filter(fl => fl.amount || fl.feeType === 'Hourly');
+        if (feeLineRows.length > 0) {
+          await tx.insert(proposalFeeLines).values(
+            feeLineRows.map(fl => ({
+              phaseId: phase.id,
+              consultant: fl.consultant,
+              feeType: fl.feeType,
+              amount: fl.amount || null,
+              sortOrder: fl.sortOrder,
+            }))
+          );
+        }
+      }
     }
-    await db.delete(proposalPhases).where(eq(proposalPhases.proposalId, proposalId));
-    for (const phaseData of phases) {
-      const [phase] = await db
-        .insert(proposalPhases)
-        .values({ proposalId, name: phaseData.name, sortOrder: phaseData.sortOrder })
-        .returning();
-      const feeLineRows = phaseData.feeLines.filter(fl => fl.amount || fl.feeType === 'Hourly');
-      if (feeLineRows.length > 0) {
-        await db.insert(proposalFeeLines).values(
-          feeLineRows.map(fl => ({
-            phaseId: phase.id,
-            consultant: fl.consultant,
-            feeType: fl.feeType,
-            amount: fl.amount || null,
-            sortOrder: fl.sortOrder,
+
+    if (additionalLineItemsInput !== undefined) {
+      await tx.delete(proposalAdditionalLineItems).where(eq(proposalAdditionalLineItems.proposalId, proposalId));
+      if (additionalLineItemsInput.length > 0) {
+        await tx.insert(proposalAdditionalLineItems).values(
+          additionalLineItemsInput.map(item => ({
+            proposalId,
+            description: item.description,
+            amount: item.amount || null,
+            sortOrder: item.sortOrder,
           }))
         );
       }
     }
-  }
 
-  if (additionalLineItemsInput !== undefined) {
-    await db.delete(proposalAdditionalLineItems).where(eq(proposalAdditionalLineItems.proposalId, proposalId));
-    if (additionalLineItemsInput.length > 0) {
-      await db.insert(proposalAdditionalLineItems).values(
-        additionalLineItemsInput.map(item => ({
-          proposalId,
-          description: item.description,
-          amount: item.amount || null,
-          sortOrder: item.sortOrder,
-        }))
-      );
-    }
-  }
+    return updatedProposal;
+  });
 
   return buildProposalWithPhases(updated);
 }
@@ -211,18 +218,22 @@ export async function signProposal(userId: string, proposalId: string): Promise<
   const existing = await getProposalById(userId, proposalId);
   if (!existing) return undefined;
 
-  const [updated] = await db
-    .update(proposals)
-    .set({ status: 'Signed', dateSigned: sql`NOW()`, updatedAt: sql`CURRENT_TIMESTAMP` })
-    .where(eq(proposals.id, proposalId))
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    const [updatedProposal] = await tx
+      .update(proposals)
+      .set({ status: 'Signed', dateSigned: sql`NOW()`, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(proposals.id, proposalId))
+      .returning();
 
-  if (existing.proposalType !== 'Additional Services') {
-    await db
-      .update(leads)
-      .set({ status: 'Active Project', updatedAt: sql`CURRENT_TIMESTAMP` })
-      .where(and(eq(leads.id, existing.leadId), eq(leads.userId, userId)));
-  }
+    if (existing.proposalType !== 'Additional Services') {
+      await tx
+        .update(leads)
+        .set({ status: 'Active Project', updatedAt: sql`CURRENT_TIMESTAMP` })
+        .where(and(eq(leads.id, existing.leadId), eq(leads.userId, userId)));
+    }
+
+    return updatedProposal;
+  });
 
   return buildProposalWithPhases(updated);
 }
