@@ -16,8 +16,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const userId = (req.user as User).id;
       const categories = await storage.getCategories(userId);
       res.json(categories);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -27,8 +27,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const validated = insertCategorySchema.parse(req.body);
       const category = await storage.createCategory(userId, validated);
       res.json(category);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -40,8 +40,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const category = await storage.updateCategory(userId, id, validated);
       if (!category) return res.status(404).json({ error: "Category not found" });
       res.json(category);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -52,8 +52,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const success = await storage.deleteCategory(userId, id);
       if (!success) return res.status(404).json({ error: "Category not found" });
       res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -63,8 +63,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const userId = (req.user as User).id;
       const snippets = await storage.getContentSnippets(userId);
       res.json(snippets);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -75,8 +75,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const embeddedFields = extractEmbeddedFields(validated.content);
       const snippet = await storage.createContentSnippet(userId, validated, embeddedFields);
       res.json(snippet);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -89,8 +89,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const snippet = await storage.updateContentSnippet(userId, id, validated, embeddedFields);
       if (!snippet) return res.status(404).json({ error: "Content snippet not found" });
       res.json(snippet);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -101,8 +101,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const success = await storage.deleteContentSnippet(userId, id);
       if (!success) return res.status(404).json({ error: "Content snippet not found" });
       res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -112,8 +112,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const userId = (req.user as User).id;
       const fieldValues = await storage.getFieldValues(userId);
       res.json(fieldValues);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -124,8 +124,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const fieldValue = await storage.getFieldValueById(userId, id);
       if (!fieldValue) return res.status(404).json({ error: "Field value not found" });
       res.json(fieldValue);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -135,8 +135,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const validated = insertFieldValueSchema.parse(req.body);
       const fieldValue = await storage.createFieldValue(userId, validated);
       res.json(fieldValue);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -148,8 +148,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const fieldValue = await storage.updateFieldValue(userId, id, validated);
       if (!fieldValue) return res.status(404).json({ error: "Field value not found" });
       res.json(fieldValue);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -160,8 +160,8 @@ export function registerFieldValueRoutes(app: Express): void {
       const success = await storage.deleteFieldValue(userId, id);
       if (!success) return res.status(404).json({ error: "Field value not found" });
       res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -175,8 +175,8 @@ export function registerFieldValueRoutes(app: Express): void {
       }
       const count = await storage.deleteFieldValuesByPrefixes(userId, prefixes);
       res.json({ deleted: count });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -195,8 +195,8 @@ export function registerFieldValueRoutes(app: Express): void {
       }
       const created = await storage.createFieldValue(userId, { name, value });
       res.json(created);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 }

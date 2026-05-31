@@ -262,42 +262,36 @@ When creating a new invoice, a collapsible "Attach Project Entries" section appe
 
 ---
 
-## Refactoring Opportunities
+## Refactoring — Completed
 
-Documented here for future sprints. None of these are blocking — they are quality-of-life improvements.
+All planned refactoring has been completed. This section documents the final state of each effort.
 
-### High Priority
+**`server/routes/` — Split by domain** ✓
+`server/routes.ts` was a single 2,060-line file. Now split into: `auth.ts`, `leads.ts`, `proposals.ts`, `invoices.ts`, `companies.ts`, `field-values.ts`, `doc-builder.ts`, and `index.ts` barrel.
 
-**`server/routes.ts` — Split by domain (2,060 lines)**
-The single-file route registration has grown to include auth, leads, proposals, invoices, comments, field values, doc generation, and consultant contracts. Each domain should become its own module (e.g. `server/routes/proposals.ts`, `server/routes/documents.ts`) with a barrel `server/routes/index.ts`. The heavy Google Docs manipulation helpers (`insertPhaseTable`, `insertAdditionalServicesTable`, `importHtmlContent`) should move to a `server/services/google-docs.ts` service layer.
+**`client/src/pages/project-detail.tsx` — Tab extraction** ✓
+All four tabs extracted to `client/src/components/tabs/`: `proposals-tab.tsx`, `time-expenses-tab.tsx`, `invoices-tab.tsx`, `notes-tab.tsx`. Parent page is a thin shell.
 
-**`client/src/pages/project-detail.tsx` — Extract tab components (1,436 lines)**
-All four tabs (Proposals, Time & Expenses, Invoices, Notes) are rendered inline in one giant component. Each should become its own file under `client/src/components/tabs/` (e.g. `proposals-tab.tsx`, `time-expenses-tab.tsx`). The parent page would become a thin shell managing route params and shared lead state only.
+**`server/storage.ts` — Domain repositories** ✓
+Split into `server/repositories/`: `lead-repository.ts`, `proposal-repository.ts`, `invoice-repository.ts`, `doc-builder-repository.ts`, and `index.ts` barrel.
 
-**`server/storage.ts` — Split into repositories (1,409 lines)**
-The monolithic `DatabaseStorage` class handles every table. Splitting into domain repositories (`LeadRepository`, `ProposalRepository`, `InvoiceRepository`, `DocBuilderRepository`) would make each file digestible and independently testable.
+**Currency formatting** ✓
+`formatCurrency(n)` lives in `client/src/lib/utils.ts`; `formatCurrency(n)` in `server/utils.ts`. No inline `Intl.NumberFormat` calls remain.
 
-### Medium Priority
+**`fetch` vs `apiRequest` standardization** ✓
+All client-side mutations use `apiRequest` from `@/lib/queryClient`. No raw `fetch` + manual `!r.ok` guards remain in components.
 
-**Currency formatting — centralize in shared utils**
-`new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })` appears in at least 9 files. A single `formatCurrency(n: number): string` helper in `client/src/lib/utils.ts` (and a mirrored one in `server/utils.ts` for route-level formatting) would eliminate the duplication.
+**`client/src/components/lead-form-dialog.tsx` — Sub-component extraction** ✓
+Four embedded helper components extracted to `client/src/components/lead-form/`: `types.ts` (schema + FormValues), `role-suggestion-picker.tsx`, `company-address-book-picker.tsx`, `contact-picker.tsx`, `company-entry.tsx`. Main dialog is ~220 lines.
 
-**Standardize `fetch` vs `apiRequest`**
-Several components bypass the `apiRequest` helper from `queryClient.ts` and use raw `fetch` with manual `if (!r.ok) throw` guards. All data mutations should go through `apiRequest` for consistent error handling and credential passing.
+**`server/html-to-google-docs.ts` — Sub-module split** ✓
+Split into `server/html-parser/`: `types.ts` (all interfaces), `parse.ts` (HTML → FormattedBlock[]), `requests.ts` (FormattedBlock[] → Docs API requests). `html-to-google-docs.ts` is now a ~30-line public-API barrel.
 
-**`client/src/components/lead-form-dialog.tsx` (918 lines) and similar large dialogs**
-`LeadFormDialog`, `CompanyFormDialog`, and `ContactFormDialog` share nearly identical Zod schema + `useForm` + mutation boilerplate. A shared `useCrudDialog` hook or a higher-order form wrapper could cut the per-dialog footprint significantly.
+**`any` types in server routes** ✓
+All `catch (error: any)` → `catch (error)` with `(error as Error).message`. `fieldRequests: any[]` in proposals route replaced with an explicit inline type.
 
-### Low Priority
-
-**`server/html-to-google-docs.ts` (1,035 lines)**
-The HTML → Google Docs parser is focused but large. Breaking it into smaller strategy files by node type (text runs, tables, lists) would improve readability without changing the public API.
-
-**`any` types in `server/routes.ts`**
-Several Express handler callbacks are typed as `any` (e.g. session user, Passport profile). Replacing with proper Passport + Express type augmentation would close the TypeScript gaps.
-
-**`client/src/components/invoice-builder-panel.tsx` (910 lines)**
-The fee snapshot grid, AS billing section, hours/expense attach section, and summary footer are all inline. Extracting sub-components would make this easier to extend.
+**`client/src/components/invoice-builder-panel.tsx` — Sub-component extraction** ✓
+892-line monolith split into a thin 237-line parent + 7 sub-components under `client/src/components/invoice-builder/`.
 
 ---
 

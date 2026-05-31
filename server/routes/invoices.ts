@@ -16,8 +16,8 @@ export function registerInvoiceRoutes(app: Express): void {
       if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
       const result = await storage.getInvoices(userId, leadId);
       res.json(result);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -27,8 +27,8 @@ export function registerInvoiceRoutes(app: Express): void {
       const invoice = await storage.getInvoiceById(userId, req.params.id);
       if (!invoice) return res.status(404).json({ error: "Invoice not found" });
       res.json(invoice);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -46,8 +46,8 @@ export function registerInvoiceRoutes(app: Express): void {
         Array.isArray(additionalLineItemInputs) ? additionalLineItemInputs : undefined
       );
       res.json(invoice);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -68,8 +68,8 @@ export function registerInvoiceRoutes(app: Express): void {
       const invoice = await storage.updateInvoiceStatus(userId, req.params.id, status);
       if (!invoice) return res.status(404).json({ error: "Invoice not found" });
       res.json(invoice);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -81,8 +81,8 @@ export function registerInvoiceRoutes(app: Express): void {
       const invoice = await storage.updateInvoiceDocUrl(userId, req.params.id, docUrl);
       if (!invoice) return res.status(404).json({ error: "Invoice not found" });
       res.json(invoice);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -92,8 +92,8 @@ export function registerInvoiceRoutes(app: Express): void {
       const success = await storage.deleteInvoice(userId, req.params.id);
       if (!success) return res.status(404).json({ error: "Invoice not found" });
       res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -105,8 +105,8 @@ export function registerInvoiceRoutes(app: Express): void {
       if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
       const result = await storage.getProjectHours(userId, leadId);
       res.json(result);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -128,8 +128,8 @@ export function registerInvoiceRoutes(app: Express): void {
       }
       const entry = await storage.createHoursEntry(userId, resolvedInvoiceId, leadId, { date, description, hours, ratePerHour });
       res.json(entry);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -141,8 +141,8 @@ export function registerInvoiceRoutes(app: Express): void {
       if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
       const result = await storage.getProjectExpenses(userId, leadId);
       res.json(result);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -164,8 +164,8 @@ export function registerInvoiceRoutes(app: Express): void {
       }
       const entry = await storage.createExpenseEntry(userId, resolvedInvoiceId, leadId, { expenseType, ...rest });
       res.json(entry);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -177,8 +177,8 @@ export function registerInvoiceRoutes(app: Express): void {
       if (!invoice) return res.status(404).json({ error: "Invoice not found" });
       const entry = await storage.createHoursEntry(userId, req.params.id, invoice.leadId, req.body);
       res.json(entry);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -199,8 +199,8 @@ export function registerInvoiceRoutes(app: Express): void {
       const entry = await storage.updateHoursEntry(userId, req.params.id, updates as Parameters<typeof storage.updateHoursEntry>[2]);
       if (!entry) return res.status(404).json({ error: "Hours entry not found" });
       res.json(entry);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -210,8 +210,8 @@ export function registerInvoiceRoutes(app: Express): void {
       const success = await storage.deleteHoursEntry(userId, req.params.id);
       if (!success) return res.status(404).json({ error: "Hours entry not found" });
       res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -227,8 +227,8 @@ export function registerInvoiceRoutes(app: Express): void {
       if (!invoice) return res.status(404).json({ error: "Invoice not found" });
       const entry = await storage.createExpenseEntry(userId, req.params.id, invoice.leadId, req.body);
       res.json(entry);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -249,8 +249,8 @@ export function registerInvoiceRoutes(app: Express): void {
       const entry = await storage.updateExpenseEntry(userId, req.params.id, updates as Parameters<typeof storage.updateExpenseEntry>[2]);
       if (!entry) return res.status(404).json({ error: "Expense entry not found" });
       res.json(entry);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -260,8 +260,8 @@ export function registerInvoiceRoutes(app: Express): void {
       const success = await storage.deleteExpenseEntry(userId, req.params.id);
       if (!success) return res.status(404).json({ error: "Expense entry not found" });
       res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -273,8 +273,8 @@ export function registerInvoiceRoutes(app: Express): void {
       if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
       const comments = await storage.getProjectComments(userId, leadId);
       res.json(comments);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -287,8 +287,8 @@ export function registerInvoiceRoutes(app: Express): void {
       if (!content?.trim()) return res.status(400).json({ error: "Content is required" });
       const comment = await storage.createProjectComment(userId, leadId, content.trim());
       res.json(comment);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -300,8 +300,8 @@ export function registerInvoiceRoutes(app: Express): void {
       const success = await storage.deleteProjectComment(userId, req.params.commentId, leadId);
       if (!success) return res.status(404).json({ error: "Comment not found" });
       res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 }

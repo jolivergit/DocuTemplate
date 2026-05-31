@@ -14,8 +14,8 @@ export function registerLeadRoutes(app: Express): void {
       const userId = (req.user as User).id;
       const stats = await storage.getDashboardStats(userId);
       res.json(stats);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -25,8 +25,8 @@ export function registerLeadRoutes(app: Express): void {
       const userId = (req.user as User).id;
       const result = await storage.getLeads(userId);
       res.json(result);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -38,8 +38,8 @@ export function registerLeadRoutes(app: Express): void {
       const lead = await storage.getLeadById(userId, id);
       if (!lead) return res.status(404).json({ error: "Lead not found" });
       res.json(lead);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -54,8 +54,8 @@ export function registerLeadRoutes(app: Express): void {
       );
       const lead = await storage.createLead(userId, validated, validatedCompanies);
       res.json(lead);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -78,8 +78,8 @@ export function registerLeadRoutes(app: Express): void {
 
       const updated = await storage.getLeadById(userId, id);
       res.json(updated);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -91,8 +91,8 @@ export function registerLeadRoutes(app: Express): void {
       const success = await storage.deleteLead(userId, id);
       if (!success) return res.status(404).json({ error: "Lead not found" });
       res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 }

@@ -31,9 +31,9 @@ export function registerDocBuilderRoutes(app: Express): void {
 
       const files = response.data.files || [];
       res.json(files);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error listing Google Drive files:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -185,9 +185,9 @@ export function registerDocBuilderRoutes(app: Express): void {
       };
 
       res.json(parsedTemplate);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error parsing template:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -295,7 +295,7 @@ export function registerDocBuilderRoutes(app: Express): void {
         }
       }
 
-      const fieldRequests: any[] = [];
+      const fieldRequests: Array<{ replaceAllText: { containsText: { text: string; matchCase: boolean }; replaceText: string } }> = [];
       for (const [tagName, value] of Array.from(fieldValueLookup.entries())) {
         fieldRequests.push({
           replaceAllText: {
@@ -374,7 +374,7 @@ export function registerDocBuilderRoutes(app: Express): void {
 
           for (const location of tagLocations) {
             const { requests: formatRequests } = htmlToGoogleDocsRequests(processedHtml, location.startIndex);
-            const batchRequests: any[] = [
+            const batchRequests: Record<string, unknown>[] = [
               {
                 deleteContentRange: {
                   range: { startIndex: location.startIndex, endIndex: location.endIndex },
@@ -405,9 +405,9 @@ export function registerDocBuilderRoutes(app: Express): void {
 
       const documentUrl = `https://docs.google.com/document/d/${newDocId}/edit`;
       res.json({ documentId: newDocId, documentUrl });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error generating document:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 }

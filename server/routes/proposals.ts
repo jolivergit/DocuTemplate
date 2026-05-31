@@ -16,8 +16,8 @@ export function registerProposalRoutes(app: Express): void {
       if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
       const result = await storage.getProposals(userId, leadId);
       res.json(result);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -27,8 +27,8 @@ export function registerProposalRoutes(app: Express): void {
       const proposal = await storage.getProposalById(userId, req.params.id);
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       res.json(proposal);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -37,8 +37,8 @@ export function registerProposalRoutes(app: Express): void {
       const userId = (req.user as User).id;
       const summary = await storage.getProposalBillingSummary(userId, req.params.id);
       res.json(summary);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -55,8 +55,8 @@ export function registerProposalRoutes(app: Express): void {
         Array.isArray(additionalLineItems) ? additionalLineItems : undefined
       );
       res.json(proposal);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -78,8 +78,8 @@ export function registerProposalRoutes(app: Express): void {
       );
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       res.json(proposal);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -89,8 +89,8 @@ export function registerProposalRoutes(app: Express): void {
       const proposal = await storage.signProposal(userId, req.params.id);
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       res.json(proposal);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -100,8 +100,8 @@ export function registerProposalRoutes(app: Express): void {
       const proposal = await storage.updateProposal(userId, req.params.id, { status: "Declined" });
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       res.json(proposal);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
     }
   });
 
@@ -111,8 +111,8 @@ export function registerProposalRoutes(app: Express): void {
       const success = await storage.deleteProposal(userId, req.params.id);
       if (!success) return res.status(404).json({ error: "Proposal not found" });
       res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -124,8 +124,8 @@ export function registerProposalRoutes(app: Express): void {
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       const contracts = await storage.getConsultantContracts(req.params.id);
       res.json(contracts);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -211,7 +211,7 @@ export function registerProposalRoutes(app: Express): void {
       }
       const hasConsultantTableTag = preDocText.includes('{{consultant_phases_table}}');
 
-      const fieldRequests: any[] = [];
+      const fieldRequests: Array<{ replaceAllText: { containsText: { text: string; matchCase: boolean }; replaceText: string } }> = [];
       for (const [tagName, value] of Array.from(fieldValueLookup.entries())) {
         fieldRequests.push({
           replaceAllText: {
@@ -231,9 +231,9 @@ export function registerProposalRoutes(app: Express): void {
       const documentUrl = `https://docs.google.com/document/d/${newDocId}/edit`;
       const contract = await storage.upsertConsultantContract(req.params.id, consultant, documentUrl);
       res.json({ docUrl: documentUrl, contract });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error generating consultant contract:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 }
