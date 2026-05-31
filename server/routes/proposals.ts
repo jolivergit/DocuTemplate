@@ -4,7 +4,12 @@ import { storage } from "../storage";
 import { getGoogleClient } from "../google-client";
 import { insertPhaseTable } from "../services/google-docs";
 import type { PhaseRow } from "../services/google-docs";
-import type { User } from "@shared/schema";
+import {
+  proposalPhaseInputSchema,
+  additionalLineItemInputSchema,
+  type User,
+} from "@shared/schema";
+import { z } from "zod";
 
 export function registerProposalRoutes(app: Express): void {
   // Proposals
@@ -47,11 +52,15 @@ export function registerProposalRoutes(app: Express): void {
       const leadId = parseInt(req.params.leadId, 10);
       if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
       const { phases, additionalLineItems, ...proposalRaw } = req.body;
+      const parsedPhases = z.array(proposalPhaseInputSchema).parse(phases ?? []);
+      const parsedAdditional = additionalLineItems != null
+        ? z.array(additionalLineItemInputSchema).parse(additionalLineItems)
+        : undefined;
       const proposal = await storage.createProposal(
         userId,
         { ...proposalRaw, leadId },
-        phases || [],
-        Array.isArray(additionalLineItems) ? additionalLineItems : undefined
+        parsedPhases,
+        parsedAdditional
       );
       res.json(proposal);
     } catch (error) {
@@ -68,12 +77,18 @@ export function registerProposalRoutes(app: Express): void {
       for (const field of ALLOWED_FIELDS) {
         if (field in req.body) updates[field] = req.body[field];
       }
+      const parsedPhases = phases != null
+        ? z.array(proposalPhaseInputSchema).parse(phases)
+        : undefined;
+      const parsedAdditional = additionalLineItems != null
+        ? z.array(additionalLineItemInputSchema).parse(additionalLineItems)
+        : undefined;
       const proposal = await storage.updateProposal(
         userId,
         req.params.id,
         updates as Parameters<typeof storage.updateProposal>[2],
-        phases,
-        Array.isArray(additionalLineItems) ? additionalLineItems : undefined
+        parsedPhases,
+        parsedAdditional
       );
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       res.json(proposal);

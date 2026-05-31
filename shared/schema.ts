@@ -500,6 +500,66 @@ export interface InvoiceWithDetails extends Invoice {
   expenseEntries: ExpenseEntry[];
 }
 
+// ─── Proposal input types (shared between storage interface and repositories) ──
+
+export const proposalFeeLineInputSchema = z.object({
+  consultant: z.string(),
+  feeType: z.string(),
+  amount: z.string().nullable(),
+  sortOrder: z.number().int(),
+});
+export type ProposalFeeLineInput = z.infer<typeof proposalFeeLineInputSchema>;
+
+export const proposalPhaseInputSchema = z.object({
+  name: z.string(),
+  sortOrder: z.number().int(),
+  feeLines: z.array(proposalFeeLineInputSchema),
+});
+export type ProposalPhaseInput = z.infer<typeof proposalPhaseInputSchema>;
+
+export const additionalLineItemInputSchema = z.object({
+  description: z.string(),
+  amount: z.string().nullable(),
+  sortOrder: z.number().int(),
+});
+export type AdditionalLineItemInput = z.infer<typeof additionalLineItemInputSchema>;
+
+// ─── Invoice input types (shared between storage interface and repositories) ───
+
+export const invoiceFeeLineSnapshotInputSchema = z.object({
+  proposalFeeLineId: z.string(),
+  percentComplete: z.string().optional(),
+  hoursWorked: z.string().optional(),
+  ratePerHour: z.string().optional(),
+});
+export type InvoiceFeeLineSnapshotInput = z.infer<typeof invoiceFeeLineSnapshotInputSchema>;
+
+export const invoiceHoursInputSchema = z.object({
+  date: z.string(),
+  description: z.string(),
+  hours: z.string(),
+  ratePerHour: z.string(),
+});
+export type InvoiceHoursInput = z.infer<typeof invoiceHoursInputSchema>;
+
+export const invoiceExpenseInputSchema = z.object({
+  date: z.string(),
+  expenseType: z.string(),
+  billedDate: z.string().optional(),
+  milesTraveled: z.string().optional(),
+  ratePerMile: z.string().optional(),
+  amount: z.string().optional(),
+});
+export type InvoiceExpenseInput = z.infer<typeof invoiceExpenseInputSchema>;
+
+export const invoiceAdditionalLineItemInputSchema = z.object({
+  additionalLineItemId: z.string(),
+  description: z.string(),
+  amount: z.string().nullable(),
+  percentComplete: z.string(),
+});
+export type InvoiceAdditionalLineItemInput = z.infer<typeof invoiceAdditionalLineItemInputSchema>;
+
 // ─── Template / Doc Builder types (not stored in DB) ──────────────────────────
 
 export type TagType = 'field' | 'content';

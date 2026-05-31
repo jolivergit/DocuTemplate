@@ -4,8 +4,13 @@ import { storage } from "../storage";
 import {
   INVOICE_STATUSES,
   EXPENSE_TYPES,
+  invoiceFeeLineSnapshotInputSchema,
+  invoiceHoursInputSchema,
+  invoiceExpenseInputSchema,
+  invoiceAdditionalLineItemInputSchema,
   type User,
 } from "@shared/schema";
+import { z } from "zod";
 
 export function registerInvoiceRoutes(app: Express): void {
   // Invoices
@@ -37,13 +42,19 @@ export function registerInvoiceRoutes(app: Express): void {
       const userId = (req.user as User).id;
       const leadId = parseInt(req.params.leadId, 10);
       if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
-      const { proposalId, feeLineInputs = [], hoursInputs = [], expenseInputs = [], notes, existingHoursIds, existingExpenseIds, additionalLineItemInputs } = req.body;
+      const { proposalId, feeLineInputs, hoursInputs, expenseInputs, notes, existingHoursIds, existingExpenseIds, additionalLineItemInputs } = req.body;
       if (!proposalId) return res.status(400).json({ error: "proposalId is required" });
+      const parsedFeeLines = z.array(invoiceFeeLineSnapshotInputSchema).parse(feeLineInputs ?? []);
+      const parsedHours = z.array(invoiceHoursInputSchema).parse(hoursInputs ?? []);
+      const parsedExpenses = z.array(invoiceExpenseInputSchema).parse(expenseInputs ?? []);
+      const parsedAdditional = additionalLineItemInputs != null
+        ? z.array(invoiceAdditionalLineItemInputSchema).parse(additionalLineItemInputs)
+        : undefined;
       const invoice = await storage.createInvoice(
-        userId, leadId, proposalId, feeLineInputs, hoursInputs, expenseInputs, notes,
+        userId, leadId, proposalId, parsedFeeLines, parsedHours, parsedExpenses, notes,
         Array.isArray(existingHoursIds) ? existingHoursIds : undefined,
         Array.isArray(existingExpenseIds) ? existingExpenseIds : undefined,
-        Array.isArray(additionalLineItemInputs) ? additionalLineItemInputs : undefined
+        parsedAdditional
       );
       res.json(invoice);
     } catch (error) {

@@ -25,8 +25,14 @@ import type {
   Proposal,
   InsertProposal,
   ProposalWithPhases,
+  ProposalPhaseInput,
+  AdditionalLineItemInput,
   Invoice,
   InvoiceWithDetails,
+  InvoiceFeeLineSnapshotInput,
+  InvoiceHoursInput,
+  InvoiceExpenseInput,
+  InvoiceAdditionalLineItemInput,
   HoursEntry,
   ExpenseEntry,
   ProjectComment,
@@ -91,15 +97,15 @@ export interface IStorage {
   // Proposals
   getProposals(userId: string, leadId: number): Promise<ProposalWithPhases[]>;
   getProposalById(userId: string, proposalId: string): Promise<ProposalWithPhases | undefined>;
-  createProposal(userId: string, proposal: InsertProposal, phases: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[], additionalLineItems?: { description: string; amount: string | null; sortOrder: number }[]): Promise<ProposalWithPhases>;
-  updateProposal(userId: string, proposalId: string, updates: Partial<InsertProposal>, phases?: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[], additionalLineItems?: { description: string; amount: string | null; sortOrder: number }[]): Promise<ProposalWithPhases | undefined>;
+  createProposal(userId: string, proposal: InsertProposal, phases: ProposalPhaseInput[], additionalLineItems?: AdditionalLineItemInput[]): Promise<ProposalWithPhases>;
+  updateProposal(userId: string, proposalId: string, updates: Partial<InsertProposal>, phases?: ProposalPhaseInput[], additionalLineItems?: AdditionalLineItemInput[]): Promise<ProposalWithPhases | undefined>;
   deleteProposal(userId: string, proposalId: string): Promise<boolean>;
   signProposal(userId: string, proposalId: string): Promise<ProposalWithPhases | undefined>;
 
   // Invoices
   getInvoices(userId: string, leadId: number): Promise<Invoice[]>;
   getInvoiceById(userId: string, invoiceId: string): Promise<InvoiceWithDetails | undefined>;
-  createInvoice(userId: string, leadId: number, proposalId: string, feeLineInputs: { proposalFeeLineId: string; percentComplete?: string; hoursWorked?: string; ratePerHour?: string }[], hoursInputs: { date: string; description: string; hours: string; ratePerHour: string }[], expenseInputs: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }[], notes?: string, existingHoursIds?: string[], existingExpenseIds?: string[], additionalLineItemInputs?: { additionalLineItemId: string; description: string; amount: string | null; percentComplete: string }[]): Promise<InvoiceWithDetails>;
+  createInvoice(userId: string, leadId: number, proposalId: string, feeLineInputs: InvoiceFeeLineSnapshotInput[], hoursInputs: InvoiceHoursInput[], expenseInputs: InvoiceExpenseInput[], notes?: string, existingHoursIds?: string[], existingExpenseIds?: string[], additionalLineItemInputs?: InvoiceAdditionalLineItemInput[]): Promise<InvoiceWithDetails>;
   updateInvoiceStatus(userId: string, invoiceId: string, status: string): Promise<Invoice | undefined>;
   updateInvoiceDocUrl(userId: string, invoiceId: string, docUrl: string): Promise<Invoice | undefined>;
   deleteInvoice(userId: string, invoiceId: string): Promise<boolean>;

@@ -17,6 +17,8 @@ import {
   type ProposalAdditionalLineItem,
   type ProposalFeeLine,
   type ConsultantContract,
+  type ProposalPhaseInput,
+  type AdditionalLineItemInput,
 } from "@shared/schema";
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -89,8 +91,8 @@ export async function getProposalById(userId: string, proposalId: string): Promi
 export async function createProposal(
   userId: string,
   proposalData: InsertProposal,
-  phases: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[],
-  additionalLineItemsInput?: { description: string; amount: string | null; sortOrder: number }[]
+  phases: ProposalPhaseInput[],
+  additionalLineItemsInput?: AdditionalLineItemInput[]
 ): Promise<ProposalWithPhases> {
   const owned = await verifyLeadOwnership(userId, proposalData.leadId);
   if (!owned) throw new Error('Lead not found or access denied');
@@ -145,8 +147,8 @@ export async function updateProposal(
   userId: string,
   proposalId: string,
   updates: Partial<InsertProposal>,
-  phases?: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[],
-  additionalLineItemsInput?: { description: string; amount: string | null; sortOrder: number }[]
+  phases?: ProposalPhaseInput[],
+  additionalLineItemsInput?: AdditionalLineItemInput[]
 ): Promise<ProposalWithPhases | undefined> {
   const existing = await getProposalById(userId, proposalId);
   if (!existing) return undefined;
