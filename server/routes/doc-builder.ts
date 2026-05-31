@@ -1,8 +1,7 @@
 import type { Express } from "express";
 import { requireAuth } from "../auth";
 import { storage } from "../storage";
-import { getGoogleDriveClient } from "../google-drive-client";
-import { getGoogleDocsClient } from "../google-docs-client";
+import { getGoogleClient } from "../google-client";
 import { htmlToPlainText } from "../html-to-text";
 import { htmlToGoogleDocsRequests, hasRichFormatting } from "../html-to-google-docs";
 import { insertPhaseTable, insertAdditionalServicesTable } from "../services/google-docs";
@@ -20,7 +19,7 @@ export function registerDocBuilderRoutes(app: Express): void {
   app.get("/api/google-drive/files", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      const drive = await getGoogleDriveClient(userId);
+      const { drive } = await getGoogleClient(userId);
 
       const response = await drive.files.list({
         pageSize: 100,
@@ -47,7 +46,7 @@ export function registerDocBuilderRoutes(app: Express): void {
         return res.status(400).json({ error: "fileId is required" });
       }
 
-      const docs = await getGoogleDocsClient(userId);
+      const { docs } = await getGoogleClient(userId);
       const doc = await docs.documents.get({ documentId: fileId });
 
       if (!doc.data || !doc.data.body) {
@@ -198,8 +197,7 @@ export function registerDocBuilderRoutes(app: Express): void {
       const validated = generateDocumentRequestSchema.parse(req.body);
       const { templateId, outputName, tagMappings } = validated;
 
-      const docs = await getGoogleDocsClient(userId);
-      const drive = await getGoogleDriveClient(userId);
+      const { docs, drive } = await getGoogleClient(userId);
 
       const timestamp = Date.now();
       const documentNameWithTicks = `${outputName}_${timestamp}`;
@@ -340,9 +338,6 @@ export function registerDocBuilderRoutes(app: Express): void {
           processedHtml = `<h${headingNum}>${sectionHeaderText}</h${headingNum}>${resolvedHtml || ''}`;
         }
 
-        console.log(`\n========== Processing content tag: ${tagName} ==========`);
-        console.log(`Raw HTML content:\n${htmlContent}`);
-        console.log(`\nProcessed HTML (after field substitution + section header):\n${processedHtml}`);
 
         if (hasRichFormatting(processedHtml)) {
           const docResponse = await docs.documents.get({ documentId: newDocId });

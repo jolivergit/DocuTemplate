@@ -6,8 +6,7 @@ import { eq } from 'drizzle-orm';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
 
-export async function getGoogleDriveClient(userId: string) {
-  // Fetch user's OAuth tokens from database
+export async function getGoogleClient(userId: string) {
   const [user] = await db
     .select()
     .from(users)
@@ -28,7 +27,6 @@ export async function getGoogleDriveClient(userId: string) {
     refresh_token: user.refreshToken,
   });
 
-  // Automatically refresh and update tokens when expired
   oAuth2Client.on('tokens', async (tokens) => {
     if (tokens.access_token) {
       try {
@@ -36,13 +34,11 @@ export async function getGoogleDriveClient(userId: string) {
           accessToken: tokens.access_token,
           updatedAt: new Date(),
         };
-        
-        // Only update refresh token if Google explicitly provides a new one
-        // This prevents overwriting rotated tokens with stale values from concurrent clients
+
         if (tokens.refresh_token) {
           updateData.refreshToken = tokens.refresh_token;
         }
-        
+
         await db
           .update(users)
           .set(updateData)
@@ -53,8 +49,8 @@ export async function getGoogleDriveClient(userId: string) {
     }
   });
 
-  return google.drive({
-    version: 'v3',
-    auth: oAuth2Client,
-  });
+  return {
+    docs: google.docs({ version: 'v1', auth: oAuth2Client }),
+    drive: google.drive({ version: 'v3', auth: oAuth2Client }),
+  };
 }

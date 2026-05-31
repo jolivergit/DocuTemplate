@@ -1,4 +1,5 @@
 import { Readable } from "stream";
+import type { docs_v1, drive_v3 } from "googleapis";
 
 export type PhaseRow = { phase: string; consultant: string; feeType: string; amount: string | null };
 
@@ -28,8 +29,8 @@ export function extractEmbeddedFields(content: string): string[] {
 }
 
 export async function importHtmlContent(
-  drive: any,
-  docs: any,
+  drive: drive_v3.Drive,
+  docs: docs_v1.Docs,
   htmlContent: string,
   targetDocId: string,
   insertIndex: number
@@ -249,7 +250,7 @@ ${htmlContent}
 }
 
 export async function insertPhaseTable(
-  docs: any,
+  docs: docs_v1.Docs,
   docId: string,
   tagToFind: string,
   phasesData: PhaseRow[]
@@ -354,7 +355,7 @@ export async function insertPhaseTable(
 }
 
 export async function insertAdditionalServicesTable(
-  docs: any,
+  docs: docs_v1.Docs,
   docId: string,
   tagToFind: string,
   rows: AdditionalServiceRow[]

@@ -1,8 +1,7 @@
 import type { Express } from "express";
 import { requireAuth } from "../auth";
 import { storage } from "../storage";
-import { getGoogleDriveClient } from "../google-drive-client";
-import { getGoogleDocsClient } from "../google-docs-client";
+import { getGoogleClient } from "../google-client";
 import { insertPhaseTable } from "../services/google-docs";
 import type { PhaseRow } from "../services/google-docs";
 import type { User } from "@shared/schema";
@@ -189,8 +188,7 @@ export function registerProposalRoutes(app: Express): void {
         fieldValueLookup.set('firm_contact_title', profile.contactTitle || '');
       }
 
-      const docs = await getGoogleDocsClient(userId);
-      const drive = await getGoogleDriveClient(userId);
+      const { docs, drive } = await getGoogleClient(userId);
 
       const timestamp = Date.now();
       const copiedFile = await drive.files.copy({

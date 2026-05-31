@@ -8,7 +8,14 @@ import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 
-const SESSION_SECRET = process.env.SESSION_SECRET || "dev-secret-change-in-production";
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET environment variable must be set in production");
+  }
+  console.warn("[WARN] SESSION_SECRET is not set — using insecure fallback. Set this variable before deploying to production.");
+}
+const effectiveSessionSecret = SESSION_SECRET || "dev-secret-change-in-production";
 
 const PgSession = ConnectPgSimple(session);
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -20,7 +27,7 @@ app.use(
       tableName: "session",
       createTableIfMissing: true,
     }),
-    secret: SESSION_SECRET,
+    secret: effectiveSessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
