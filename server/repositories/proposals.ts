@@ -77,7 +77,44 @@ export async function getProposals(userId: string, leadId: number): Promise<Prop
     .from(proposals)
     .where(eq(proposals.leadId, leadId))
     .orderBy(proposals.createdAt);
-  return Promise.all(rows.map(p => buildProposalWithPhases(p)));
+  if (rows.length === 0) return [];
+
+  const proposalIds = rows.map(p => p.id);
+
+  // Batch: one query for all phases across all proposals
+  const allPhases = await db
+    .select()
+    .from(proposalPhases)
+    .where(inArray(proposalPhases.proposalId, proposalIds))
+    .orderBy(proposalPhases.sortOrder);
+
+  // Batch: one query for all fee lines across all phases
+  const phaseIds = allPhases.map(p => p.id);
+  const allFeeLines = phaseIds.length > 0
+    ? await db
+        .select()
+        .from(proposalFeeLines)
+        .where(inArray(proposalFeeLines.phaseId, phaseIds))
+        .orderBy(proposalFeeLines.sortOrder)
+    : [];
+
+  // Batch: one query for all additional line items across all proposals
+  const allAdditionalLineItems = await db
+    .select()
+    .from(proposalAdditionalLineItems)
+    .where(inArray(proposalAdditionalLineItems.proposalId, proposalIds))
+    .orderBy(proposalAdditionalLineItems.sortOrder);
+
+  // Assemble in memory — no further DB round-trips
+  return rows.map(proposal => {
+    const proposalPhasesList = allPhases.filter(ph => ph.proposalId === proposal.id);
+    const phasesWithLines: ProposalPhaseWithLines[] = proposalPhasesList.map(phase => ({
+      ...phase,
+      feeLines: allFeeLines.filter(fl => fl.phaseId === phase.id),
+    }));
+    const additionalLineItems = allAdditionalLineItems.filter(ali => ali.proposalId === proposal.id);
+    return { ...proposal, phases: phasesWithLines, additionalLineItems };
+  });
 }
 
 export async function getProposalById(userId: string, proposalId: string): Promise<ProposalWithPhases | undefined> {

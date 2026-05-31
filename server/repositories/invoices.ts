@@ -405,34 +405,55 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
   let paidInvoicesTotal = 0;
 
   if (allUserLeadIds.length > 0) {
-    const allInvoices = await db.select().from(invoices).where(inArray(invoices.leadId, allUserLeadIds));
-    const sentAndPaid = allInvoices.filter(i => i.status === 'Sent' || i.status === 'Paid');
+    // Push aggregation to the DB — three parallel SUM queries, each returning
+    // at most 2 rows (Sent / Paid), instead of loading all rows into memory.
+    const statusFilter = sql`${invoices.status} IN ('Sent', 'Paid')`;
+    const leadFilter = inArray(invoices.leadId, allUserLeadIds);
 
-    if (sentAndPaid.length > 0) {
-      const invoiceIds = sentAndPaid.map(i => i.id);
-      const [allSnapshots, allHours, allExpenses] = await Promise.all([
-        db.select().from(invoiceFeeLineSnapshots).where(inArray(invoiceFeeLineSnapshots.invoiceId, invoiceIds)),
-        db.select().from(hoursEntries).where(inArray(hoursEntries.invoiceId, invoiceIds)),
-        db.select().from(expenseEntries).where(inArray(expenseEntries.invoiceId, invoiceIds)),
-      ]);
+    const [snapshotTotals, hoursTotals, expenseTotals] = await Promise.all([
+      db
+        .select({
+          status: invoices.status,
+          total: sql<string>`COALESCE(SUM(${invoiceFeeLineSnapshots.currentBilling}::numeric), 0)`,
+        })
+        .from(invoices)
+        .innerJoin(invoiceFeeLineSnapshots, eq(invoiceFeeLineSnapshots.invoiceId, invoices.id))
+        .where(and(leadFilter, statusFilter))
+        .groupBy(invoices.status),
 
-      for (const invoice of sentAndPaid) {
-        const snaps = allSnapshots.filter(s => s.invoiceId === invoice.id);
-        const feeTotal = snaps.reduce((sum, s) => sum + parseFloat(s.currentBilling || '0'), 0);
-        const hoursTotal = allHours
-          .filter(h => h.invoiceId === invoice.id)
-          .reduce((sum, h) => sum + parseFloat(h.hours || '0') * parseFloat(h.ratePerHour || '0'), 0);
-        const expenseTotal = allExpenses
-          .filter(e => e.invoiceId === invoice.id)
-          .reduce((sum, e) => {
-            if (e.milesTraveled) return sum + parseFloat(e.milesTraveled) * parseFloat(e.ratePerMile || '0.67');
-            return sum + parseFloat(e.amount || '0');
-          }, 0);
-        const total = feeTotal + hoursTotal + expenseTotal;
-        if (invoice.status === 'Sent') sentInvoicesTotal += total;
-        if (invoice.status === 'Paid') paidInvoicesTotal += total;
-      }
-    }
+      db
+        .select({
+          status: invoices.status,
+          total: sql<string>`COALESCE(SUM(${hoursEntries.hours}::numeric * ${hoursEntries.ratePerHour}::numeric), 0)`,
+        })
+        .from(invoices)
+        .innerJoin(hoursEntries, eq(hoursEntries.invoiceId, invoices.id))
+        .where(and(leadFilter, statusFilter))
+        .groupBy(invoices.status),
+
+      db
+        .select({
+          status: invoices.status,
+          total: sql<string>`COALESCE(SUM(CASE WHEN ${expenseEntries.milesTraveled} IS NOT NULL THEN ${expenseEntries.milesTraveled}::numeric * COALESCE(${expenseEntries.ratePerMile}::numeric, 0.67) ELSE COALESCE(${expenseEntries.amount}::numeric, 0) END), 0)`,
+        })
+        .from(invoices)
+        .innerJoin(expenseEntries, eq(expenseEntries.invoiceId, invoices.id))
+        .where(and(leadFilter, statusFilter))
+        .groupBy(invoices.status),
+    ]);
+
+    const sumForStatus = (rows: { status: string; total: string }[], status: string) =>
+      rows.filter(r => r.status === status).reduce((s, r) => s + parseFloat(r.total), 0);
+
+    sentInvoicesTotal =
+      sumForStatus(snapshotTotals, 'Sent') +
+      sumForStatus(hoursTotals, 'Sent') +
+      sumForStatus(expenseTotals, 'Sent');
+
+    paidInvoicesTotal =
+      sumForStatus(snapshotTotals, 'Paid') +
+      sumForStatus(hoursTotals, 'Paid') +
+      sumForStatus(expenseTotals, 'Paid');
   }
 
   const recentLeads = allLeads.slice(-6).reverse();
