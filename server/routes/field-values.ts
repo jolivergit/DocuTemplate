@@ -153,19 +153,9 @@ export function registerFieldValueRoutes(app: Express): void {
     }
   });
 
-  app.delete("/api/field-values/:id", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as User).id;
-      const { id } = req.params;
-      const success = await storage.deleteFieldValue(userId, id);
-      if (!success) return res.status(404).json({ error: "Field value not found" });
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: (error as Error).message });
-    }
-  });
-
   // Delete field values by name prefixes (used by Load to Doc Builder to clear stale context)
+  // IMPORTANT: must be registered before DELETE /api/field-values/:id or Express will match
+  // "by-prefix" as the :id param and return 404.
   app.delete("/api/field-values/by-prefix", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
@@ -175,6 +165,18 @@ export function registerFieldValueRoutes(app: Express): void {
       }
       const count = await storage.deleteFieldValuesByPrefixes(userId, prefixes);
       res.json({ deleted: count });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.delete("/api/field-values/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { id } = req.params;
+      const success = await storage.deleteFieldValue(userId, id);
+      if (!success) return res.status(404).json({ error: "Field value not found" });
+      res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: (error as Error).message });
     }

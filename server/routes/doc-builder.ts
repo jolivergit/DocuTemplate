@@ -4,9 +4,49 @@ import { getGoogleClient } from "../google-client";
 import { parseTemplate, generateDocument } from "../services/doc-generation";
 import { generateDocumentRequestSchema, type User } from "@shared/schema";
 
+const MOCK_MODE = process.env.GENERATE_DOCS_MOCK === "true";
+
+const MOCK_FILES = [
+  {
+    id: "MOCK_TEMPLATE_ID",
+    name: "Mock Test Template",
+    mimeType: "application/vnd.google-apps.document",
+    modifiedTime: "2024-01-01T00:00:00.000Z",
+  },
+];
+
+const MOCK_PARSED_TEMPLATE = {
+  documentId: "MOCK_TEMPLATE_ID",
+  documentName: "Mock Test Template",
+  sections: [
+    {
+      id: "section-0",
+      title: "Document Content",
+      tags: [
+        { type: "tag", name: "firm_name", tagType: "field", startIndex: 0, endIndex: 13 },
+        { type: "tag", name: "project_name", tagType: "field", startIndex: 14, endIndex: 29 },
+        { type: "tag", name: "proposal_total", tagType: "field", startIndex: 30, endIndex: 47 },
+      ],
+      startIndex: 0,
+      endIndex: 200,
+      children: [],
+    },
+  ],
+  allTags: [
+    { type: "tag", name: "firm_name", tagType: "field", startIndex: 0, endIndex: 13 },
+    { type: "tag", name: "project_name", tagType: "field", startIndex: 14, endIndex: 29 },
+    { type: "tag", name: "proposal_total", tagType: "field", startIndex: 30, endIndex: 47 },
+  ],
+};
+
+const MOCK_DOC_ID = "MOCK_TEST_DOC_1234567890";
+
 export function registerDocBuilderRoutes(app: Express): void {
   // Google Drive Files
   app.get("/api/google-drive/files", requireAuth, async (req, res) => {
+    if (MOCK_MODE) {
+      return res.json(MOCK_FILES);
+    }
     try {
       const userId = (req.user as User).id;
       const { drive } = await getGoogleClient(userId);
@@ -27,6 +67,9 @@ export function registerDocBuilderRoutes(app: Express): void {
 
   // Parse template
   app.post("/api/templates/parse", requireAuth, async (req, res) => {
+    if (MOCK_MODE) {
+      return res.json(MOCK_PARSED_TEMPLATE);
+    }
     try {
       const userId = (req.user as User).id;
       const { fileId } = req.body;
@@ -46,6 +89,12 @@ export function registerDocBuilderRoutes(app: Express): void {
 
   // Generate document
   app.post("/api/documents/generate", requireAuth, async (req, res) => {
+    if (MOCK_MODE) {
+      return res.json({
+        documentId: MOCK_DOC_ID,
+        documentUrl: `https://docs.google.com/document/d/${MOCK_DOC_ID}/edit`,
+      });
+    }
     try {
       const userId = (req.user as User).id;
       const validated = generateDocumentRequestSchema.parse(req.body);
