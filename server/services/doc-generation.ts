@@ -12,7 +12,7 @@ import type {
 } from "@shared/schema";
 
 type StorageProposal = NonNullable<Awaited<ReturnType<typeof storage.getProposalById>>>;
-type StorageProfile = NonNullable<Awaited<ReturnType<typeof storage.getMyProfile>>>;
+type StorageProfile = Awaited<ReturnType<typeof storage.getMyProfile>>;
 
 export interface GenerateDocumentResult {
   documentId: string;
@@ -169,7 +169,7 @@ export async function parseTemplate(
 // ---------------------------------------------------------------------------
 
 export async function generateDocument(
-  userId: number,
+  userId: string,
   request: GenerateDocumentRequest,
   docs: docs_v1.Docs,
   drive: drive_v3.Drive
@@ -403,7 +403,7 @@ export async function generateDocument(
 export function resolveConsultantContractFields(
   proposal: StorageProposal,
   consultant: string,
-  profile: StorageProfile | null
+  profile: StorageProfile
 ): Map<string, string> {
   const consultantRows: PhaseRow[] = proposal.phases.flatMap((phase) =>
     phase.feeLines
@@ -471,7 +471,7 @@ export async function generateConsultantDocument(
   consultant: string,
   templateId: string,
   outputName: string,
-  profile: StorageProfile | null,
+  profile: StorageProfile,
   docs: docs_v1.Docs,
   drive: drive_v3.Drive
 ): Promise<GenerateDocumentResult> {
