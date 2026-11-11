@@ -4,6 +4,7 @@ import type { Request, Response, NextFunction } from "express";
 import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { GOOGLE_IDENTITY_SCOPES } from "./google-permissions";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -23,15 +24,10 @@ passport.use(
       clientID: GOOGLE_CLIENT_ID!,
       clientSecret: GOOGLE_CLIENT_SECRET!,
       callbackURL: CALLBACK_URL,
-      scope: [
-        "profile",
-        "email",
-        "https://www.googleapis.com/auth/drive.readonly",
-        "https://www.googleapis.com/auth/drive.file",
-        "https://www.googleapis.com/auth/documents",
-      ],
+      scope: GOOGLE_IDENTITY_SCOPES,
+      state: true,
     },
-    async (accessToken, refreshToken, profile, done) => {
+    async (_accessToken, _refreshToken, profile, done) => {
       try {
         const googleId = profile.id;
         const email = profile.emails?.[0]?.value || "";
@@ -48,8 +44,6 @@ passport.use(
           await db
             .update(users)
             .set({
-              accessToken,
-              refreshToken: refreshToken || user.refreshToken,
               name,
               email,
               picture,
@@ -59,8 +53,6 @@ passport.use(
 
           user = {
             ...user,
-            accessToken,
-            refreshToken: refreshToken || user.refreshToken,
             name,
             email,
             picture,
@@ -73,8 +65,10 @@ passport.use(
               email,
               name,
               picture,
-              accessToken,
-              refreshToken: refreshToken || null,
+              // This column holds document credentials only. Identity sign-in
+              // must never overwrite a separate Google Docs connection.
+              accessToken: "",
+              refreshToken: null,
             })
             .returning();
           user = newUser;

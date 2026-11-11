@@ -1,0 +1,1 @@
+- [Google authorization boundaries](google-authorization.md) — app users need per-file grants; assistant connections and saved branding are not substitutes.

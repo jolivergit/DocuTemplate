@@ -1,9 +1,25 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+export class ApiError extends Error {
+  constructor(message: string, public status: number, public code?: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    let message = text;
+    let code: string | undefined;
+    try {
+      const body = JSON.parse(text);
+      if (typeof body.error === "string") message = body.error;
+      if (typeof body.code === "string") code = body.code;
+    } catch {
+      // Some infrastructure errors have a plain-text response.
+    }
+    throw new ApiError(message, res.status, code);
   }
 }
 

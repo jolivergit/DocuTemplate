@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { ExternalLink, Check, X, Edit, Trash2, ArrowLeft, FileText, ScrollText, Search, Loader2 } from "lucide-react";
+import { ExternalLink, Check, X, Edit, Trash2, ArrowLeft, FileText, ScrollText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -14,7 +14,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatCurrencyFlexOrDash } from "@/lib/utils";
 import { ProposalFormDialog } from "@/components/proposal-form-dialog";
 import { AdditionalServicesFormDialog } from "@/components/additional-services-form-dialog";
+import { GoogleDocsPicker, type PickedGoogleDoc } from "@/components/google-docs-picker";
 import {
   type ProposalWithPhases,
   type ProposalStatus,
@@ -61,13 +61,6 @@ function phaseTotal(phase: ProposalWithPhases["phases"][0]): number {
   }, 0);
 }
 
-interface GoogleDriveFile {
-  id: string;
-  name: string;
-  mimeType: string;
-  modifiedTime: string;
-}
-
 interface ConsultantContractDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -86,14 +79,9 @@ function ConsultantContractDialog({
   onGenerated,
 }: ConsultantContractDialogProps) {
   const { toast } = useToast();
-  const [selectedTemplate, setSelectedTemplate] = useState<GoogleDriveFile | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<PickedGoogleDoc | null>(null);
   const [outputName, setOutputName] = useState("");
-  const [templateSearch, setTemplateSearch] = useState("");
-
-  const { data: files = [], isLoading: filesLoading } = useQuery<GoogleDriveFile[]>({
-    queryKey: ["/api/google-drive/files"],
-    enabled: open,
-  });
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -110,7 +98,6 @@ function ConsultantContractDialog({
       onOpenChange(false);
       setSelectedTemplate(null);
       setOutputName("");
-      setTemplateSearch("");
     },
     onError: (err: Error) => {
       toast({ title: "Failed to generate contract", description: err.message, variant: "destructive" });
@@ -131,18 +118,14 @@ function ConsultantContractDialog({
     return sum;
   }, 0);
 
-  const filteredFiles = files.filter(f =>
-    f.name.toLowerCase().includes(templateSearch.toLowerCase())
-  );
-
   const canGenerate = selectedTemplate && outputName.trim();
 
   return (
     <Dialog open={open} onOpenChange={(v) => {
-      if (!v) { setSelectedTemplate(null); setOutputName(""); setTemplateSearch(""); }
       onOpenChange(v);
-    }}>
-      <DialogContent className="max-w-lg" data-testid="dialog-consultant-contract">
+    }} modal={false}>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg min-w-0 max-h-[90dvh] overflow-y-auto [overflow-wrap:anywhere]" data-testid="dialog-consultant-contract"
+        onInteractOutside={(event) => { if (pickerOpen) event.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle data-testid="text-contract-dialog-title">Generate Consultant Contract</DialogTitle>
           <DialogDescription>
@@ -195,63 +178,12 @@ function ConsultantContractDialog({
           {/* Template picker */}
           <div className="space-y-1.5">
             <Label className="text-xs uppercase tracking-wide">Template</Label>
-            {selectedTemplate ? (
-              <div className="flex items-center gap-2 rounded-md border p-2.5">
-                <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <span className="text-sm flex-1 truncate" data-testid="text-selected-template">{selectedTemplate.name}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedTemplate(null)}
-                  data-testid="button-clear-template"
-                >
-                  Change
-                </Button>
-              </div>
-            ) : (
-              <div className="rounded-md border">
-                <div className="p-2 border-b">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                    <Input
-                      placeholder="Search templates..."
-                      value={templateSearch}
-                      onChange={e => setTemplateSearch(e.target.value)}
-                      className="pl-8 h-8 text-xs"
-                      data-testid="input-template-search"
-                    />
-                  </div>
-                </div>
-                <ScrollArea className="h-44">
-                  {filesLoading ? (
-                    <div className="flex items-center justify-center h-full py-6">
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : filteredFiles.length === 0 ? (
-                    <div className="flex items-center justify-center h-full py-6">
-                      <p className="text-xs text-muted-foreground">No templates found</p>
-                    </div>
-                  ) : (
-                    <div className="p-1.5 space-y-0.5">
-                      {filteredFiles.map(file => (
-                        <button
-                          key={file.id}
-                          onClick={() => setSelectedTemplate(file)}
-                          className="w-full flex items-center gap-2.5 p-2 rounded text-left hover-elevate active-elevate-2"
-                          data-testid={`button-template-${file.id}`}
-                        >
-                          <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate">{file.name}</p>
-                            <p className="text-xs text-muted-foreground">Modified {new Date(file.modifiedTime).toLocaleDateString()}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-              </div>
-            )}
+            <GoogleDocsPicker
+              selected={selectedTemplate}
+              disabled={generateMutation.isPending}
+              onSelect={setSelectedTemplate}
+              onPickerOpenChange={setPickerOpen}
+            />
           </div>
 
           {/* Generate button */}

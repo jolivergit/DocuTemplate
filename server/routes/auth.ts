@@ -4,6 +4,7 @@ import { db } from "../db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import type { User } from "@shared/schema";
+import { handleDocsCallback, registerGoogleDocsAuthRoutes } from "./google-docs-auth";
 
 const DEV_TEST_USER = {
   googleId: "dev_test_user_bypass",
@@ -42,13 +43,12 @@ export function registerAuthRoutes(app: Express): void {
     });
   }
 
-  app.get("/auth/google", passport.authenticate("google", {
-    accessType: "offline",
-    prompt: "consent",
-  }));
+  registerGoogleDocsAuthRoutes(app);
+  app.get("/auth/google", passport.authenticate("google"));
 
   app.get(
     "/auth/google/callback",
+    handleDocsCallback,
     passport.authenticate("google", { failureRedirect: "/" }),
     (req, res) => {
       res.redirect("/");

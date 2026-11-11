@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { requireAuth } from "../auth";
 import { storage } from "../storage";
 import { getGoogleClient } from "../google-client";
+import { sendGoogleError } from "../google-permissions";
 import { generateConsultantDocument } from "../services/doc-generation";
 import {
   proposalPhaseInputSchema,
@@ -162,8 +163,7 @@ export function registerProposalRoutes(app: Express): void {
       const contract = await storage.upsertConsultantContract(req.params.id, consultant, documentUrl);
       res.json({ docUrl: documentUrl, contract });
     } catch (error) {
-      console.error("Error generating consultant contract:", error);
-      res.status(500).json({ error: (error as Error).message });
+      sendGoogleError(res, error);
     }
   });
 }

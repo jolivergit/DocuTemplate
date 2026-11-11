@@ -3,8 +3,9 @@ import { requireAuth } from "../auth";
 import { getGoogleClient } from "../google-client";
 import { parseTemplate, generateDocument } from "../services/doc-generation";
 import { generateDocumentRequestSchema, type User } from "@shared/schema";
+import { sendGoogleError } from "../google-permissions";
 
-const MOCK_MODE = process.env.GENERATE_DOCS_MOCK === "true";
+const MOCK_MODE = process.env.NODE_ENV === "development" && process.env.GENERATE_DOCS_MOCK === "true";
 
 const MOCK_FILES = [
   {
@@ -60,8 +61,7 @@ export function registerDocBuilderRoutes(app: Express): void {
 
       res.json(response.data.files || []);
     } catch (error) {
-      console.error("Error listing Google Drive files:", error);
-      res.status(500).json({ error: (error as Error).message });
+      sendGoogleError(res, error);
     }
   });
 
@@ -74,7 +74,7 @@ export function registerDocBuilderRoutes(app: Express): void {
       const userId = (req.user as User).id;
       const { fileId } = req.body;
 
-      if (!fileId) {
+      if (typeof fileId !== "string" || !fileId.trim()) {
         return res.status(400).json({ error: "fileId is required" });
       }
 
@@ -82,8 +82,7 @@ export function registerDocBuilderRoutes(app: Express): void {
       const parsedTemplate = await parseTemplate(fileId, docs);
       res.json(parsedTemplate);
     } catch (error) {
-      console.error("Error parsing template:", error);
-      res.status(500).json({ error: (error as Error).message });
+      sendGoogleError(res, error);
     }
   });
 
@@ -102,8 +101,10 @@ export function registerDocBuilderRoutes(app: Express): void {
       const result = await generateDocument(userId, validated, docs, drive);
       res.json(result);
     } catch (error) {
-      console.error("Error generating document:", error);
-      res.status(500).json({ error: (error as Error).message });
+      if (error instanceof Error && error.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid document generation request." });
+      }
+      sendGoogleError(res, error);
     }
   });
 }

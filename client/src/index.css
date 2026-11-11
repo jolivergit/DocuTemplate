@@ -352,6 +352,13 @@
   margin-bottom: 0;
 }
 
+/* Google Picker must remain interactive above Radix dialog portals. */
+.picker-dialog-bg,
+.picker-dialog {
+  z-index: 200000 !important;
+  pointer-events: auto !important;
+}
+
 .ProseMirror strong {
   font-weight: 600;
 }

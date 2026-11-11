@@ -5,13 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -25,6 +18,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, parseCurrency } from "@/lib/utils";
 import type { InvoiceWithDetails, InvoiceStatus, LeadWithCompanies, FieldValue } from "@shared/schema";
+import { GoogleDocsPicker, type PickedGoogleDoc } from "@/components/google-docs-picker";
 
 const fmt = (n: number | string | null | undefined): string => formatCurrency(parseCurrency(n));
 
@@ -44,11 +38,6 @@ function fmtDate(d: string | Date | null | undefined): string {
   return new Date(d as string).toLocaleDateString();
 }
 
-interface DriveFile {
-  id: string;
-  name: string;
-}
-
 interface ParsedTag {
   name: string;
   tagType: "field" | "content";
@@ -65,17 +54,11 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
   const { toast } = useToast();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showGeneratePanel, setShowGeneratePanel] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<PickedGoogleDoc | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const { data: invoice, isLoading } = useQuery<InvoiceWithDetails>({
     queryKey: ["/api/invoices", invoiceId],
-  });
-
-  const { data: templates = [], isLoading: templatesLoading } = useQuery<DriveFile[]>({
-    queryKey: ["/api/google-drive/files"],
-    enabled: showGeneratePanel,
-    staleTime: 60_000,
   });
 
   const statusMutation = useMutation({
@@ -170,9 +153,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
   };
 
   const handleGenerate = async () => {
-    if (!invoice || !selectedTemplateId) return;
-    const template = templates.find((t) => t.id === selectedTemplateId);
-    if (!template) return;
+    if (!invoice || !selectedTemplate) return;
 
     setIsGenerating(true);
     try {
@@ -192,12 +173,13 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       const fvByName = new Map(allFieldValues.map((fv) => [fv.name, fv]));
 
       // Step 4: Parse template to discover its tags
-      const parsed = await apiRequest<{ tags: ParsedTag[] }>("POST", "/api/templates/parse", {
-        fileId: selectedTemplateId,
+      const parsed = await apiRequest<{ tags?: ParsedTag[]; allTags?: ParsedTag[] }>("POST", "/api/templates/parse", {
+        fileId: selectedTemplate.id,
       });
+      const parsedTags = parsed.tags ?? parsed.allTags ?? [];
 
       // Step 4: Build tagMappings — map each template tag to its stored field value (or empty custom content)
-      const tagMappings = parsed.tags.map((tag: ParsedTag) => {
+      const tagMappings = parsedTags.map((tag: ParsedTag) => {
         if (tag.tagType === "field") {
           const fv = fvByName.get(tag.name);
           return {
@@ -220,8 +202,8 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       // Step 5: Generate the document
       const outputName = `Invoice_${invoice.invoiceNumber}_${lead.projectName.replace(/\s+/g, "_")}`;
       const { documentUrl } = await apiRequest<{ documentUrl: string }>("POST", "/api/documents/generate", {
-        templateId: selectedTemplateId,
-        templateName: template.name,
+        templateId: selectedTemplate.id,
+        templateName: selectedTemplate.name,
         outputName,
         tagMappings,
         sectionOrder: [],
@@ -314,29 +296,12 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
           <div className="flex gap-2 items-end flex-wrap">
             <div className="flex-1 min-w-48 space-y-1">
               <p className="text-xs text-muted-foreground">Template</p>
-              {templatesLoading ? (
-                <Skeleton className="h-9 w-full" />
-              ) : (
-                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                  <SelectTrigger className="text-sm" data-testid="select-invoice-template">
-                    <SelectValue placeholder="Select a template…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templates.length === 0 ? (
-                      <SelectItem value="_none" disabled>No Google Docs found</SelectItem>
-                    ) : (
-                      templates.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              )}
+              <GoogleDocsPicker selected={selectedTemplate} onSelect={setSelectedTemplate} />
             </div>
             <Button
               size="sm"
               onClick={handleGenerate}
-              disabled={!selectedTemplateId || isGenerating}
+              disabled={!selectedTemplate || isGenerating}
               data-testid="button-confirm-generate-doc"
             >
               {isGenerating ? "Generating…" : "Generate & Save"}

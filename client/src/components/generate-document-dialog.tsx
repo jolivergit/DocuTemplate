@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { GoogleDocsPicker } from "@/components/google-docs-picker";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { z } from "zod";
@@ -56,6 +57,8 @@ export function GenerateDocumentDialog({
   const { toast } = useToast();
   const [generatedDocUrl, setGeneratedDocUrl] = useState<string | null>(null);
   const [savedBack, setSavedBack] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -101,6 +104,7 @@ export function GenerateDocumentDialog({
       }
     },
     onError: (error: Error) => {
+      setGenerationError(error.message);
       toast({
         title: "Failed to generate document",
         description: error.message,
@@ -114,6 +118,7 @@ export function GenerateDocumentDialog({
   const handleSubmit = (data: FormData) => {
     setGeneratedDocUrl(null);
     setSavedBack(false);
+    setGenerationError(null);
     generateMutation.mutate(data);
   };
 
@@ -125,8 +130,9 @@ export function GenerateDocumentDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg" data-testid="dialog-generate-document">
+    <Dialog open={open} onOpenChange={handleClose} modal={false}>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg min-w-0 max-h-[90dvh] overflow-y-auto [overflow-wrap:anywhere]" data-testid="dialog-generate-document"
+        onInteractOutside={(event) => { if (pickerOpen) event.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle data-testid="text-generate-title">Generate Document</DialogTitle>
           <DialogDescription data-testid="text-generate-description">
@@ -136,7 +142,7 @@ export function GenerateDocumentDialog({
 
         {!generatedDocUrl ? (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="min-w-0 space-y-4">
               <div className="bg-muted p-4 rounded-lg space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Template:</span>
@@ -163,6 +169,23 @@ export function GenerateDocumentDialog({
                   </div>
                 )}
               </div>
+              {generationError && (
+                <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+                  <p role="alert" className="text-sm text-destructive">{generationError}</p>
+                  <GoogleDocsPicker
+                    selected={{ id: template.documentId, name: template.documentName }}
+                    connectOnly
+                    onPickerOpenChange={setPickerOpen}
+                    onSelect={(file) => {
+                      if (file.id !== template.documentId) {
+                        toast({ title: "Select the original template", description: "Choose the template shown above to keep your mappings. Load a different template from Doc Builder instead.", variant: "destructive" });
+                      } else {
+                        toast({ title: "Template selected again", description: "Your mappings have been kept. Try generating the document again." });
+                      }
+                    }}
+                  />
+                </div>
+              )}
 
               <FormField
                 control={form.control}
