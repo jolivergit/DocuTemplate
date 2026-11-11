@@ -1,1 +1,2 @@
 - [Google authorization boundaries](google-authorization.md) — app users need per-file grants; assistant connections and saved branding are not substitutes.
+- [Company project access](company-project-access.md) — coworkers should access only assigned projects, not every company project.
