@@ -1,8 +1,35 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "jxzJa82qExhNkxGRKrr9z"
 uri = "file://attached_assets/login_bg_architecture.png"
 type = "image"
 title = "greyscale architectural skyscraper"
+
+[[outputs]]
+id = "H9oEKYYh2GsG9leI-VsWK"
+uri = "file://docs/studio-pm-user-guide.html"
+type = "html"
+title = "Studio PM User Guide"
+description = "Plain-language walkthrough with quick start, project-to-invoice example, Doc Builder instructions, and troubleshooting. Open in a browser to read, print, or save as PDF."
+logical_id = "1e2cfb88-3e64-47d4-b584-3fef0df3baad"
+content_hash = "sha256:4888f79d306e5407aa03bc84400432c8698d43e971016f725124b560bb45480e"
+size = 43705
+mtime_ms = 1794432025530
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:276dae68-32a0-426a-a0fe-f788497b5a17/1e2cfb88-3e64-47d4-b584-3fef0df3baad/2cbf4fcb-2fa5-42bc-89eb-74dde78de90e"
+storage_version_token = "1794432064543010"
+content_type = "text/html"
+
+[[outputs]]
+id = "6HXcD623ppPWBU-_cWogQ"
+uri = "file://docs/studio-pm-user-guide.md"
+type = "text"
+title = "Studio PM User Guide — Editable Source"
+description = "Markdown source for maintaining and updating the user guide."
+logical_id = "480ef920-1c23-4744-ab01-75131fd6c23a"
+content_hash = "sha256:bb95c5e7110900603a31a059ddd227d72b991e10b16d3a41ea60df07f7ca26e6"
+size = 32801
+mtime_ms = 1794432012947
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:276dae68-32a0-426a-a0fe-f788497b5a17/480ef920-1c23-4744-ab01-75131fd6c23a/e4f8b548-fb0d-4adf-a98b-92e3cb35b014"
+storage_version_token = "1794432065109173"
+content_type = "text/markdown"
