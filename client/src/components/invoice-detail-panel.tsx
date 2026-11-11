@@ -14,8 +14,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { ApiError, apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/lib/workspace";
 import { formatCurrency, parseCurrency } from "@/lib/utils";
 import type { InvoiceWithDetails, InvoiceStatus, LeadWithCompanies, FieldValue } from "@shared/schema";
 import { GoogleDocsPicker, type PickedGoogleDoc } from "@/components/google-docs-picker";
@@ -51,6 +52,7 @@ interface Props {
 }
 
 export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
+  const { isOwner } = useWorkspace();
   const { toast } = useToast();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showGeneratePanel, setShowGeneratePanel] = useState(false);
@@ -162,7 +164,27 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
         prefixes: ["invoice_", "fee_line_", "hours_entry_", "expense_entry_", "project_name", "client_"],
       });
 
-      // Step 2: Upsert all invoice field values
+      // Load firm data from the active workspace at generation time; stored field values may be stale or personal.
+      type WorkspaceInvoiceProfile = {
+        name?: string | null; phone?: string | null; email?: string | null;
+        addressLine1?: string | null; addressLine2?: string | null; city?: string | null;
+        state?: string | null; zip?: string | null; contactName?: string | null; contactTitle?: string | null;
+      };
+      const profile = await apiRequest<WorkspaceInvoiceProfile>("GET", "/api/profile").catch((error): WorkspaceInvoiceProfile => {
+        if (error instanceof ApiError && error.status === 404) return {};
+        throw error;
+      });
+      const firmMappings = [
+        { name: "firm_name", value: profile.name || "" },
+        { name: "firm_address", value: [profile.addressLine1, profile.addressLine2].filter(Boolean).join(", ") },
+        { name: "firm_city", value: profile.city || "" },
+        { name: "firm_state", value: profile.state || "" },
+        { name: "firm_zip", value: profile.zip || "" },
+        { name: "firm_phone", value: profile.phone || "" },
+        { name: "firm_email", value: profile.email || "" },
+        { name: "firm_contact_name", value: profile.contactName || "" },
+        { name: "firm_contact_title", value: profile.contactTitle || "" },
+      ];
       const fieldMappings = buildInvoiceFieldMappings(invoice);
       await Promise.all(
         fieldMappings.map((fv) => apiRequest("POST", "/api/field-values/upsert-by-name", fv))
@@ -171,6 +193,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       // Step 3: Fetch all current field values (now includes the freshly upserted ones)
       const allFieldValues = await apiRequest<FieldValue[]>("GET", "/api/field-values");
       const fvByName = new Map(allFieldValues.map((fv) => [fv.name, fv]));
+      const firmValueByName = new Map(firmMappings.map((field) => [field.name, field.value]));
 
       // Step 4: Parse template to discover its tags
       const parsed = await apiRequest<{ tags?: ParsedTag[]; allTags?: ParsedTag[] }>("POST", "/api/templates/parse", {
@@ -181,6 +204,15 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       // Step 4: Build tagMappings — map each template tag to its stored field value (or empty custom content)
       const tagMappings = parsedTags.map((tag: ParsedTag) => {
         if (tag.tagType === "field") {
+          if (firmValueByName.has(tag.name)) {
+            return {
+              tagName: tag.name,
+              tagType: "field" as const,
+              snippetId: null,
+              customContent: firmValueByName.get(tag.name) || "",
+              fieldValueId: null,
+            };
+          }
           const fv = fvByName.get(tag.name);
           return {
             tagName: tag.name,
@@ -278,9 +310,9 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
             {invoice.docUrl ? "Regenerate Doc" : "Generate Doc"}
             <ChevronDown className="w-3 h-3 ml-1" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(true)} data-testid="button-delete-invoice">
+          {isOwner && <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(true)} data-testid="button-delete-invoice">
             <Trash2 className="w-4 h-4 text-destructive" />
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -514,7 +546,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       </div>
 
       {/* Delete confirm */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      {isOwner && <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Invoice</AlertDialogTitle>
@@ -533,7 +565,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog>}
     </div>
   );
 }

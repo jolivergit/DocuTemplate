@@ -7,9 +7,11 @@ import { registerLeadRoutes } from "./leads";
 import { registerProposalRoutes } from "./proposals";
 import { registerInvoiceRoutes } from "./invoices";
 import { registerCompanyRoutes } from "./companies";
+import { registerWorkspaceRoutes } from "./workspaces";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   registerAuthRoutes(app);
+  registerWorkspaceRoutes(app);
   registerFieldValueRoutes(app);
   registerDocBuilderRoutes(app);
   registerLeadRoutes(app);

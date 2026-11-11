@@ -63,7 +63,7 @@ app.use((req, res, next) => {
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
     // Picker needs a short-lived browser token. Never put it in request logs.
-    if (path !== "/api/google-docs/picker") capturedJsonResponse = bodyJson;
+    if (path !== "/api/google-docs/picker" && !path.includes("invitation")) capturedJsonResponse = bodyJson;
     return originalResJson.apply(res, [bodyJson, ...args]);
   };
 
@@ -94,7 +94,7 @@ app.use((req, res, next) => {
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ error: message });
-    throw err;
+    if (status >= 500) console.error("Request failed:", err.name || "Error");
   });
 
   // importantly only setup vite in development and after

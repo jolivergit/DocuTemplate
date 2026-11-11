@@ -13,24 +13,33 @@ const DEV_TEST_USER = {
   accessToken: "dev_test_bypass_token",
   refreshToken: null as string | null,
   picture: null as string | null,
+  emailVerified: true,
 };
 
 export function registerAuthRoutes(app: Express): void {
   if (process.env.NODE_ENV === "development") {
     app.get("/api/dev/test-login", async (req, res) => {
       try {
+        // Fixed synthetic personas only; never accepts a real user ID/email.
+        const persona = req.query.persona === "team-member" ? {
+          ...DEV_TEST_USER,
+          googleId: "dev_test_team_member", email: "team-member@test.local", name: "Team Test Member",
+        } : DEV_TEST_USER;
         let [existing] = await db
           .select()
           .from(users)
-          .where(eq(users.googleId, DEV_TEST_USER.googleId))
+          .where(eq(users.googleId, persona.googleId))
           .limit(1);
 
         if (!existing) {
           const [created] = await db
             .insert(users)
-            .values(DEV_TEST_USER)
+            .values(persona)
             .returning();
           existing = created;
+        }
+        if (!existing.emailVerified) {
+          [existing] = await db.update(users).set({ emailVerified: true }).where(eq(users.id, existing.id)).returning();
         }
 
         req.login(existing, (err) => {

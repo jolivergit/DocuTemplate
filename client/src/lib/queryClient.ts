@@ -1,5 +1,22 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+let activeWorkspaceId: string | null = null;
+
+export function getActiveWorkspaceId() {
+  return activeWorkspaceId;
+}
+
+export function setActiveWorkspaceId(id: string | null) {
+  activeWorkspaceId = id;
+}
+
+function workspaceHeaders(headers?: HeadersInit): Headers {
+  const result = new Headers(headers);
+  if (activeWorkspaceId) result.set("X-Workspace-Id", activeWorkspaceId);
+  else result.delete("X-Workspace-Id");
+  return result;
+}
+
 export class ApiError extends Error {
   constructor(message: string, public status: number, public code?: string) {
     super(message);
@@ -28,14 +45,18 @@ export async function apiRequest<T = any>(
   url: string,
   data?: unknown | undefined,
 ): Promise<T> {
+  const headers = workspaceHeaders(data ? { "Content-Type": "application/json" } : {});
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
 
   await throwIfResNotOk(res);
+  if (headers.get("X-Workspace-Id") !== activeWorkspaceId) {
+    throw new ApiError("The workspace changed while this request was running. Please try again.", 409, "WORKSPACE_CHANGED");
+  }
   return await res.json();
 }
 
@@ -44,9 +65,11 @@ export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
+  async ({ queryKey, signal }) => {
     const res = await fetch(queryKey.join("/") as string, {
+      headers: workspaceHeaders(),
       credentials: "include",
+      signal,
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

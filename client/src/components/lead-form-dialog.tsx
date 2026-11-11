@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LEAD_STATUSES, LEAD_PROBABILITIES, type LeadProbability, type LeadStatus, type LeadWithCompanies } from "@shared/schema";
 import { formSchema, buildDefaultCompanies, type FormValues } from "./lead-form/types";
 import { CompanyEntry } from "./lead-form/company-entry";
+import { useWorkspace } from "@/lib/workspace";
 
 interface Props {
   open: boolean;
@@ -39,6 +40,7 @@ interface Props {
 }
 
 export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
+  const { isOwner } = useWorkspace();
   const { toast } = useToast();
   const isEditing = !!lead;
 
@@ -239,7 +241,7 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
                   <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                     Companies
                   </h3>
-                  <Button
+                  {isOwner && <Button
                     type="button"
                     variant="outline"
                     size="sm"
@@ -248,11 +250,11 @@ export function LeadFormDialog({ open, onOpenChange, lead }: Props) {
                   >
                     <Plus className="w-3.5 h-3.5 mr-1.5" />
                     Add Company
-                  </Button>
+                  </Button>}
                 </div>
                 {fields.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center py-4 border rounded-md">
-                    No companies added yet. Click "Add Company" to get started.
+                    {isOwner ? 'No companies added yet. Click "Add Company" to get started.' : "No company associations are currently set for this project."}
                   </p>
                 )}
                 {fields.map((field, index) => (

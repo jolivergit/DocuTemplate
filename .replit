@@ -47,7 +47,7 @@ integrations = ["google-drive:1.0.0", "google-docs:1.0.0", "javascript_database:
 
 [postMerge]
 path = "scripts/post-merge.sh"
-timeoutMs = 20000
+timeoutMs = 120000
 
 [userenv]
 

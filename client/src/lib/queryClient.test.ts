@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { apiRequest, ApiError } from "./queryClient";
+import { apiRequest, ApiError, setActiveWorkspaceId } from "./queryClient";
 
 test("Google reconnect errors show readable text and retain machine-readable status", async () => {
   const original = globalThis.fetch;
@@ -18,6 +18,26 @@ test("Google reconnect errors show readable text and retain machine-readable sta
       return true;
     });
   } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("API writes carry the selected workspace and reject responses after a switch", async () => {
+  const original = globalThis.fetch;
+  setActiveWorkspaceId("workspace-a");
+  globalThis.fetch = async (_url, init) => {
+    assert.equal(new Headers(init?.headers).get("X-Workspace-Id"), "workspace-a");
+    setActiveWorkspaceId("workspace-b");
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
+  };
+  try {
+    await assert.rejects(apiRequest("POST", "/api/leads", {}), (error: unknown) => {
+      assert.ok(error instanceof ApiError);
+      assert.equal(error.code, "WORKSPACE_CHANGED");
+      return true;
+    });
+  } finally {
+    setActiveWorkspaceId(null);
     globalThis.fetch = original;
   }
 });

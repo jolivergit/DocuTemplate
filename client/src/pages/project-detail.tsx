@@ -33,6 +33,7 @@ import { formatCurrencyOrDash } from "@/lib/utils";
 import { LeadFormDialog } from "@/components/lead-form-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/lib/workspace";
 import type {
   LeadWithCompanies,
   LeadStatus,
@@ -189,6 +190,7 @@ interface Props {
 }
 
 export default function ProjectDetailPage({ params }: Props) {
+  const workspace = useWorkspace();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [showEdit, setShowEdit] = useState(false);
@@ -223,6 +225,15 @@ export default function ProjectDetailPage({ params }: Props) {
     onError: (err: Error) => {
       toast({ title: "Failed to update status", description: err.message, variant: "destructive" });
     },
+  });
+  const { data: assignments, isError: assignmentsError, refetch: refetchAssignments } = useQuery<{ members: { userId: string; name: string; email: string; role: string; assigned: boolean }[] }>({
+    queryKey: ["/api/leads", leadId, "assignments"],
+    enabled: workspace.isOwner && !isNaN(leadId),
+  });
+  const assignmentMutation = useMutation({
+    mutationFn: (userIds: string[]) => apiRequest("PUT", `/api/leads/${leadId}/assignments`, { userIds }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "assignments"] }),
+    onError: (err: Error) => toast({ title: "Could not update project access", description: err.message, variant: "destructive" }),
   });
 
   if (isNaN(leadId)) {
@@ -277,16 +288,43 @@ export default function ProjectDetailPage({ params }: Props) {
               <Edit className="w-4 h-4" />
               Edit
             </Button>
-            <Button
+            {workspace.isOwner && <Button
               variant="outline"
               size="sm"
               onClick={() => setShowDelete(true)}
               data-testid="button-delete-project"
             >
               <Trash2 className="w-4 h-4 text-destructive" />
-            </Button>
+            </Button>}
           </div>
         </div>
+
+        {workspace.isOwner && (assignments || assignmentsError) && (
+          <section className="rounded-md border bg-card">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <div><h2 className="text-xs font-semibold">PROJECT ACCESS</h2><p className="mt-0.5 text-xs text-muted-foreground">Only assigned members can see this project.</p></div>
+              {assignmentMutation.isPending && <span className="text-xs text-muted-foreground">Saving…</span>}
+            </div>
+            {assignmentsError ? <div className="px-4 py-3 text-xs text-muted-foreground">Could not load assignments. <Button size="sm" variant="outline" className="ml-2 h-7" onClick={() => void refetchAssignments()}>Retry</Button></div> : !assignments?.members.some(member => member.role === "Member") ? <p className="px-4 py-3 text-xs text-muted-foreground">Invite a coworker in Settings → Team to assign projects. Owners already have access to every project.</p> :
+              <div className="divide-y">{assignments?.members.filter((member) => member.role !== "Owner").map((member) => (
+                <label key={member.userId} className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={member.assigned}
+                    disabled={assignmentMutation.isPending}
+                    onChange={(event) => {
+                      const next = (assignments?.members || []).filter((person) => person.role !== "Owner" && person.assigned && person.userId !== member.userId).map((person) => person.userId);
+                      if (event.target.checked) next.push(member.userId);
+                      assignmentMutation.mutate(next);
+                    }}
+                    className="h-4 w-4 accent-current"
+                    aria-label={`Assign ${member.name} to project`}
+                  />
+                  <span className="flex-1">{member.name}</span><span className="text-xs text-muted-foreground">{member.email}</span>
+                </label>
+              ))}</div>}
+          </section>
+        )}
 
         {/* Project header card */}
         <div className="rounded-md border bg-card p-5 space-y-4">

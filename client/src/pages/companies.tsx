@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/command";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/lib/workspace";
 import { ContactFormDialog } from "@/components/contact-form-dialog";
 import { CompanyFormDialog } from "@/components/company-form-dialog";
 import {
@@ -136,10 +137,12 @@ function LinkContactPicker({
 
 function CompanyCard({
   company,
+  isOwner,
   onEdit,
   onDelete,
 }: {
   company: CompanyWithContacts;
+  isOwner: boolean;
   onEdit: (c: CompanyWithContacts) => void;
   onDelete: (c: CompanyWithContacts) => void;
 }) {
@@ -213,12 +216,12 @@ function CompanyCard({
           >
             {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </Button>
-          <Button size="icon" variant="ghost" onClick={() => onEdit(company)} data-testid={`button-edit-company-${company.id}`}>
+          {isOwner && <Button size="icon" variant="ghost" onClick={() => onEdit(company)} data-testid={`button-edit-company-${company.id}`}>
             <Pencil className="w-4 h-4" />
-          </Button>
-          <Button size="icon" variant="ghost" onClick={() => onDelete(company)} data-testid={`button-delete-company-${company.id}`}>
+          </Button>}
+          {isOwner && <Button size="icon" variant="ghost" onClick={() => onDelete(company)} data-testid={`button-delete-company-${company.id}`}>
             <Trash2 className="w-4 h-4" />
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -226,7 +229,7 @@ function CompanyCard({
         <div className="border-t px-4 py-3 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-medium text-muted-foreground">Linked Contacts</p>
-            <LinkContactPicker companyId={company.id} linkedContactIds={linkedContactIds} />
+            {isOwner && <LinkContactPicker companyId={company.id} linkedContactIds={linkedContactIds} />}
           </div>
           {company.contacts.length === 0 ? (
             <p className="text-xs text-muted-foreground py-1">No contacts linked yet.</p>
@@ -261,6 +264,7 @@ function CompanyCard({
 }
 
 export default function CompaniesPage() {
+  const { isOwner } = useWorkspace();
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<CompanyWithContacts | null>(null);
@@ -316,10 +320,10 @@ export default function CompaniesPage() {
             data-testid="input-search-companies"
           />
         </div>
-        <Button onClick={openCreate} data-testid="button-new-company">
+        {isOwner && <Button onClick={openCreate} data-testid="button-new-company">
           <Plus className="w-4 h-4" />
           New Company
-        </Button>
+        </Button>}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -331,12 +335,12 @@ export default function CompaniesPage() {
           <div className="flex flex-col items-center justify-center h-full text-center px-6 py-16">
             <Building2 className="w-12 h-12 mb-4 text-muted-foreground" />
             <h3 className="text-sm font-medium mb-1" data-testid="text-no-companies-title">
-              {search ? "No matching companies" : "No companies yet"}
+              {search ? "No matching companies" : isOwner ? "No companies yet" : "No linked companies yet"}
             </h3>
             <p className="text-xs text-muted-foreground mb-4">
-              {search ? "Try adjusting your search" : "Add companies to your address book"}
+              {search ? "Try adjusting your search" : isOwner ? "Add companies to your address book" : "Companies appear here when linked to projects assigned to you."}
             </p>
-            {!search && (
+            {!search && isOwner && (
               <Button size="sm" onClick={openCreate} data-testid="button-new-company-empty">
                 <Plus className="w-4 h-4 mr-2" />
                 New Company
@@ -349,6 +353,7 @@ export default function CompaniesPage() {
               <CompanyCard
                 key={company.id}
                 company={company}
+                isOwner={isOwner}
                 onEdit={openEdit}
                 onDelete={setDeletingCompany}
               />
@@ -365,13 +370,13 @@ export default function CompaniesPage() {
         </div>
       )}
 
-      <CompanyFormDialog
+      {isOwner && <CompanyFormDialog
         open={formOpen}
         onOpenChange={(v) => { setFormOpen(v); if (!v) setEditingCompany(null); }}
         company={editingCompany}
-      />
+      />}
 
-      <AlertDialog open={!!deletingCompany} onOpenChange={(v) => !v && setDeletingCompany(null)}>
+      {isOwner && <AlertDialog open={!!deletingCompany} onOpenChange={(v) => !v && setDeletingCompany(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Company</AlertDialogTitle>
@@ -390,7 +395,7 @@ export default function CompaniesPage() {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog>}
     </div>
   );
 }

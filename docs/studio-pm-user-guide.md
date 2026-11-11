@@ -12,6 +12,7 @@ Studio PM keeps your opportunities, proposals, active projects, billing, and doc
 
 - [Quick start: your first project and document](#quick-start-your-first-project-and-document)
 - [Find your way around](#find-your-way-around)
+- [Work with your company team](#work-with-your-company-team)
 - [Sign in and set up your details](#sign-in-and-set-up-your-details)
 - [Read the Dashboard](#read-the-dashboard)
 - [Keep companies and contacts organized](#keep-companies-and-contacts-organized)
@@ -83,13 +84,79 @@ Document access is a separate, optional step. The Google permission allows acces
 ### Set up your studio
 
 1. Open **Settings → Firm**.
-2. Complete the firm name, phone, email, and mailing address.
+2. If you are a workspace Owner, complete the firm name, phone, email, and mailing address. Members can read these details but should ask an Owner to change them.
 3. Click **Save** and check for the success message.
 4. Open **Settings → Contact**, enter the primary contact's name and title, and click **Save**.
 
 Saving these forms updates the corresponding Doc Builder field values for later documents. It does not rewrite documents you already generated.
 
 Use **Sign out** near your name at the bottom of the sidebar when finished, especially on a shared computer. Save current work first.
+
+## Work with your company team
+
+### Choose the right workspace
+
+The workspace selector in the sidebar identifies the company account you are
+using. Your own workspace stays separate when you join another studio. Choose
+the correct workspace before opening or creating a project. Switching clears
+open forms and Doc Builder mappings, so save or generate your current work first.
+
+**Owner:** Can manage all company projects, firm details, the address book,
+invitations, team roles, and project assignments.
+
+**Member:** Can see and work on assigned projects only, including their proposals,
+invoices, financial amounts, time, expenses, and notes. Unassigned projects do
+not appear in the Dashboard or searches. Creating a new project assigns it to
+you automatically. Members cannot delete projects, proposals, or invoices.
+
+### Invite a coworker — Owners only
+
+1. Select the company workspace and open **Settings → Team**.
+2. Use **Workspace name → Save name** to name it if necessary.
+3. Enter the coworker's Google email address and click **Create link**.
+4. Copy the invitation link and send it to that person yourself. The app does
+   not send an email automatically.
+5. The recipient opens the link, signs in with that same verified Google
+   account, and clicks **Accept invitation**.
+
+Links expire after seven days and can be used once. Use **Revoke** under Pending
+Invitations if a link should no longer work. A new invitation for the same person
+replaces earlier pending links. If their account needs verification, they should
+sign out and sign in again through Google, then reopen the invitation.
+
+### Assign a project — Owners only
+
+1. Open the project in the correct workspace.
+2. Find **Project access** and select the coworkers who should work on it.
+3. Changes save as you change the assignments. Check the saved selection.
+
+A coworker who has just joined but has no assignments will see an empty project
+list. This is expected; joining alone does not grant access to every project.
+Owners can see all projects regardless of assignments.
+
+### Company details and personal details
+
+Firm information belongs to the active workspace. The primary Contact under
+Settings remains your own document contact. Content snippets, categories, field
+values, and Google connections remain personal in this first version.
+
+Members see address-book companies and contacts only when directly linked to
+their assigned projects. Owners manage these records; ask an Owner to add or
+correct a company/contact. This is different from the workspace's team list.
+
+### Remove access — Owners only
+
+Unselect a project assignment to remove access to that project, or open
+**Settings → Team** and remove the person to end their workspace membership.
+Read the confirmation. At least one Owner must remain.
+
+The server blocks further requests immediately; another person's open screen
+may take up to 15 seconds or a browser focus change to refresh. Already downloaded
+data cannot be recalled.
+
+**Google Drive is separate:** Joining Studio PM does not share someone's Drive,
+and removing a member does not revoke Google file sharing they already have.
+Review Drive sharing separately when someone leaves the company.
 
 ## Read the Dashboard
 

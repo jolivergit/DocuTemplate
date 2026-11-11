@@ -9,6 +9,8 @@
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "test:google": "tsx --test server/google-permissions.test.ts server/services/google-documents.test.ts client/src/lib/queryClient.test.ts",
+    "test:workspaces": "tsx --test server/workspaces.test.ts",
+    "db:migrate:workspaces": "tsx scripts/migrate-workspaces.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

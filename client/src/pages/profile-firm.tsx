@@ -11,7 +11,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useWorkspace } from "@/lib/workspace";
 import type { Profile } from "@shared/schema";
+
+type WorkspaceProfile = Profile & { canEditFirm?: boolean };
 
 const firmSchema = z.object({
   name: z.string().min(1, "Firm name is required"),
@@ -27,13 +30,14 @@ const firmSchema = z.object({
 type FirmFormValues = z.infer<typeof firmSchema>;
 
 export default function FirmProfilePage() {
+  const { isOwner } = useWorkspace();
   const { toast } = useToast();
 
-  const { data: profile, isLoading } = useQuery<Profile | null>({
+  const { data: profile, isLoading } = useQuery<WorkspaceProfile | null>({
     queryKey: ["/api/profile"],
     queryFn: async () => {
       try {
-        return await apiRequest<Profile>("GET", "/api/profile");
+        return await apiRequest<WorkspaceProfile>("GET", "/api/profile");
       } catch (e) {
         if (e instanceof Error && e.message.startsWith("404")) return null;
         throw e;
@@ -76,7 +80,7 @@ export default function FirmProfilePage() {
         contactName: profile?.contactName ?? null,
         contactTitle: profile?.contactTitle ?? null,
       };
-      const savedProfile: Profile = await apiRequest<Profile>("PATCH", "/api/profile", merged);
+      const savedProfile: WorkspaceProfile = await apiRequest<WorkspaceProfile>("PATCH", "/api/profile", merged);
 
       // Sync firm field values to Doc Builder
       const firmFields = [
@@ -116,12 +120,14 @@ export default function FirmProfilePage() {
     );
   }
 
+  const canEditFirm = isOwner && profile?.canEditFirm !== false;
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
         <div>
           <h1 className="text-2xl font-semibold" data-testid="text-firm-title">Firm</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Studio name, phone, email, and address — used in proposals and documents.</p>
+          {!canEditFirm && <p className="mt-2 text-xs text-muted-foreground">Only workspace owners can change shared firm details.</p>}
         </div>
 
         <Form {...form}>
@@ -138,7 +144,7 @@ export default function FirmProfilePage() {
                   <FormItem>
                     <FormLabel>Firm Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Oliver Studios" data-testid="input-firm-name" {...field} value={field.value ?? ""} />
+                      <Input disabled={!canEditFirm} placeholder="Oliver Studios" data-testid="input-firm-name" {...field} value={field.value ?? ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -147,7 +153,7 @@ export default function FirmProfilePage() {
                   <FormItem>
                     <FormLabel>Phone</FormLabel>
                     <FormControl>
-                      <Input placeholder="(555) 000-0000" data-testid="input-firm-phone" {...field} value={field.value ?? ""} />
+                      <Input disabled={!canEditFirm} placeholder="(555) 000-0000" data-testid="input-firm-phone" {...field} value={field.value ?? ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -156,7 +162,7 @@ export default function FirmProfilePage() {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="hello@oliverstudios.com" data-testid="input-firm-email" {...field} value={field.value ?? ""} />
+                      <Input disabled={!canEditFirm} placeholder="hello@oliverstudios.com" data-testid="input-firm-email" {...field} value={field.value ?? ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -173,7 +179,7 @@ export default function FirmProfilePage() {
                   <FormItem>
                     <FormLabel>Address Line 1</FormLabel>
                     <FormControl>
-                      <Input placeholder="123 Studio Lane" data-testid="input-address-line1" {...field} value={field.value ?? ""} />
+                      <Input disabled={!canEditFirm} placeholder="123 Studio Lane" data-testid="input-address-line1" {...field} value={field.value ?? ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -182,7 +188,7 @@ export default function FirmProfilePage() {
                   <FormItem>
                     <FormLabel>Address Line 2</FormLabel>
                     <FormControl>
-                      <Input placeholder="Suite 200" data-testid="input-address-line2" {...field} value={field.value ?? ""} />
+                      <Input disabled={!canEditFirm} placeholder="Suite 200" data-testid="input-address-line2" {...field} value={field.value ?? ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -192,7 +198,7 @@ export default function FirmProfilePage() {
                     <FormItem>
                       <FormLabel>City</FormLabel>
                       <FormControl>
-                        <Input placeholder="New York" data-testid="input-city" {...field} value={field.value ?? ""} />
+                        <Input disabled={!canEditFirm} placeholder="New York" data-testid="input-city" {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -201,7 +207,7 @@ export default function FirmProfilePage() {
                     <FormItem>
                       <FormLabel>State</FormLabel>
                       <FormControl>
-                        <Input placeholder="NY" data-testid="input-state" {...field} value={field.value ?? ""} />
+                        <Input disabled={!canEditFirm} placeholder="NY" data-testid="input-state" {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -210,7 +216,7 @@ export default function FirmProfilePage() {
                     <FormItem>
                       <FormLabel>Zip</FormLabel>
                       <FormControl>
-                        <Input placeholder="10001" data-testid="input-zip" {...field} value={field.value ?? ""} />
+                        <Input disabled={!canEditFirm} placeholder="10001" data-testid="input-zip" {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -220,10 +226,10 @@ export default function FirmProfilePage() {
             </Card>
 
             <div className="flex justify-end">
-              <Button type="submit" disabled={saveMutation.isPending} data-testid="button-save-firm">
+              {canEditFirm && <Button type="submit" disabled={saveMutation.isPending} data-testid="button-save-firm">
                 <Save className="w-4 h-4" />
                 {saveMutation.isPending ? "Saving..." : "Save"}
-              </Button>
+              </Button>}
             </div>
           </form>
         </Form>

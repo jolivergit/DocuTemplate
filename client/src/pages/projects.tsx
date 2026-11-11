@@ -22,6 +22,7 @@ import { LeadFormDialog } from "@/components/lead-form-dialog";
 import { formatCurrencyOrDash } from "@/lib/utils";
 import type { LeadWithCompanies, LeadStatus, LeadProbability } from "@shared/schema";
 import { LEAD_STATUSES, LEAD_PROBABILITIES } from "@shared/schema";
+import { useWorkspace } from "@/lib/workspace";
 
 const STATUS_COLORS: Record<LeadStatus, string> = {
   Lead: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
@@ -38,6 +39,7 @@ const PROBABILITY_COLORS: Record<LeadProbability, string> = {
 };
 
 export default function ProjectsPage() {
+  const { isOwner } = useWorkspace();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showCreate, setShowCreate] = useState(false);
@@ -98,12 +100,13 @@ export default function ProjectsPage() {
           <div className="flex flex-col items-center justify-center h-full text-center px-6 py-16">
             <Briefcase className="w-12 h-12 mb-4 text-muted-foreground" data-testid="icon-empty-projects" />
             <h3 className="text-sm font-medium mb-1" data-testid="text-no-projects-title">
-              {search || statusFilter !== "all" ? "No matching projects" : "No projects yet"}
+              {search || statusFilter !== "all" ? "No matching projects" : isOwner ? "No projects yet" : "No assigned projects"}
             </h3>
             <p className="text-xs text-muted-foreground mb-4" data-testid="text-no-projects-description">
               {search || statusFilter !== "all"
                 ? "Try adjusting your search or filters"
-                : "Create your first project to start tracking opportunities"}
+                : isOwner ? "Create your first project to start tracking opportunities"
+                : "Ask a workspace Owner to assign a project, or create a new project to work on yourself."}
             </p>
             {!search && statusFilter === "all" && (
               <Button size="sm" onClick={() => setShowCreate(true)} data-testid="button-create-project-empty">

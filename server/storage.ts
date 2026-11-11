@@ -78,6 +78,7 @@ export interface IStorage {
   upsertProfile(userId: string, data: Partial<Profile>): Promise<Profile>;
 
   // Companies
+  migrateLeadCompaniesToAddressBook(userId: string): Promise<{ companiesCreated: number; rowsUpdated: number }>;
   getCompanies(userId: string): Promise<CompanyWithContacts[]>;
   getCompanyById(userId: string, id: string): Promise<CompanyWithContacts | undefined>;
   createCompany(userId: string, company: InsertCompany, contactIds?: string[]): Promise<CompanyWithContacts>;
@@ -90,11 +91,12 @@ export interface IStorage {
   getLeads(userId: string): Promise<LeadWithCompanies[]>;
   getLeadById(userId: string, id: number): Promise<LeadWithCompanies | undefined>;
   createLead(userId: string, lead: InsertLead, companies: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadWithCompanies>;
-  updateLead(userId: string, id: number, lead: Partial<InsertLead>): Promise<Lead | undefined>;
+  updateLead(userId: string, id: number, lead: Partial<InsertLead>, companies?: Omit<InsertLeadCompany, 'leadId'>[]): Promise<Lead | undefined>;
   upsertLeadCompanies(userId: string, leadId: number, companies: Omit<InsertLeadCompany, 'leadId'>[]): Promise<LeadCompany[]>;
   deleteLead(userId: string, id: number): Promise<boolean>;
 
   // Proposals
+  getProposalBillingSummary(userId: string, proposalId: string): Promise<Record<string, number>>;
   getProposals(userId: string, leadId: number): Promise<ProposalWithPhases[]>;
   getProposalById(userId: string, proposalId: string): Promise<ProposalWithPhases | undefined>;
   createProposal(userId: string, proposal: InsertProposal, phases: ProposalPhaseInput[], additionalLineItems?: AdditionalLineItemInput[]): Promise<ProposalWithPhases>;
@@ -173,6 +175,7 @@ export class DatabaseStorage implements IStorage {
   upsertProfile(userId: string, data: Partial<Profile>) { return docBuilder.upsertProfile(userId, data); }
 
   // Companies
+  migrateLeadCompaniesToAddressBook(userId: string) { return companiesRepo.migrateLeadCompaniesToAddressBook(userId); }
   getCompanies(userId: string) { return companiesRepo.getCompanies(userId); }
   getCompanyById(userId: string, id: string) { return companiesRepo.getCompanyById(userId, id); }
   createCompany(userId: string, data: InsertCompany, contactIds?: string[]) { return companiesRepo.createCompany(userId, data, contactIds); }
@@ -185,11 +188,12 @@ export class DatabaseStorage implements IStorage {
   getLeads(userId: string) { return leadsRepo.getLeads(userId); }
   getLeadById(userId: string, id: number) { return leadsRepo.getLeadById(userId, id); }
   createLead(userId: string, lead: InsertLead, companies: Omit<InsertLeadCompany, 'leadId'>[]) { return leadsRepo.createLead(userId, lead, companies); }
-  updateLead(userId: string, id: number, data: Partial<InsertLead>) { return leadsRepo.updateLead(userId, id, data); }
+  updateLead(userId: string, id: number, data: Partial<InsertLead>, companies?: Omit<InsertLeadCompany, 'leadId'>[]) { return leadsRepo.updateLead(userId, id, data, companies); }
   upsertLeadCompanies(userId: string, leadId: number, companies: Omit<InsertLeadCompany, 'leadId'>[]) { return leadsRepo.upsertLeadCompanies(userId, leadId, companies); }
   deleteLead(userId: string, id: number) { return leadsRepo.deleteLead(userId, id); }
 
   // Proposals
+  getProposalBillingSummary(userId: string, proposalId: string) { return proposalsRepo.getProposalBillingSummary(userId, proposalId); }
   getProposals(userId: string, leadId: number) { return proposalsRepo.getProposals(userId, leadId); }
   getProposalById(userId: string, proposalId: string) { return proposalsRepo.getProposalById(userId, proposalId); }
   createProposal(userId: string, data: InsertProposal, phases: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[], additionalLineItems?: { description: string; amount: string | null; sortOrder: number }[]) { return proposalsRepo.createProposal(userId, data, phases, additionalLineItems); }

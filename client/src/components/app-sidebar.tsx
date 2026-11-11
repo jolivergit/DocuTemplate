@@ -21,6 +21,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import type { User as UserType } from "@shared/schema";
+import { useWorkspace } from "@/lib/workspace";
+import { queryClient, setActiveWorkspaceId } from "@/lib/queryClient";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, exact: true },
@@ -49,9 +51,13 @@ export function AppSidebar({ user }: AppSidebarProps) {
     .sort((a, b) => b.url.length - a.url.length)[0]?.url;
 
   const theme = useTheme();
+  const workspace = useWorkspace();
   const headerImg = theme === "dark" ? headerImgDark : headerImgLight;
 
-  const activeSettingUrl = [...settingsItems]
+  const visibleSettings = workspace.isOwner
+    ? [...settingsItems, { title: "Team", url: "/settings/team", icon: Users }]
+    : settingsItems;
+  const activeSettingUrl = [...visibleSettings]
     .filter(item => loc === item.url || loc.startsWith(item.url))
     .sort((a, b) => b.url.length - a.url.length)[0]?.url;
 
@@ -63,6 +69,19 @@ export function AppSidebar({ user }: AppSidebarProps) {
           alt="Studio PM"
           className="w-full h-20 object-cover object-left"
         />
+        <div className="px-2 pb-2">
+          <label className="sr-only" htmlFor="workspace-switcher">Workspace</label>
+          <select
+            id="workspace-switcher"
+            value={workspace.active.id}
+            onChange={(event) => void workspace.switchWorkspace(event.target.value)}
+            className="h-8 w-full rounded border border-sidebar-border bg-sidebar px-2 text-xs font-medium"
+            aria-label="Switch workspace"
+            data-testid="select-workspace"
+          >
+            {workspace.workspaces.map((item) => <option key={item.id} value={item.id}>{item.name}{item.id === workspace.active.id ? ` · ${item.role}` : ""}</option>)}
+          </select>
+        </div>
       </SidebarHeader>
 
       <SidebarContent>
@@ -105,7 +124,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
             <CollapsibleContent>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {settingsItems.map((item) => (
+                  {visibleSettings.map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild data-active={item.url === activeSettingUrl}>
                         <Link href={item.url}>
@@ -141,7 +160,13 @@ export function AppSidebar({ user }: AppSidebarProps) {
                 variant="ghost"
                 size="sm"
                 className="w-full justify-start gap-2 text-xs text-muted-foreground px-1"
-                onClick={() => { window.location.href = "/auth/logout"; }}
+                onClick={async () => {
+                  setActiveWorkspaceId(null);
+                  try { sessionStorage.removeItem("studio-pm-workspace"); } catch {}
+                  await queryClient.cancelQueries();
+                  queryClient.clear();
+                  window.location.href = "/auth/logout";
+                }}
                 data-testid="button-logout"
               >
                 <LogOut className="w-3.5 h-3.5" />

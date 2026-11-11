@@ -18,12 +18,14 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { CompanyWithContacts } from "@shared/schema";
+import { useWorkspace } from "@/lib/workspace";
 
 interface Props {
   onSelect: (company: CompanyWithContacts) => void;
 }
 
 export function CompanyAddressBookPicker({ onSelect }: Props) {
+  const { isOwner } = useWorkspace();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const { toast } = useToast();
@@ -53,6 +55,7 @@ export function CompanyAddressBookPicker({ onSelect }: Props) {
       (c.city || "").toLowerCase().includes(search.toLowerCase())
   );
   const showCreate =
+    isOwner &&
     trimmed.length > 0 &&
     !filtered.some((c) => c.name.toLowerCase() === trimmed.toLowerCase());
 
@@ -73,14 +76,14 @@ export function CompanyAddressBookPicker({ onSelect }: Props) {
       <PopoverContent className="w-72 p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search or create company…"
+            placeholder={isOwner ? "Search or create company…" : "Search linked companies…"}
             data-testid="input-company-picker-search"
             value={search}
             onValueChange={setSearch}
           />
           <CommandList>
             {filtered.length === 0 && !showCreate && (
-              <CommandEmpty>Type a name to create a new company.</CommandEmpty>
+              <CommandEmpty>{isOwner ? "Type a name to create a new company." : "No linked companies found."}</CommandEmpty>
             )}
             {filtered.length > 0 && (
               <CommandGroup>

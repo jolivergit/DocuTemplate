@@ -19,6 +19,7 @@ import { CompanyAddressBookPicker } from "./company-address-book-picker";
 import { ContactPicker } from "./contact-picker";
 import type { FormValues } from "./types";
 import type { CompanyWithContacts, ContactWithCompanies } from "@shared/schema";
+import { useWorkspace } from "@/lib/workspace";
 
 interface Props {
   index: number;
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export function CompanyEntry({ index, form, onRemove }: Props) {
+  const { isOwner } = useWorkspace();
   const [open, setOpen] = useState(false);
 
   const companyName = form.watch(`companies.${index}.companyName`);
@@ -149,7 +151,7 @@ export function CompanyEntry({ index, form, onRemove }: Props) {
 
             <div className="flex items-center gap-2">
               <CompanyAddressBookPicker onSelect={applyCompany} />
-              {linkedCompanyId && (
+              {isOwner && linkedCompanyId && (
                 <Button
                   type="button"
                   size="sm"
@@ -171,7 +173,7 @@ export function CompanyEntry({ index, form, onRemove }: Props) {
                 <FormItem>
                   <FormLabel>Company Name</FormLabel>
                   <FormControl>
-                    <Input {...field} data-testid={`input-company-name-${index}`} />
+                      <Input {...field} readOnly={!isOwner} data-testid={`input-company-name-${index}`} />
                   </FormControl>
                 </FormItem>
               )}
@@ -183,7 +185,7 @@ export function CompanyEntry({ index, form, onRemove }: Props) {
                 <FormItem>
                   <FormLabel>Address Line 1</FormLabel>
                   <FormControl>
-                    <Input {...field} data-testid={`input-address1-${index}`} />
+                      <Input {...field} readOnly={!isOwner} data-testid={`input-address1-${index}`} />
                   </FormControl>
                 </FormItem>
               )}
@@ -195,7 +197,7 @@ export function CompanyEntry({ index, form, onRemove }: Props) {
                 <FormItem>
                   <FormLabel>Address Line 2</FormLabel>
                   <FormControl>
-                    <Input {...field} data-testid={`input-address2-${index}`} />
+                      <Input {...field} readOnly={!isOwner} data-testid={`input-address2-${index}`} />
                   </FormControl>
                 </FormItem>
               )}
@@ -209,7 +211,7 @@ export function CompanyEntry({ index, form, onRemove }: Props) {
                     <FormItem>
                       <FormLabel>City</FormLabel>
                       <FormControl>
-                        <Input {...field} data-testid={`input-city-${index}`} />
+                        <Input {...field} readOnly={!isOwner} data-testid={`input-city-${index}`} />
                       </FormControl>
                     </FormItem>
                   )}
@@ -222,7 +224,7 @@ export function CompanyEntry({ index, form, onRemove }: Props) {
                   <FormItem>
                     <FormLabel>State</FormLabel>
                     <FormControl>
-                      <Input {...field} data-testid={`input-state-${index}`} />
+                    <Input {...field} readOnly={!isOwner} data-testid={`input-state-${index}`} />
                     </FormControl>
                   </FormItem>
                 )}
@@ -234,7 +236,7 @@ export function CompanyEntry({ index, form, onRemove }: Props) {
                   <FormItem>
                     <FormLabel>Zip</FormLabel>
                     <FormControl>
-                      <Input {...field} data-testid={`input-zip-${index}`} />
+                    <Input {...field} readOnly={!isOwner} data-testid={`input-zip-${index}`} />
                     </FormControl>
                   </FormItem>
                 )}

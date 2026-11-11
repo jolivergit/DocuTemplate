@@ -7,6 +7,7 @@ import { generateConsultantDocument } from "../services/doc-generation";
 import {
   proposalPhaseInputSchema,
   additionalLineItemInputSchema,
+  insertProposalSchema,
   type User,
 } from "@shared/schema";
 import { z } from "zod";
@@ -58,7 +59,7 @@ export function registerProposalRoutes(app: Express): void {
         : undefined;
       const proposal = await storage.createProposal(
         userId,
-        { ...proposalRaw, leadId },
+        insertProposalSchema.parse({ ...proposalRaw, leadId }),
         parsedPhases,
         parsedAdditional
       );

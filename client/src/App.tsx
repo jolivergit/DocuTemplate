@@ -1,4 +1,5 @@
 import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -25,6 +26,9 @@ import archBg from "@assets/login_bg_architecture.png";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useTheme } from "@/hooks/use-theme";
+import { WorkspaceBoundary, WorkspaceProvider } from "@/lib/workspace";
+import TeamSettingsPage from "@/pages/settings-team";
+import InvitePage from "@/pages/invite";
 
 function getPageTitle(location: string): string {
   if (location === "/" || location === "") return "Dashboard";
@@ -35,6 +39,8 @@ function getPageTitle(location: string): string {
   if (location === "/doc-builder") return "Doc Builder";
   if (location === "/profile/firm") return "Firm";
   if (location === "/profile/contact") return "Contact";
+  if (location === "/settings/team") return "Team";
+  if (location === "/invite") return "Invitation";
   return "";
 }
 
@@ -42,11 +48,25 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
   const squareLogo = theme === "dark" ? squareLogoDark : squareLogoLight;
   const headerImg = theme === "dark" ? headerImgDark : headerImgLight;
+  const [location, navigate] = useLocation();
 
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/auth/user"],
     retry: false,
   });
+
+  useEffect(() => {
+    if (!user) {
+      if (location === "/invite" && window.location.hash.length > 1) {
+        try { sessionStorage.setItem("studio-pm-invite-token", decodeURIComponent(window.location.hash.slice(1))); } catch {}
+        window.history.replaceState(null, "", "/invite");
+      }
+      return;
+    }
+    try {
+      if (sessionStorage.getItem("studio-pm-invite-token") && location !== "/invite") navigate("/invite");
+    } catch {}
+  }, [user, location, navigate]);
 
   if (isLoading) {
     return (
@@ -108,7 +128,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return <WorkspaceProvider><WorkspaceBoundary>{children}</WorkspaceBoundary></WorkspaceProvider>;
 }
 
 function AppLayout() {
@@ -151,6 +171,8 @@ function AppLayout() {
               <Route path="/doc-builder" component={Home} />
               <Route path="/profile/firm" component={FirmProfilePage} />
               <Route path="/profile/contact" component={ContactProfilePage} />
+              <Route path="/settings/team" component={TeamSettingsPage} />
+              <Route path="/invite" component={InvitePage} />
               <Route component={NotFound} />
             </Switch>
           </main>

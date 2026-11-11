@@ -51,7 +51,7 @@ footer { border-top:1px solid #ddd; margin-top:44px; padding-top:16px; color:#66
 <p>Studio PM keeps your opportunities, proposals, active projects, billing, and document templates in one place. Start with the quick start, then use the contents to find a specific task.</p>
 <p><strong>About this guide:</strong> Instructions were checked against the current app screens and their underlying behavior. Google consent, file selection, and document creation still depend on the owner&#x27;s Google setup and your file permissions; this guide is not a claim that those external steps have been live-tested.</p>
 <h2 id="contents">Contents</h2>
-<ul><li><a href="#quick-start-your-first-project-and-document">Quick start: your first project and document</a></li><li><a href="#find-your-way-around">Find your way around</a></li><li><a href="#sign-in-and-set-up-your-details">Sign in and set up your details</a></li><li><a href="#read-the-dashboard">Read the Dashboard</a></li><li><a href="#keep-companies-and-contacts-organized">Keep companies and contacts organized</a></li><li><a href="#create-and-manage-a-project">Create and manage a project</a></li><li><a href="#build-a-standard-proposal">Build a Standard proposal</a></li><li><a href="#record-approval-and-additional-services">Record approval and additional services</a></li><li><a href="#generate-consultant-contracts">Generate consultant contracts</a></li><li><a href="#log-time-and-expenses">Log time and expenses</a></li><li><a href="#create-and-manage-invoices">Create and manage invoices</a></li><li><a href="#keep-project-notes">Keep project notes</a></li><li><a href="#use-doc-builder">Use Doc Builder</a></li><li><a href="#save-safely-and-avoid-accidental-changes">Save safely and avoid accidental changes</a></li><li><a href="#troubleshooting">Troubleshooting</a></li><li><a href="#small-glossary">Small glossary</a></li><li><a href="#owner-only-google-setup">Owner-only Google setup</a></li></ul>
+<ul><li><a href="#quick-start-your-first-project-and-document">Quick start: your first project and document</a></li><li><a href="#find-your-way-around">Find your way around</a></li><li><a href="#work-with-your-company-team">Work with your company team</a></li><li><a href="#sign-in-and-set-up-your-details">Sign in and set up your details</a></li><li><a href="#read-the-dashboard">Read the Dashboard</a></li><li><a href="#keep-companies-and-contacts-organized">Keep companies and contacts organized</a></li><li><a href="#create-and-manage-a-project">Create and manage a project</a></li><li><a href="#build-a-standard-proposal">Build a Standard proposal</a></li><li><a href="#record-approval-and-additional-services">Record approval and additional services</a></li><li><a href="#generate-consultant-contracts">Generate consultant contracts</a></li><li><a href="#log-time-and-expenses">Log time and expenses</a></li><li><a href="#create-and-manage-invoices">Create and manage invoices</a></li><li><a href="#keep-project-notes">Keep project notes</a></li><li><a href="#use-doc-builder">Use Doc Builder</a></li><li><a href="#save-safely-and-avoid-accidental-changes">Save safely and avoid accidental changes</a></li><li><a href="#troubleshooting">Troubleshooting</a></li><li><a href="#small-glossary">Small glossary</a></li><li><a href="#owner-only-google-setup">Owner-only Google setup</a></li></ul>
 <h2 id="quick-start-your-first-project-and-document">Quick start: your first project and document</h2>
 <p>Use this fictional example throughout the guide: <strong>Maple Street Studio Renovation</strong>, for <strong>Maple Street Design</strong>, with a <strong>$10,000 fixed design fee</strong>. These are practice instructions, not records already created in your app.</p>
 <ol><li>Click <strong>Sign in with Google</strong> and choose your work account.</li><li>In the sidebar, open <strong>Settings → Firm</strong>. Enter your studio&#x27;s details and click <strong>Save</strong>. Open <strong>Settings → Contact</strong>, enter your own primary contact name and title, and click <strong>Save</strong>.</li><li>Open <strong>Companies → New Company</strong> and save Maple Street Design. Open <strong>Contacts → New Contact</strong> and save a fictional client contact, such as Jordan Sample. Link the contact to the company if desired.</li><li>Open <strong>Projects → New Project</strong>. Name it Maple Street Studio Renovation, leave its status as <strong>Lead</strong>, fill in the known details, and select the client company/contact under the appropriate company role. Click <strong>Create Project</strong>.</li><li>Open the project, choose <strong>Proposals → New Proposal → Standard Proposal</strong>, and name it Maple Street Design Proposal. Select <strong>Schematic Design</strong>, select <strong>Interior Design</strong>, choose <strong>Fixed</strong>, and enter <strong>10000</strong>. Click <strong>Create Proposal</strong>.</li><li>Open the saved proposal and click <strong>Load to Doc Builder</strong>. This loads its name, total, project name, and available firm details into the field library.</li><li>Have a Google Doc template ready with <code>{{project_name}}</code>, <code>{{proposal_name}}</code>, <code>{{proposal_total}}</code>, and <code>{{firm_name}}</code> typed into its body. See <strong>Use Doc Builder</strong> for a sample.</li><li>In Doc Builder click <strong>Load Template</strong>. If asked, click <strong>Connect Google</strong>, complete the separate document permission screen using the same account, then click <strong>Pick a Google Docs template</strong> and select your template.</li><li>Click each tag in <strong>Template Tags</strong>, then select its matching value from <strong>Content Library → Fields</strong>. Loading values does not automatically assign every tag in this screen.</li><li>Click <strong>Generate</strong>, check the mapped-tag count, enter <strong>Maple Street — Proposal</strong>, and click <strong>Generate Document</strong>.</li><li>Click <strong>Open in Google Docs</strong> and review the result. When you started from the proposal, wait for <strong>Document URL saved to proposal</strong>. Return to that proposal to use <strong>View Document</strong>.</li></ol>
@@ -69,9 +69,52 @@ footer { border-top:1px solid #ddd; margin-top:44px; padding-top:16px; color:#66
 <p>Basic sign-in requests your identity, name/profile information, and email—not access to every Google Drive file.</p>
 <p>Document access is a separate, optional step. The Google permission allows access to files you explicitly select and files the app creates. It permits editing and deleting those authorized files; it is not read-only. Studio PM&#x27;s document-generation process leaves your source template unchanged and edits a copy.</p>
 <h3 id="set-up-your-studio">Set up your studio</h3>
-<ol><li>Open <strong>Settings → Firm</strong>.</li><li>Complete the firm name, phone, email, and mailing address.</li><li>Click <strong>Save</strong> and check for the success message.</li><li>Open <strong>Settings → Contact</strong>, enter the primary contact&#x27;s name and title, and click <strong>Save</strong>.</li></ol>
+<ol><li>Open <strong>Settings → Firm</strong>.</li><li>If you are a workspace Owner, complete the firm name, phone, email, and mailing address. Members can read these details but should ask an Owner to change them.</li><li>Click <strong>Save</strong> and check for the success message.</li><li>Open <strong>Settings → Contact</strong>, enter the primary contact&#x27;s name and title, and click <strong>Save</strong>.</li></ol>
 <p>Saving these forms updates the corresponding Doc Builder field values for later documents. It does not rewrite documents you already generated.</p>
 <p>Use <strong>Sign out</strong> near your name at the bottom of the sidebar when finished, especially on a shared computer. Save current work first.</p>
+<h2 id="work-with-your-company-team">Work with your company team</h2>
+<h3 id="choose-the-right-workspace">Choose the right workspace</h3>
+<p>The workspace selector in the sidebar identifies the company account you are</p>
+<p>using. Your own workspace stays separate when you join another studio. Choose</p>
+<p>the correct workspace before opening or creating a project. Switching clears</p>
+<p>open forms and Doc Builder mappings, so save or generate your current work first.</p>
+<p><strong>Owner:</strong> Can manage all company projects, firm details, the address book,</p>
+<p>invitations, team roles, and project assignments.</p>
+<p><strong>Member:</strong> Can see and work on assigned projects only, including their proposals,</p>
+<p>invoices, financial amounts, time, expenses, and notes. Unassigned projects do</p>
+<p>not appear in the Dashboard or searches. Creating a new project assigns it to</p>
+<p>you automatically. Members cannot delete projects, proposals, or invoices.</p>
+<h3 id="invite-a-coworker-owners-only">Invite a coworker — Owners only</h3>
+<ol><li>Select the company workspace and open <strong>Settings → Team</strong>.</li><li>Use <strong>Workspace name → Save name</strong> to name it if necessary.</li><li>Enter the coworker&#x27;s Google email address and click <strong>Create link</strong>.</li><li>Copy the invitation link and send it to that person yourself. The app does</li></ol>
+<p>   not send an email automatically.</p>
+<ol><li>The recipient opens the link, signs in with that same verified Google</li></ol>
+<p>   account, and clicks <strong>Accept invitation</strong>.</p>
+<p>Links expire after seven days and can be used once. Use <strong>Revoke</strong> under Pending</p>
+<p>Invitations if a link should no longer work. A new invitation for the same person</p>
+<p>replaces earlier pending links. If their account needs verification, they should</p>
+<p>sign out and sign in again through Google, then reopen the invitation.</p>
+<h3 id="assign-a-project-owners-only">Assign a project — Owners only</h3>
+<ol><li>Open the project in the correct workspace.</li><li>Find <strong>Project access</strong> and select the coworkers who should work on it.</li><li>Changes save as you change the assignments. Check the saved selection.</li></ol>
+<p>A coworker who has just joined but has no assignments will see an empty project</p>
+<p>list. This is expected; joining alone does not grant access to every project.</p>
+<p>Owners can see all projects regardless of assignments.</p>
+<h3 id="company-details-and-personal-details">Company details and personal details</h3>
+<p>Firm information belongs to the active workspace. The primary Contact under</p>
+<p>Settings remains your own document contact. Content snippets, categories, field</p>
+<p>values, and Google connections remain personal in this first version.</p>
+<p>Members see address-book companies and contacts only when directly linked to</p>
+<p>their assigned projects. Owners manage these records; ask an Owner to add or</p>
+<p>correct a company/contact. This is different from the workspace&#x27;s team list.</p>
+<h3 id="remove-access-owners-only">Remove access — Owners only</h3>
+<p>Unselect a project assignment to remove access to that project, or open</p>
+<p><strong>Settings → Team</strong> and remove the person to end their workspace membership.</p>
+<p>Read the confirmation. At least one Owner must remain.</p>
+<p>The server blocks further requests immediately; another person&#x27;s open screen</p>
+<p>may take up to 15 seconds or a browser focus change to refresh. Already downloaded</p>
+<p>data cannot be recalled.</p>
+<p><strong>Google Drive is separate:</strong> Joining Studio PM does not share someone&#x27;s Drive,</p>
+<p>and removing a member does not revoke Google file sharing they already have.</p>
+<p>Review Drive sharing separately when someone leaves the company.</p>
 <h2 id="read-the-dashboard">Read the Dashboard</h2>
 <p>The Dashboard has three useful sections:</p>
 <ul><li><strong>Pipeline:</strong> Counts of opportunities and projects by stage. These are not a promise of future revenue.</li><li><strong>Billing:</strong> <strong>Outstanding Invoices</strong> shows sent invoices awaiting payment; <strong>Paid Invoices</strong> shows amounts marked paid. Drafts are not the same as outstanding sent invoices.</li><li><strong>Recent Projects:</strong> A shortcut to recently created project records. Use <strong>Projects</strong> for searching and filtering the full list.</li></ul>

@@ -42,12 +42,22 @@ When "Load to Doc Builder" is triggered from a specific record, a `returnTo` con
 - Drizzle ORM
 - Google Drive API + Google Docs API integration
 
+### Company workspaces and access
+- A workspace is the studio's account, separate from the client Companies address book.
+- Owners manage all workspace projects, membership, assignments, address-book records, and firm details. Members see/edit only assigned projects and their child records, including financial data; project/proposal/invoice deletion is Owner-only.
+- Each API request resolves active membership and `X-Workspace-Id`, then propagates a fail-closed request context. Never authorize workspace records by their original creator's `userId` alone.
+- Personal snippets, categories, working field values, Google credentials, and primary contact remain user-owned. Google selected-file permissions are not company permissions.
+- Workspace changes/permission revisions clear scoped client queries and remount open working UI. Server permissions take effect on the next request.
+- Run `npm run db:migrate:workspaces` before starting this version on an unmigrated database. Development has been migrated; production has not been changed. Migration, backup/rollback, access matrix, and reconciliation details: `docs/company-workspaces.md`.
+- Regression checks: `npm run test:workspaces` (synthetic DB fixtures) and `npm run test:google`.
+
 ### Database Schema
 - **users** — Google OAuth accounts
 - **categories** — Organize content snippets by color-coded category
 - **contentSnippets** — Reusable rich text with embedded field detection
 - **fieldValues** — Simple key-value pairs for field tags
-- **profiles** — Studio firm + contact info (one record per user). Fields: name, phone, email, addressLine1, addressLine2, city, state, zip, contactName, contactTitle. Saving auto-syncs to Doc Builder field values.
+- **profiles** — Personal document contact and legacy firm data. The API merges workspace-level firm details with personal contactName/contactTitle. Saving syncs the acting user's Doc Builder field values.
+- **workspaces**, **workspaceMembers**, **workspaceInvitations**, **projectAssignments** — Studio firm data, Owner/Member membership, hashed expiring invitations, and assigned-project access. Projects/companies/contacts carry workspace ownership while retaining original creator IDs.
 - **leads** — Project opportunities (serial PK for project numbers)
 - **leadCompanies** — 6 typed company associations per lead (ContractHolder, Client, MEP, Structural, EquipmentVendor, FurnitureVendor)
 - **contacts** — Standalone address book entries (fullName, title, phone, email, companyName, notes). Independent from projects; shown in Contacts page alongside project-derived contacts.

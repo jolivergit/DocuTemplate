@@ -66,15 +66,12 @@ export function registerLeadRoutes(app: Express): void {
       if (isNaN(id)) return res.status(400).json({ error: "Invalid lead ID" });
       const { companies: companiesRaw, ...leadRaw } = req.body;
       const validated = insertLeadSchema.partial().parse(leadRaw);
-      const lead = await storage.updateLead(userId, id, validated);
+      if (companiesRaw !== undefined && !Array.isArray(companiesRaw)) throw new Error("companies must be an array");
+      const validatedCompanies = Array.isArray(companiesRaw)
+        ? companiesRaw.map((company: unknown) => insertLeadCompanyInputSchema.parse(company))
+        : undefined;
+      const lead = await storage.updateLead(userId, id, validated, validatedCompanies);
       if (!lead) return res.status(404).json({ error: "Lead not found" });
-
-      if (Array.isArray(companiesRaw)) {
-        const validatedCompanies = (companiesRaw as unknown[]).map((c) =>
-          insertLeadCompanyInputSchema.parse(c)
-        );
-        await storage.upsertLeadCompanies(userId, id, validatedCompanies);
-      }
 
       const updated = await storage.getLeadById(userId, id);
       res.json(updated);

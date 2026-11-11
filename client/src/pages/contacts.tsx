@@ -32,6 +32,7 @@ import { ContactFormDialog } from "@/components/contact-form-dialog";
 import { CompanyFormDialog } from "@/components/company-form-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/lib/workspace";
 import type { ContactWithCompanies, CompanyWithContacts } from "@shared/schema";
 
 function LinkCompanyPicker({ contactId, linkedCompanyIds }: { contactId: string; linkedCompanyIds: Set<string> }) {
@@ -123,11 +124,13 @@ function LinkCompanyPicker({ contactId, linkedCompanyIds }: { contactId: string;
 function ContactCard({
   c,
   index,
+  isOwner,
   onEdit,
   onDelete,
 }: {
   c: ContactWithCompanies;
   index: number;
+  isOwner: boolean;
   onEdit: (c: ContactWithCompanies) => void;
   onDelete: (c: ContactWithCompanies) => void;
 }) {
@@ -215,22 +218,22 @@ function ContactCard({
           >
             {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </Button>
-          <Button
+          {isOwner && <Button
             size="icon"
             variant="ghost"
             onClick={() => onEdit(c)}
             data-testid={`button-edit-contact-${index}`}
           >
             <Pencil className="w-4 h-4" />
-          </Button>
-          <Button
+          </Button>}
+          {isOwner && <Button
             size="icon"
             variant="ghost"
             onClick={() => onDelete(c)}
             data-testid={`button-delete-contact-${index}`}
           >
             <Trash2 className="w-4 h-4" />
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -238,7 +241,7 @@ function ContactCard({
         <div className="border-t px-4 py-3 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-medium text-muted-foreground">Linked Companies</p>
-            <LinkCompanyPicker contactId={c.id} linkedCompanyIds={linkedCompanyIds} />
+            {isOwner && <LinkCompanyPicker contactId={c.id} linkedCompanyIds={linkedCompanyIds} />}
           </div>
           {c.companies.length === 0 ? (
             <p className="text-xs text-muted-foreground py-1">No companies linked yet.</p>
@@ -249,7 +252,7 @@ function ContactCard({
                   <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                   <span className="text-sm font-medium truncate">{co.name}</span>
                 </div>
-                <Button
+                {isOwner && <Button
                   size="icon"
                   variant="ghost"
                   onClick={() => unlinkMutation.mutate(co.id)}
@@ -258,7 +261,7 @@ function ContactCard({
                   title="Unlink company"
                 >
                   <Unlink className="w-3.5 h-3.5" />
-                </Button>
+                </Button>}
               </div>
             ))
           )}
@@ -269,6 +272,7 @@ function ContactCard({
 }
 
 export default function ContactsPage() {
+  const { isOwner } = useWorkspace();
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<ContactWithCompanies | null>(null);
@@ -328,10 +332,10 @@ export default function ContactsPage() {
             data-testid="input-search-contacts"
           />
         </div>
-        <Button onClick={openCreate} data-testid="button-new-contact">
+        {isOwner && <Button onClick={openCreate} data-testid="button-new-contact">
           <Plus className="w-4 h-4" />
           New Contact
-        </Button>
+        </Button>}
       </div>
 
       {/* List */}
@@ -353,7 +357,7 @@ export default function ContactsPage() {
                 ? "Try adjusting your search"
                 : "Add contacts to your address book to link them to projects"}
             </p>
-            {!search && (
+            {!search && isOwner && (
               <Button size="sm" onClick={openCreate} data-testid="button-new-contact-empty">
                 <Plus className="w-4 h-4 mr-2" />
                 New Contact
@@ -367,6 +371,7 @@ export default function ContactsPage() {
                 key={c.id}
                 c={c}
                 index={i}
+                isOwner={isOwner}
                 onEdit={openEdit}
                 onDelete={setDeletingContact}
               />
@@ -384,16 +389,16 @@ export default function ContactsPage() {
         </div>
       )}
 
-      <ContactFormDialog
+      {isOwner && <ContactFormDialog
         open={formOpen}
         onOpenChange={(v) => {
           setFormOpen(v);
           if (!v) setEditingContact(null);
         }}
         contact={editingContact}
-      />
+      />}
 
-      <AlertDialog open={!!deletingContact} onOpenChange={(v) => !v && setDeletingContact(null)}>
+      {isOwner && <AlertDialog open={!!deletingContact} onOpenChange={(v) => !v && setDeletingContact(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Contact</AlertDialogTitle>
@@ -413,7 +418,7 @@ export default function ContactsPage() {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog>}
     </div>
   );
 }

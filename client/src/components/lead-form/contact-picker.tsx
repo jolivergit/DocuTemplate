@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/command";
 import { ContactFormDialog } from "@/components/contact-form-dialog";
 import type { ContactWithCompanies, CompanyWithContacts } from "@shared/schema";
+import { useWorkspace } from "@/lib/workspace";
 
 interface Props {
   onSelect: (contact: ContactWithCompanies) => void;
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function ContactPicker({ onSelect, linkedCompany }: Props) {
+  const { isOwner } = useWorkspace();
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [pendingSelectAfterCreate, setPendingSelectAfterCreate] = useState(false);
@@ -106,7 +108,7 @@ export function ContactPicker({ onSelect, linkedCompany }: Props) {
               )}
             </CommandList>
           </Command>
-          <div className="border-t p-1">
+          {isOwner && <div className="border-t p-1">
             <button
               type="button"
               className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-medium hover-elevate"
@@ -120,15 +122,15 @@ export function ContactPicker({ onSelect, linkedCompany }: Props) {
               <Plus className="w-3.5 h-3.5 flex-shrink-0" />
               New contact
             </button>
-          </div>
+          </div>}
         </PopoverContent>
       </Popover>
 
-      <ContactFormDialog
+      {isOwner && <ContactFormDialog
         open={createOpen}
         onOpenChange={handleCreateOpenChange}
         contact={null}
-      />
+      />}
     </>
   );
 }

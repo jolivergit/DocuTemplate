@@ -10,14 +10,14 @@ title = "greyscale architectural skyscraper"
 id = "H9oEKYYh2GsG9leI-VsWK"
 uri = "file://docs/studio-pm-user-guide.html"
 type = "html"
-title = "Studio PM User Guide"
-description = "Plain-language walkthrough with quick start, project-to-invoice example, Doc Builder instructions, and troubleshooting. Open in a browser to read, print, or save as PDF."
+title = "Studio PM User Guide — Company Teams"
+description = "Updated printable guide with workspace switching, invitations, project assignments, and Google Drive access boundaries."
 logical_id = "1e2cfb88-3e64-47d4-b584-3fef0df3baad"
-content_hash = "sha256:4888f79d306e5407aa03bc84400432c8698d43e971016f725124b560bb45480e"
-size = 43705
-mtime_ms = 1794432025530
-storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:276dae68-32a0-426a-a0fe-f788497b5a17/1e2cfb88-3e64-47d4-b584-3fef0df3baad/2cbf4fcb-2fa5-42bc-89eb-74dde78de90e"
-storage_version_token = "1794432064543010"
+content_hash = "sha256:0daab8f640322c90c56cced34e9b6730d5c3b2df40fb763e4d58f37a09878935"
+size = 47775
+mtime_ms = 1794434778118
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:276dae68-32a0-426a-a0fe-f788497b5a17/1e2cfb88-3e64-47d4-b584-3fef0df3baad/c56202b2-47e2-4d49-b6af-85f568684251"
+storage_version_token = "1794435340249628"
 content_type = "text/html"
 
 [[outputs]]

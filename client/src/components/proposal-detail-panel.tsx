@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/lib/workspace";
 import { formatCurrencyFlexOrDash } from "@/lib/utils";
 import { ProposalFormDialog } from "@/components/proposal-form-dialog";
 import { AdditionalServicesFormDialog } from "@/components/additional-services-form-dialog";
@@ -218,6 +219,7 @@ interface Props {
 }
 
 export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: Props) {
+  const { isOwner } = useWorkspace();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [showEdit, setShowEdit] = useState(false);
@@ -398,9 +400,9 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
             <Edit className="w-4 h-4" />
             Edit
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(true)} data-testid="button-delete-proposal">
+          {isOwner && <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(true)} data-testid="button-delete-proposal">
             <Trash2 className="w-4 h-4 text-destructive" />
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -629,7 +631,7 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
         />
       )}
 
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      {isOwner && <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Proposal</AlertDialogTitle>
@@ -648,7 +650,7 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog>}
 
       <AlertDialog open={showSignConfirm} onOpenChange={setShowSignConfirm}>
         <AlertDialogContent>

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, serial, numeric, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, serial, numeric, uniqueIndex, index, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   email: text("email").notNull(),
   name: text("name").notNull(),
   picture: text("picture"),
+  emailVerified: boolean("email_verified").notNull().default(false),
   accessToken: text("access_token").notNull(),
   refreshToken: text("refresh_token"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -17,6 +18,30 @@ export const users = pgTable("users", {
 });
 
 export type User = typeof users.$inferSelect;
+
+export const workspaces = pgTable("workspaces", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  legacyOwnerId: varchar("legacy_owner_id").notNull().unique().references(() => users.id),
+  firm: jsonb("firm").$type<Record<string, string | null>>().notNull().default({}),
+  revision: integer("revision").notNull().default(1),
+});
+
+export const workspaceMembers = pgTable("workspace_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: text("role").$type<"Owner" | "Member">().notNull().default("Member"),
+}, t => ({ uniqueMember: uniqueIndex("workspace_member_unique").on(t.workspaceId, t.userId) }));
+
+export const workspaceInvitations = pgTable("workspace_invitations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  consumedAt: timestamp("consumed_at"),
+});
 
 // Content categories for organizing reusable snippets
 export const categories = pgTable("categories", {
@@ -114,6 +139,7 @@ export type ContentSnippet = typeof contentSnippets.$inferSelect;
 export const companies = pgTable("companies", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id).notNull(),
   name: text("name").notNull(),
   addressLine1: text("address_line_1"),
   addressLine2: text("address_line_2"),
@@ -130,6 +156,7 @@ export const companies = pgTable("companies", {
 export const insertCompanySchema = createInsertSchema(companies).omit({
   id: true,
   userId: true,
+  workspaceId: true,
   createdAt: true,
 });
 
@@ -145,6 +172,7 @@ export interface CompanyWithContacts extends Company {
 export const contacts = pgTable("contacts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id).notNull(),
   fullName: text("full_name").notNull(),
   title: text("title"),
   phone: text("phone"),
@@ -162,6 +190,7 @@ export const contacts = pgTable("contacts", {
 export const insertContactSchema = createInsertSchema(contacts).omit({
   id: true,
   userId: true,
+  workspaceId: true,
   createdAt: true,
 });
 
@@ -229,6 +258,7 @@ export const leads = pgTable("leads", {
   potentialFee: numeric("potential_fee", { precision: 12, scale: 2 }),
   status: text("status").notNull().default("Lead"),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => ({
@@ -238,6 +268,7 @@ export const leads = pgTable("leads", {
 export const insertLeadSchema = createInsertSchema(leads).omit({
   id: true,
   userId: true,
+  workspaceId: true,
   createdAt: true,
   updatedAt: true,
 }).extend({
@@ -249,6 +280,12 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
 
 export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
+
+export const projectAssignments = pgTable("project_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: integer("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  memberId: varchar("member_id").notNull().references(() => workspaceMembers.id, { onDelete: "cascade" }),
+}, t => ({ uniqueAssignment: uniqueIndex("project_assignment_unique").on(t.leadId, t.memberId) }));
 
 // lead_companies: free-form role, no unique constraint on role, optional FK to companies/contacts
 export const leadCompanies = pgTable("lead_companies", {

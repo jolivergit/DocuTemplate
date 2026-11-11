@@ -5,6 +5,8 @@ import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { GOOGLE_IDENTITY_SCOPES } from "./google-permissions";
+import { resolveWorkspace } from "./workspaces";
+import { workspaceContext, AccessError } from "./workspace-context";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -33,6 +35,7 @@ passport.use(
         const email = profile.emails?.[0]?.value || "";
         const name = profile.displayName || "";
         const picture = profile.photos?.[0]?.value || null;
+        const emailVerified = profile._json?.email_verified === true;
 
         let [user] = await db
           .select()
@@ -47,6 +50,7 @@ passport.use(
               name,
               email,
               picture,
+              emailVerified,
               updatedAt: new Date(),
             })
             .where(eq(users.id, user.id));
@@ -56,6 +60,7 @@ passport.use(
             name,
             email,
             picture,
+            emailVerified,
           };
         } else {
           const [newUser] = await db
@@ -65,6 +70,7 @@ passport.use(
               email,
               name,
               picture,
+              emailVerified,
               // This column holds document credentials only. Identity sign-in
               // must never overwrite a separate Google Docs connection.
               accessToken: "",
@@ -99,11 +105,25 @@ passport.deserializeUser(async (id: string, done) => {
   }
 });
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (req.isAuthenticated()) {
-    return next();
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated()) return res.status(401).json({ error: "Authentication required" });
+  res.setHeader("Cache-Control", "no-store");
+  // Same-origin JSON clients only for writes; protects invitation/member changes too.
+  if (!["GET", "HEAD"].includes(req.method) && req.get("Sec-Fetch-Site") === "cross-site") {
+    return res.status(403).json({ error: "Cross-site requests are not allowed." });
   }
-  res.status(401).json({ error: "Authentication required" });
+  try {
+    const c = await resolveWorkspace(req.user as import("@shared/schema").User, req.get("X-Workspace-Id"));
+    const ownerMutation = !["GET", "HEAD"].includes(req.method) && (
+      /^\/api\/(companies|contacts)(\/|$)/.test(req.path) ||
+      (req.method === "DELETE" && /^\/api\/(leads|proposals|invoices)\/[^/]+$/.test(req.path))
+    );
+    if (ownerMutation && c.role !== "Owner") return res.status(403).json({ error: "Only a company owner can perform this action." });
+    return workspaceContext.run(c, () => next());
+  } catch (error) {
+    if (error instanceof AccessError) return res.status(error.status).json({ error: error.message, code: "WORKSPACE_ACCESS_REVOKED" });
+    next(error);
+  }
 }
 
 export default passport;

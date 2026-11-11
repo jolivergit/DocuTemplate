@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { verifyLeadOwnership } from "./leads";
+import { projectPredicate, ownerOnly, context } from "../workspace-context";
 import {
   proposals,
   proposalPhases,
@@ -247,6 +248,7 @@ export async function updateProposal(
 }
 
 export async function deleteProposal(userId: string, proposalId: string): Promise<boolean> {
+  ownerOnly();
   const existing = await getProposalById(userId, proposalId);
   if (!existing) return false;
   const result = await db.delete(proposals).where(eq(proposals.id, proposalId));
@@ -268,7 +270,7 @@ export async function signProposal(userId: string, proposalId: string): Promise<
       await tx
         .update(leads)
         .set({ status: 'Active Project', updatedAt: sql`CURRENT_TIMESTAMP` })
-        .where(and(eq(leads.id, existing.leadId), eq(leads.userId, userId)));
+        .where(and(eq(leads.id, existing.leadId), projectPredicate(userId)));
     }
 
     return updatedProposal;
@@ -305,10 +307,12 @@ export async function getProposalBillingSummary(userId: string, proposalId: stri
 // ─── Consultant Contracts ─────────────────────────────────────────────────────
 
 export async function getConsultantContracts(proposalId: string): Promise<ConsultantContract[]> {
+  if (!await getProposalById(context().userId, proposalId)) return [];
   return db.select().from(consultantContracts).where(eq(consultantContracts.proposalId, proposalId));
 }
 
 export async function upsertConsultantContract(proposalId: string, consultant: string, docUrl: string): Promise<ConsultantContract> {
+  if (!await getProposalById(context().userId, proposalId)) throw new Error("Access denied");
   const existing = await db
     .select()
     .from(consultantContracts)

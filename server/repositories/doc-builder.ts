@@ -1,10 +1,12 @@
 import { db } from "../db";
 import { eq, and, sql } from "drizzle-orm";
+import { context, AccessError } from "../workspace-context";
 import {
   categories,
   contentSnippets,
   fieldValues,
   profiles,
+  workspaces,
   type Category,
   type InsertCategory,
   type ContentSnippet,
@@ -54,6 +56,7 @@ export async function getContentSnippetById(userId: string, id: string): Promise
 }
 
 export async function createContentSnippet(userId: string, data: InsertContentSnippet, embeddedFields?: string[]): Promise<ContentSnippet> {
+  await checkCategory(userId, data.categoryId);
   const [row] = await db
     .insert(contentSnippets)
     .values({ ...data, userId, embeddedFields: embeddedFields || [] })
@@ -67,6 +70,7 @@ export async function updateContentSnippet(
   data: Partial<InsertContentSnippet>,
   embeddedFields?: string[]
 ): Promise<ContentSnippet | undefined> {
+  await checkCategory(userId, data.categoryId);
   const updateData: Record<string, unknown> = { ...data, updatedAt: sql`CURRENT_TIMESTAMP` };
   if (embeddedFields !== undefined) updateData.embeddedFields = embeddedFields;
   const [row] = await db
@@ -144,23 +148,57 @@ export async function deleteFieldValuesByPrefixes(userId: string, prefixes: stri
 // ─── Profile ──────────────────────────────────────────────────────────────────
 
 export async function getMyProfile(userId: string): Promise<Profile | undefined> {
+  const c = context(userId);
   const [row] = await db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
-  return row || undefined;
+  const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, c.workspaceId));
+  if (!workspace) throw new AccessError();
+  return {
+    id: row?.id || c.workspaceId, userId,
+    name: workspace.firm.name || workspace.name,
+    contactName: row?.contactName || null, contactTitle: row?.contactTitle || null,
+    phone: workspace.firm.phone || null, email: workspace.firm.email || null,
+    addressLine1: workspace.firm.addressLine1 || null, addressLine2: workspace.firm.addressLine2 || null,
+    city: workspace.firm.city || null, state: workspace.firm.state || null, zip: workspace.firm.zip || null,
+    createdAt: row?.createdAt || new Date(), updatedAt: row?.updatedAt || new Date(),
+    ...({ canEditFirm: c.role === "Owner" }),
+  };
 }
 
 export async function upsertProfile(userId: string, data: Partial<Profile>): Promise<Profile> {
-  const existing = await getMyProfile(userId);
+  const c = context(userId);
+  const current = (await getMyProfile(userId))!;
+  const fields = ["name", "phone", "email", "addressLine1", "addressLine2", "city", "state", "zip"] as const;
+  const changed = fields.filter(key => data[key] !== undefined && (data[key] || null) !== (current[key] || null));
+  if (changed.length && c.role !== "Owner") throw new AccessError("Only a company owner can change firm details.");
+  const [existing] = await db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
+  const personal = {
+    ...(data.contactName !== undefined ? { contactName: data.contactName } : {}),
+    ...(data.contactTitle !== undefined ? { contactTitle: data.contactTitle } : {}),
+  };
+  if (changed.length) {
+    const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, c.workspaceId));
+    const firm = { ...workspace.firm };
+    for (const field of changed) firm[field] = data[field] || null;
+    await db.update(workspaces).set({ firm, revision: sql`${workspaces.revision} + 1` }).where(eq(workspaces.id, c.workspaceId));
+  }
   if (existing) {
-    const [updated] = await db
+    await db
       .update(profiles)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...personal, updatedAt: new Date() })
       .where(eq(profiles.id, existing.id))
       .returning();
-    return updated;
+    return (await getMyProfile(userId))!;
   }
-  const [created] = await db
+  await db
     .insert(profiles)
-    .values({ name: data.name || "My Profile", ...data, userId, updatedAt: new Date() })
+    .values({ name: "Personal contact", ...personal, userId, updatedAt: new Date() })
     .returning();
-  return created;
+  return (await getMyProfile(userId))!;
+}
+
+async function checkCategory(userId: string, categoryId?: string | null) {
+  if (!categoryId) return;
+  const [category] = await db.select({ id: categories.id }).from(categories)
+    .where(and(eq(categories.id, categoryId), eq(categories.userId, userId)));
+  if (!category) throw new AccessError("Category unavailable.");
 }

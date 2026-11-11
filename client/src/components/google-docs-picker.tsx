@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, ChevronDown, FileText, Loader2, RotateCw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getActiveWorkspaceId } from "@/lib/queryClient";
 
 export interface PickedGoogleDoc {
   id: string;
@@ -171,7 +172,11 @@ export function GoogleDocsPicker({ selected, onSelect, disabled, className, conn
   const { data: status, isLoading, isError: statusFailed, error: statusError, refetch } = useQuery<GoogleDocsStatus>({
     queryKey: ["/api/google-docs/status"],
     queryFn: async () => {
-      const response = await fetch("/api/google-docs/status", { credentials: "include" });
+      const workspaceId = getActiveWorkspaceId();
+      const response = await fetch("/api/google-docs/status", {
+        credentials: "include",
+        headers: workspaceId ? { "X-Workspace-Id": workspaceId } : {},
+      });
       if (!response.ok) throw new Error(await readError(response));
       return response.json() as Promise<GoogleDocsStatus>;
     },
@@ -249,7 +254,10 @@ export function GoogleDocsPicker({ selected, onSelect, disabled, className, conn
       const response = await fetch("/api/google-docs/picker", {
         method: "POST",
         credentials: "include",
-        headers: { "X-Requested-With": "StudioPM" },
+        headers: {
+          "X-Requested-With": "StudioPM",
+          ...(getActiveWorkspaceId() ? { "X-Workspace-Id": getActiveWorkspaceId()! } : {}),
+        },
       });
       if (!response.ok) throw new Error(await readError(response));
       const credentials = await response.json() as PickerCredentials;

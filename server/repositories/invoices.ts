@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { eq, and, inArray, isNull, sql } from "drizzle-orm";
 import { verifyLeadOwnership, getLeads } from "./leads";
+import { ownerOnly } from "../workspace-context";
 import {
   invoices,
   invoiceFeeLineSnapshots,
@@ -11,6 +12,7 @@ import {
   proposals,
   proposalFeeLines,
   proposalPhases,
+  proposalAdditionalLineItems,
   type Invoice,
   type InvoiceWithDetails,
   type InvoiceFeeLineSnapshot,
@@ -77,6 +79,7 @@ export async function createInvoice(
     const allProposalFeeLines = proposalFeeLineIds.length > 0
       ? await tx.select().from(proposalFeeLines).where(inArray(proposalFeeLines.id, proposalFeeLineIds))
       : [];
+    if (allProposalFeeLines.length !== new Set(proposalFeeLineIds).size) throw new Error("One or more fee lines are unavailable");
 
     if (allProposalFeeLines.length > 0) {
       const phaseIds = allProposalFeeLines.map(fl => fl.phaseId);
@@ -160,9 +163,10 @@ export async function createInvoice(
     }
 
     if (existingHoursIds && existingHoursIds.length > 0) {
-      await tx.update(hoursEntries)
+      const attached = await tx.update(hoursEntries)
         .set({ invoiceId: invoice.id })
-        .where(and(inArray(hoursEntries.id, existingHoursIds), eq(hoursEntries.leadId, leadId), isNull(hoursEntries.invoiceId)));
+        .where(and(inArray(hoursEntries.id, existingHoursIds), eq(hoursEntries.leadId, leadId), isNull(hoursEntries.invoiceId))).returning();
+      if (attached.length !== new Set(existingHoursIds).size) throw new Error("Time entries are unavailable for this project");
       const attachedHours = await tx.select().from(hoursEntries)
         .where(and(inArray(hoursEntries.id, existingHoursIds), eq(hoursEntries.invoiceId, invoice.id)));
       savedHours = [...savedHours, ...attachedHours];
@@ -185,9 +189,10 @@ export async function createInvoice(
     }
 
     if (existingExpenseIds && existingExpenseIds.length > 0) {
-      await tx.update(expenseEntries)
+      const attached = await tx.update(expenseEntries)
         .set({ invoiceId: invoice.id })
-        .where(and(inArray(expenseEntries.id, existingExpenseIds), eq(expenseEntries.leadId, leadId), isNull(expenseEntries.invoiceId)));
+        .where(and(inArray(expenseEntries.id, existingExpenseIds), eq(expenseEntries.leadId, leadId), isNull(expenseEntries.invoiceId))).returning();
+      if (attached.length !== new Set(existingExpenseIds).size) throw new Error("Expense entries are unavailable for this project");
       const attachedExpenses = await tx.select().from(expenseEntries)
         .where(and(inArray(expenseEntries.id, existingExpenseIds), eq(expenseEntries.invoiceId, invoice.id)));
       savedExpenses = [...savedExpenses, ...attachedExpenses];
@@ -195,6 +200,12 @@ export async function createInvoice(
 
     let savedAdditionalSnapshots: InvoiceAdditionalLineItemSnapshot[] = [];
     if (additionalLineItemInputs && additionalLineItemInputs.length > 0) {
+      const ids = additionalLineItemInputs.map(i => i.additionalLineItemId);
+      const actual = await tx.select({ item: proposalAdditionalLineItems })
+        .from(proposalAdditionalLineItems).innerJoin(proposals, eq(proposals.id, proposalAdditionalLineItems.proposalId))
+        .where(and(inArray(proposalAdditionalLineItems.id, ids), eq(proposals.leadId, leadId),
+          eq(proposals.proposalType, "Additional Services"), eq(proposals.status, "Signed")));
+      if (actual.length !== new Set(ids).size) throw new Error("Additional services are unavailable for this project");
       const priorAdditionalSnapshots = priorInvoiceIds.length > 0
         ? await tx.select().from(invoiceAdditionalLineItemSnapshots).where(inArray(invoiceAdditionalLineItemSnapshots.invoiceId, priorInvoiceIds))
         : [];
@@ -207,7 +218,8 @@ export async function createInvoice(
       const additionalSnapshotValues: (typeof invoiceAdditionalLineItemSnapshots.$inferInsert)[] = [];
       let addSortIdx = 0;
       for (const input of additionalLineItemInputs) {
-        const baseFee = input.amount ? parseFloat(input.amount) : null;
+        const source = actual.find(r => r.item.id === input.additionalLineItemId)!.item;
+        const baseFee = source.amount ? parseFloat(source.amount) : null;
         const prevBilling = prevAdditionalBillingMap.get(input.additionalLineItemId) || 0;
         let currentBilling = '0.00';
         if (baseFee !== null) {
@@ -218,8 +230,8 @@ export async function createInvoice(
         additionalSnapshotValues.push({
           invoiceId: invoice.id,
           additionalLineItemId: input.additionalLineItemId,
-          description: input.description,
-          amount: input.amount || null,
+          description: source.description,
+          amount: source.amount || null,
           percentComplete: input.percentComplete || '0',
           previousBilling: prevBilling.toFixed(2),
           currentBilling,
@@ -262,6 +274,7 @@ export async function updateInvoiceDocUrl(userId: string, invoiceId: string, doc
 }
 
 export async function deleteInvoice(userId: string, invoiceId: string): Promise<boolean> {
+  ownerOnly();
   const existing = await getInvoiceById(userId, invoiceId);
   if (!existing) return false;
   const result = await db.delete(invoices).where(eq(invoices.id, invoiceId));
@@ -284,7 +297,9 @@ export async function createHoursEntry(
 ): Promise<HoursEntry> {
   const owned = await verifyLeadOwnership(userId, leadId);
   if (!owned) throw new Error('Access denied');
-  const [row] = await db.insert(hoursEntries).values({ invoiceId: invoiceId ?? null, leadId, ...entry }).returning();
+  if (invoiceId && (await getInvoiceById(userId, invoiceId))?.leadId !== leadId) throw new Error("Invoice unavailable");
+  const { date, description, hours, ratePerHour } = entry;
+  const [row] = await db.insert(hoursEntries).values({ invoiceId: invoiceId ?? null, leadId, date, description, hours, ratePerHour }).returning();
   return row;
 }
 
@@ -330,6 +345,7 @@ export async function createExpenseEntry(
 ): Promise<ExpenseEntry> {
   const owned = await verifyLeadOwnership(userId, leadId);
   if (!owned) throw new Error('Access denied');
+  if (invoiceId && (await getInvoiceById(userId, invoiceId))?.leadId !== leadId) throw new Error("Invoice unavailable");
   const [row] = await db.insert(expenseEntries).values({
     invoiceId: invoiceId ?? null,
     leadId,

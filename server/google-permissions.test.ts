@@ -91,5 +91,5 @@ test("callback consumes state before errors and never logs credentials", () => {
   assert.match(route, /include_granted_scopes: false/);
   assert.doesNotMatch(route, /console\.(log|error)/);
   const server = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
-  assert.match(server, /if \(path !== "\/api\/google-docs\/picker"\) capturedJsonResponse/);
+  assert.match(server, /if \(path !== "\/api\/google-docs\/picker" && !path.includes\("invitation"\)\) capturedJsonResponse/);
 });
