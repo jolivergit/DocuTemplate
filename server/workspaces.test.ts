@@ -31,6 +31,8 @@ test("workspace migration preserves synthetic legacy records and is repeatable",
     `);
     const migration = await readFile(new URL("../scripts/migrate-workspaces.sql", import.meta.url), "utf8");
     await client.query(migration);
+    // Exercise upgrade from the original one-workspace-per-user constraint.
+    await client.query("ALTER TABLE workspaces ALTER COLUMN legacy_owner_id SET NOT NULL");
     const before = await client.query("SELECT id,name,firm FROM workspaces ORDER BY legacy_owner_id");
     await client.query(migration);
     const after = await client.query("SELECT id,name,firm FROM workspaces ORDER BY legacy_owner_id");
@@ -41,6 +43,18 @@ test("workspace migration preserves synthetic legacy records and is repeatable",
     assert.notEqual(records.rows[0].workspace_id, records.rows[1].workspace_id);
     assert.equal(before.rows[0].firm.phone, "555-0100");
     assert.equal((await client.query("SELECT count(*) FROM workspace_members")).rows[0].count, "2");
+    await client.query(`
+      INSERT INTO workspaces (id,name,created_by_id,creation_request_id,creation_name)
+      VALUES ('extra-firm','Second firm','legacy-a','creation-intent','Second firm'),
+             ('empty-extra','Empty additional firm','legacy-a','other-intent','Empty additional firm');
+      INSERT INTO workspace_members (workspace_id,user_id,role) VALUES ('extra-firm','legacy-a','Owner');
+      UPDATE workspaces SET firm='{"phone":"updated"}' WHERE legacy_owner_id='legacy-a';
+    `);
+    const expanded = (await client.query("SELECT * FROM workspaces ORDER BY id")).rows;
+    await client.query(migration);
+    assert.deepEqual((await client.query("SELECT * FROM workspaces ORDER BY id")).rows, expanded);
+    assert.equal((await client.query("SELECT count(*) FROM workspace_members WHERE workspace_id='empty-extra'")).rows[0].count, "0");
+    assert.equal((await client.query("SELECT count(*) FROM workspace_members WHERE workspace_id='extra-firm' AND role='Owner'")).rows[0].count, "1");
   } finally {
     await client.query("ROLLBACK");
     client.release();
@@ -95,6 +109,111 @@ test("workspace APIs enforce company isolation, assignments and invitations", as
     return result.body;
   };
   try {
+    await t.test("firm creation validates input and authenticated creator identity", async () => {
+      assert.equal((await api("unknown", a.workspace.id, "POST", "/api/workspaces", { name: "No auth", requestId: randomUUID() })).status, 401);
+      for (const name of ["", "   ", "x".repeat(101)]) {
+        assert.equal((await A("POST", "/api/workspaces", { name, requestId: randomUUID() })).status, 400);
+      }
+      assert.equal((await A("POST", "/api/workspaces", { name: "Bad key", requestId: "not-a-uuid" })).status, 400);
+      assert.equal((await A("POST", "/api/workspaces", { name: "Spoof", requestId: randomUUID(), userId: b.user.id, role: "Owner" })).status, 400);
+      const crossSite = await fetch(`http://127.0.0.1:${address.port}/api/workspaces`, {
+        method: "POST", headers: { "Content-Type": "application/json", "X-Test-Actor": "owner-a", "X-Workspace-Id": a.workspace.id, "Sec-Fetch-Site": "cross-site" },
+        body: JSON.stringify({ name: "Cross site", requestId: randomUUID() }),
+      });
+      assert.equal(crossSite.status, 403);
+    });
+    await t.test("multiple firms have atomic ownership, empty records and concurrent safe retries", async () => {
+      await A("PATCH", "/api/profile", { name: "Original Studio", phone: "555-0101" });
+      const requestId = randomUUID();
+      const results = await Promise.all(Array.from({ length: 3 }, () =>
+        A("POST", "/api/workspaces", { name: "  Second Studio  ", requestId })));
+      assert.ok(results.every(r => r.status === 201));
+      const created = results[0].body.workspace;
+      workspaceIds.push(created.id);
+      assert.ok(results.every(r => r.body.workspace.id === created.id));
+      assert.equal(created.name, "Second Studio");
+      assert.equal(created.role, "Owner");
+      const [stored] = await db.select().from(workspaces).where(eq(workspaces.id, created.id));
+      assert.equal(stored.legacyOwnerId, null);
+      assert.deepEqual(stored.firm, {});
+      assert.equal((await ensurePersonalWorkspace(a.user)).id, a.workspace.id);
+      const second = (method: string, path: string, body?: unknown) => api("owner-a", created.id, method, path, body);
+      assert.deepEqual((await second("GET", "/api/leads")).body, []);
+      assert.deepEqual((await second("GET", "/api/companies")).body, []);
+      assert.deepEqual((await second("GET", "/api/contacts")).body, []);
+      const profile = (await second("GET", "/api/profile")).body;
+      assert.equal(profile.name, "Second Studio");
+      assert.equal(profile.phone, null);
+      assert.equal((await A("GET", "/api/profile")).body.phone, "555-0101");
+      const team = (await second("GET", "/api/workspace/team")).body;
+      assert.deepEqual(team.members.map((m: any) => [m.userId, m.role]), [[a.user.id, "Owner"]]);
+      assert.deepEqual(team.invitations, []);
+      assert.equal((await api("owner-b", created.id, "GET", "/api/workspace/team")).status, 403);
+      assert.equal((await A("POST", "/api/workspaces", { name: "Different payload", requestId })).status, 409);
+      await second("PATCH", "/api/workspace", { name: "Renamed Second Studio" });
+      assert.equal((await A("POST", "/api/workspaces", { name: "Second Studio", requestId })).body.workspace.name, "Renamed Second Studio");
+      const third = (await A("POST", "/api/workspaces", { name: "Third Studio", requestId: randomUUID() })).body.workspace;
+      workspaceIds.push(third.id);
+      const listing = (await A("GET", "/api/workspaces")).body;
+      assert.equal(listing.active.id, a.workspace.id);
+      assert.ok([a.workspace.id, created.id, third.id].every(id => listing.workspaces.some((w: any) => w.id === id && w.role === "Owner")));
+      await db.delete(workspaceMembers).where(and(eq(workspaceMembers.workspaceId, created.id), eq(workspaceMembers.userId, a.user.id)));
+      assert.equal((await A("POST", "/api/workspaces", { name: "Second Studio", requestId })).status, 403);
+      assert.equal((await db.select().from(workspaceMembers).where(eq(workspaceMembers.workspaceId, created.id))).length, 0);
+    });
+    await t.test("a current member can create a firm without gaining ownership of their employer", async () => {
+      const requestId = randomUUID();
+      const created = await M("POST", "/api/workspaces", { name: "Member's Independent Firm", requestId });
+      assert.equal(created.status, 201);
+      workspaceIds.push(created.body.workspace.id);
+      assert.equal(created.body.workspace.role, "Owner");
+      assert.equal((await M("GET", "/api/workspace/team")).status, 403);
+      assert.equal((await api("member", created.body.workspace.id, "GET", "/api/workspace/team")).status, 200);
+      const memberships = (await M("GET", "/api/workspaces")).body.workspaces;
+      assert.equal(memberships.find((w: any) => w.id === a.workspace.id).role, "Member");
+      assert.equal(memberships.find((w: any) => w.id === created.body.workspace.id).role, "Owner");
+      const otherCreator = await A("POST", "/api/workspaces", { name: "Same key, different creator", requestId });
+      workspaceIds.push(otherCreator.body.workspace.id);
+      assert.equal(otherCreator.status, 201);
+      assert.notEqual(otherCreator.body.workspace.id, created.body.workspace.id);
+      const newFirm = (method: string, path: string, body?: unknown) =>
+        api("member", created.body.workspace.id, method, path, body);
+      const invitedOwner = (method: string, path: string, body?: unknown) =>
+        api("owner-a", created.body.workspace.id, method, path, body);
+      const invitation = (await newFirm("POST", "/api/workspace/invitations", { email: a.user.email })).body;
+      assert.equal((await A("POST", "/api/invitations/accept", { token: invitation.token })).status, 200);
+      assert.equal((await invitedOwner("GET", "/api/workspace/team")).status, 403);
+      const assigned = await project(newFirm, "Assigned in additional firm");
+      const hidden = await project(newFirm, "Hidden in additional firm");
+      assert.equal((await newFirm("PUT", `/api/leads/${assigned.id}/assignments`, { userIds: [a.user.id] })).status, 200);
+      assert.deepEqual((await invitedOwner("GET", "/api/leads")).body.map((p: any) => p.id), [assigned.id]);
+      assert.equal((await invitedOwner("GET", `/api/leads/${hidden.id}`)).status, 404);
+      assert.equal((await invitedOwner("PATCH", "/api/workspace", { name: "Forbidden" })).status, 403);
+      assert.equal((await newFirm("PUT", `/api/leads/${assigned.id}/assignments`, { userIds: [b.user.id] })).status, 400);
+    });
+    await t.test("failed owner membership insertion rolls back creation and permits a safe retry", async t => {
+      const requestId = randomUUID();
+      const transact = db.transaction.bind(db);
+      const injected = t.mock.method(db, "transaction", (async (callback: any) => transact(async tx => {
+        const insert = tx.insert.bind(tx);
+        tx.insert = ((table: any) => {
+          if (table === workspaceMembers) throw new Error("Synthetic membership insertion failure");
+          return insert(table);
+        }) as typeof tx.insert;
+        return callback(tx);
+      })) as typeof db.transaction);
+      try {
+        const failed = await A("POST", "/api/workspaces", { name: "Atomic Test Studio", requestId });
+        assert.equal(failed.status, 500);
+      } finally { injected.mock.restore(); }
+      assert.equal((await db.select().from(workspaces).where(and(
+        eq(workspaces.createdById, a.user.id), eq(workspaces.creationRequestId, requestId),
+      ))).length, 0);
+      const retry = await A("POST", "/api/workspaces", { name: "Atomic Test Studio", requestId });
+      assert.equal(retry.status, 201);
+      workspaceIds.push(retry.body.workspace.id);
+      assert.equal((await api("owner-a", retry.body.workspace.id, "GET", "/api/workspace/team")).body.members[0].role, "Owner");
+    });
     const assigned = await project(A, "Assigned A");
     const hidden = await project(A, "Hidden A");
     const other = await project(B, "Company B");

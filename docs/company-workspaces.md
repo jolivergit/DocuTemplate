@@ -6,11 +6,37 @@ Workspaces are the studio's account, not entries in the Companies address book.
 Each authenticated account can belong to multiple workspaces and selects one at
 a time. Google accounts and refresh tokens remain personal.
 
+## Create and switch firms
+
+1. Click **Create firm** below the workspace selector in the sidebar.
+2. Enter a firm name (1–100 characters). This creates an independent studio
+   workspace, not a client/vendor entry on the Companies page.
+3. Save any edits in the current page before continuing. Acknowledge the warning
+   that opening another firm discards unsaved page edits, then click **Create and
+   open**.
+4. The creator becomes **Owner**, and the new firm opens at **Settings → Firm**.
+   Complete its profile there; use **Settings → Team** to invite coworkers.
+5. Use the workspace selector to switch back. Saved records stay with their
+   original firm, and switching asks for confirmation before discarding edits.
+
+Members of another firm can also create their own independent firm. This never
+promotes them in the firm they joined. New firms do not inherit projects,
+companies, contacts, invitations, teammates or firm profile values; the new
+workspace name is displayed until its firm profile is completed. Personal
+contact information, snippets and working field values remain personal.
+
+Creation and opening are separate recoverable operations. Retrying the same
+creation intent returns the existing firm rather than duplicating it. If the
+firm was created but opening it failed, **Open firm** retries switching without
+creating another firm. Recovery metadata is kept in the current browser tab,
+bound to the signed-in account; it contains no Google credentials.
+
 | Action | Owner | Member |
 | --- | --- | --- |
 | List/search projects, Dashboard totals | All in selected workspace | Assigned projects only |
 | Read/edit proposals, invoices, notes, time and expenses | Yes | Assigned projects only, including financial information |
 | Create project | Yes | Yes, automatically assigned to creator |
+| Create a separate firm | Yes; creator owns the new firm | Yes; no role change in the current firm |
 | Delete project, proposal or invoice | Yes | No |
 | Read company/contact address book | All in workspace | Only directly linked to assigned projects; nested links filtered |
 | Create/edit/delete address-book records | Yes | No |
@@ -64,8 +90,10 @@ The SQL migration:
   child records, linked document URLs, or personal Google/content data.
 - Checks missing workspace ownership before committing.
 - Is repeatable and does not merge records between accounts.
+- Allows additional firms without changing the unique marker for the original
+  workspace, and never gives those firms migration-created members.
 
-Memberships are created only for workspaces with no members; rerunning must not
+Migration memberships are created only for original workspaces with no members; rerunning must not
 restore a deliberately removed owner when other members remain. Never use this
 migration as a way to reconstruct or reset an existing team's access.
 

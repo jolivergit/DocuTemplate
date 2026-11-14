@@ -30,6 +30,30 @@ export async function memberships(userId: string) {
     .where(eq(workspaceMembers.userId, userId)).orderBy(workspaces.name);
 }
 
+// Creation is independent of the actor's role in whichever firm is currently open.
+// Keep the intent key after uncertain responses so retrying cannot create a second firm.
+export async function createWorkspace(userId: string, name: string, requestId: string) {
+  return db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`create-workspace:${userId}:${requestId}`}))`);
+    const [existing] = await tx.select().from(workspaces).where(and(
+      eq(workspaces.createdById, userId), eq(workspaces.creationRequestId, requestId),
+    ));
+    if (existing) {
+      if (existing.creationName !== name) throw new AccessError("This creation request was already used for a different firm name.", 409);
+      const [membership] = await tx.select().from(workspaceMembers).where(and(
+        eq(workspaceMembers.workspaceId, existing.id), eq(workspaceMembers.userId, userId),
+      ));
+      if (!membership) throw new AccessError("This firm was already created, but you no longer have access to it.");
+      return { id: existing.id, name: existing.name, revision: existing.revision, role: membership.role };
+    }
+    const [workspace] = await tx.insert(workspaces).values({
+      name, createdById: userId, creationRequestId: requestId, creationName: name,
+    }).returning();
+    await tx.insert(workspaceMembers).values({ workspaceId: workspace.id, userId, role: "Owner" });
+    return { id: workspace.id, name: workspace.name, revision: workspace.revision, role: "Owner" as const };
+  });
+}
+
 export async function resolveWorkspace(user: User, requested?: string): Promise<WorkspaceContext> {
   const personal = await ensurePersonalWorkspace(user);
   const list = await memberships(user.id);

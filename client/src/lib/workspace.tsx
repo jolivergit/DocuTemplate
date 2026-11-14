@@ -12,7 +12,7 @@ export type WorkspaceStatus = {
 };
 type WorkspaceContextValue = WorkspaceStatus & {
   isOwner: boolean;
-  switchWorkspace: (id: string) => Promise<void>;
+  switchWorkspace: (id: string, options?: { confirmed?: boolean }) => Promise<boolean>;
   refresh: () => void;
 };
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -28,12 +28,19 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [switching, setSwitching] = useState(false);
   const [recoveryError, setRecoveryError] = useState("");
   const signature = useRef("");
+  const selectionEpoch = useRef(0);
+  const switchLock = useRef(false);
   const isScopedQuery = (query: { queryKey: readonly unknown[] }) =>
     query.queryKey[0] !== "/api/workspaces" && query.queryKey[0] !== "/auth/user";
-  const prepareStatus = async (status: WorkspaceStatus) => {
+  const prepareStatus = async (status: WorkspaceStatus, canCommit = () => true) => {
+    const assertCurrent = () => {
+      if (!canCommit()) throw new DOMException("An outdated workspace response was ignored.", "AbortError");
+    };
+    assertCurrent();
     const next = `${status.userId}:${status.active.id}:${status.active.role}:${status.active.revision}`;
     if (signature.current !== next) {
       await qc.cancelQueries({ predicate: isScopedQuery });
+      assertCurrent();
       qc.removeQueries({ predicate: isScopedQuery });
       signature.current = next;
     }
@@ -44,21 +51,25 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const { data, isLoading, isError, refetch } = useQuery<WorkspaceStatus>({
     queryKey: ["/api/workspaces"],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
+      const epoch = selectionEpoch.current;
+      const canCommit = () => !signal.aborted && epoch === selectionEpoch.current && !switchLock.current;
+      if (!canCommit()) throw new DOMException("Workspace switching in progress.", "AbortError");
       // During recovery, omit a stale workspace header so a revoked membership cannot strand the app.
       const headers = new Headers();
       if (!switching && workspaceId) headers.set("X-Workspace-Id", workspaceId);
-      const response = await fetch("/api/workspaces", { credentials: "include", headers });
+      const response = await fetch("/api/workspaces", { credentials: "include", headers, signal });
       if (!response.ok) {
         if (response.status === 403) {
-          const fallback = await fetch("/api/workspaces", { credentials: "include" });
+          const fallback = await fetch("/api/workspaces", { credentials: "include", signal });
           if (fallback.ok) {
-            setRecoveryError("Workspace access changed. Your personal workspace has been restored.");
             const recovered = await fallback.json();
+            const status = await prepareStatus(recovered, canCommit);
+            setRecoveryError("Workspace access changed. An available workspace has been restored.");
             setWorkspaceId(recovered.active.id);
             setActiveWorkspaceId(recovered.active.id);
             try { sessionStorage.setItem("studio-pm-workspace", recovered.active.id); } catch {}
-            return prepareStatus(recovered);
+            return status;
           }
           setWorkspaceId(null);
           setActiveWorkspaceId(null);
@@ -68,8 +79,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         const body = await response.text();
         throw new Error(body || response.statusText);
       }
-      return prepareStatus(await response.json());
+      return prepareStatus(await response.json(), canCommit);
     },
+    enabled: !switching,
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
@@ -77,7 +89,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    const refresh = () => { if (document.visibilityState === "visible") void refetch(); };
+    const refresh = () => { if (!switchLock.current && document.visibilityState === "visible") void refetch(); };
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => {
@@ -97,34 +109,49 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [active?.id, active?.revision, workspaceId, revision, qc]);
 
-  const switchWorkspace = async (id: string) => {
-    if (id === getActiveWorkspaceId()) return;
+  const switchWorkspace = async (id: string, options?: { confirmed?: boolean }) => {
+    if (switchLock.current) return false;
+    if (id === getActiveWorkspaceId()) return true;
+    if (qc.isMutating() > 0) {
+      setRecoveryError("Wait for your current changes to finish saving before switching firms.");
+      return false;
+    }
+    if (!options?.confirmed && !window.confirm("Switch firms? Unsaved page edits will be discarded. Saved records stay in their original firm.")) return false;
+    const previousId = getActiveWorkspaceId();
+    switchLock.current = true;
+    selectionEpoch.current += 1;
     setSwitching(true);
-    await qc.cancelQueries({ predicate: isScopedQuery });
+    await qc.cancelQueries();
     qc.removeQueries({ predicate: isScopedQuery });
-    try {
-      const response = await fetch("/api/workspaces", { credentials: "include", headers: { "X-Workspace-Id": id } });
-      if (!response.ok) throw new Error(await response.text());
-      const status = await prepareStatus(await response.json() as WorkspaceStatus);
+    const applyStatus = async (status: WorkspaceStatus) => {
+      await prepareStatus(status);
       setRevision(null);
-      setActiveWorkspaceId(status.active.id);
       setWorkspaceId(status.active.id);
       qc.setQueryData(["/api/workspaces"], status);
       try { sessionStorage.setItem("studio-pm-workspace", status.active.id); } catch {}
+    };
+    try {
+      const response = await fetch("/api/workspaces", { credentials: "include", headers: { "X-Workspace-Id": id } });
+      if (!response.ok) throw new Error(await response.text());
+      const status = await response.json() as WorkspaceStatus;
+      if (status.active.id !== id) throw new Error("The requested firm could not be opened.");
+      await applyStatus(status);
       setRecoveryError("");
+      return true;
     } catch (error) {
       try {
-        const recovery = await fetch("/api/workspaces", { credentials: "include" });
+        let recovery = await fetch("/api/workspaces", {
+          credentials: "include", headers: previousId ? { "X-Workspace-Id": previousId } : {},
+        });
+        if (recovery.status === 403) recovery = await fetch("/api/workspaces", { credentials: "include" });
         if (recovery.ok) {
-          const status = await prepareStatus(await recovery.json() as WorkspaceStatus);
-          setActiveWorkspaceId(status.active.id);
-          setWorkspaceId(status.active.id);
-          qc.setQueryData(["/api/workspaces"], status);
-          try { sessionStorage.setItem("studio-pm-workspace", status.active.id); } catch {}
+          await applyStatus(await recovery.json() as WorkspaceStatus);
         }
       } catch {}
       setRecoveryError(error instanceof Error ? error.message : "Could not open that workspace.");
+      return false;
     } finally {
+      switchLock.current = false;
       setSwitching(false);
     }
   };

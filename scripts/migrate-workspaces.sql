@@ -3,9 +3,16 @@ SELECT pg_advisory_xact_lock(731173);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS workspaces (
  id varchar PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL,
- legacy_owner_id varchar NOT NULL UNIQUE REFERENCES users(id),
+  legacy_owner_id varchar UNIQUE REFERENCES users(id),
  firm jsonb NOT NULL DEFAULT '{}', revision integer NOT NULL DEFAULT 1
 );
+-- The legacy marker identifies only the original workspace, never all ownership.
+ALTER TABLE workspaces ALTER COLUMN legacy_owner_id DROP NOT NULL;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS created_by_id varchar REFERENCES users(id);
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS creation_request_id varchar;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS creation_name text;
+CREATE UNIQUE INDEX IF NOT EXISTS workspace_creation_request_unique
+ ON workspaces(created_by_id,creation_request_id);
 CREATE TABLE IF NOT EXISTS workspace_members (
  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
  workspace_id varchar NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -36,7 +43,8 @@ ON CONFLICT (legacy_owner_id) DO NOTHING;
 -- Never re-add someone to an existing workspace after intentional removal.
 INSERT INTO workspace_members (workspace_id,user_id,role)
 SELECT w.id,w.legacy_owner_id,'Owner' FROM workspaces w
-WHERE NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id=w.id)
+WHERE w.legacy_owner_id IS NOT NULL
+ AND NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id=w.id)
 ON CONFLICT DO NOTHING;
 UPDATE leads l SET workspace_id=w.id FROM workspaces w WHERE l.user_id=w.legacy_owner_id AND l.workspace_id IS NULL;
 UPDATE companies c SET workspace_id=w.id FROM workspaces w WHERE c.user_id=w.legacy_owner_id AND c.workspace_id IS NULL;

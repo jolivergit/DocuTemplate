@@ -22,10 +22,13 @@ export type User = typeof users.$inferSelect;
 export const workspaces = pgTable("workspaces", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  legacyOwnerId: varchar("legacy_owner_id").notNull().unique().references(() => users.id),
+  legacyOwnerId: varchar("legacy_owner_id").unique().references(() => users.id),
+  createdById: varchar("created_by_id").references(() => users.id),
+  creationRequestId: varchar("creation_request_id"),
+  creationName: text("creation_name"),
   firm: jsonb("firm").$type<Record<string, string | null>>().notNull().default({}),
   revision: integer("revision").notNull().default(1),
-});
+}, t => ({ uniqueCreation: uniqueIndex("workspace_creation_request_unique").on(t.createdById, t.creationRequestId) }));
 
 export const workspaceMembers = pgTable("workspace_members", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

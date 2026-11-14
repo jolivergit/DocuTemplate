@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { apiRequest, ApiError, setActiveWorkspaceId } from "./queryClient";
+import { apiRequest, ApiError, getQueryFn, setActiveWorkspaceId } from "./queryClient";
 
 test("Google reconnect errors show readable text and retain machine-readable status", async () => {
   const original = globalThis.fetch;
@@ -40,4 +40,45 @@ test("API writes carry the selected workspace and reject responses after a switc
     setActiveWorkspaceId(null);
     globalThis.fetch = original;
   }
+});
+
+test("API writes reject a workspace switch while the response body is still loading", async () => {
+  const original = globalThis.fetch;
+  setActiveWorkspaceId("workspace-a");
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => {
+      setActiveWorkspaceId("workspace-b");
+      return { privateRecord: "belongs-to-a" };
+    },
+  } as Response);
+  try {
+    await assert.rejects(apiRequest("POST", "/api/leads", {}), (error: unknown) =>
+      error instanceof ApiError && error.code === "WORKSPACE_CHANGED");
+  } finally { setActiveWorkspaceId(null); globalThis.fetch = original; }
+});
+
+test("late or cancelled query responses cannot populate another firm's cache", async () => {
+  const original = globalThis.fetch;
+  const controller = new AbortController();
+  const query = getQueryFn({ on401: "throw" });
+  const context = { queryKey: ["/api/leads"], signal: controller.signal } as Parameters<typeof query>[0];
+  try {
+    for (const abort of [false, true]) {
+      setActiveWorkspaceId("workspace-a");
+      globalThis.fetch = async (_url, init) => {
+        assert.equal(new Headers(init?.headers).get("X-Workspace-Id"), "workspace-a");
+        return {
+          ok: true,
+          json: async () => {
+            if (abort) controller.abort();
+            else setActiveWorkspaceId("workspace-b");
+            return [{ projectName: "Private A" }];
+          },
+        } as Response;
+      };
+      await assert.rejects(query(context), (error: unknown) =>
+        error instanceof ApiError && error.code === "WORKSPACE_CHANGED");
+    }
+  } finally { setActiveWorkspaceId(null); globalThis.fetch = original; }
 });

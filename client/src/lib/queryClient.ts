@@ -54,10 +54,11 @@ export async function apiRequest<T = any>(
   });
 
   await throwIfResNotOk(res);
+  const payload = await res.json();
   if (headers.get("X-Workspace-Id") !== activeWorkspaceId) {
     throw new ApiError("The workspace changed while this request was running. Please try again.", 409, "WORKSPACE_CHANGED");
   }
-  return await res.json();
+  return payload;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -66,8 +67,9 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey, signal }) => {
+    const headers = workspaceHeaders();
     const res = await fetch(queryKey.join("/") as string, {
-      headers: workspaceHeaders(),
+      headers,
       credentials: "include",
       signal,
     });
@@ -77,7 +79,11 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    const payload = await res.json();
+    if (signal.aborted || headers.get("X-Workspace-Id") !== activeWorkspaceId) {
+      throw new ApiError("The workspace changed while this request was running. Please try again.", 409, "WORKSPACE_CHANGED");
+    }
+    return payload;
   };
 
 export const queryClient = new QueryClient({

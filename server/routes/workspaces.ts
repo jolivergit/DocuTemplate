@@ -19,6 +19,13 @@ const run = (fn: (req: Request, res: Response) => Promise<unknown>) =>
   };
 
 export function registerWorkspaceRoutes(app: Express) {
+  app.post("/api/workspaces", requireAuth, run(async (req, res) => {
+    const { name, requestId } = z.object({
+      name: z.string().trim().min(1).max(100), requestId: z.string().uuid(),
+    }).strict().parse(req.body);
+    const workspace = await service.createWorkspace((req.user as User).id, name, requestId);
+    res.status(201).json({ workspace });
+  }));
   app.get("/api/workspaces", requireAuth, run(async (req, res) => {
     const list = await service.memberships((req.user as User).id);
     const active = list.find(w => w.id === context().workspaceId)!;

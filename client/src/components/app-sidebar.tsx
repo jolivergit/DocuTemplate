@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import type { User as UserType } from "@shared/schema";
 import { useWorkspace } from "@/lib/workspace";
 import { queryClient, setActiveWorkspaceId } from "@/lib/queryClient";
+import { CreateFirmDialog } from "@/components/create-firm-dialog";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, exact: true },
@@ -81,6 +82,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
           >
             {workspace.workspaces.map((item) => <option key={item.id} value={item.id}>{item.name}{item.id === workspace.active.id ? ` · ${item.role}` : ""}</option>)}
           </select>
+          <CreateFirmDialog />
         </div>
       </SidebarHeader>
 
