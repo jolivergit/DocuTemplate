@@ -52,4 +52,4 @@ timeoutMs = 120000
 [userenv]
 
 [userenv.development]
-GENERATE_DOCS_MOCK = "true"
+GENERATE_DOCS_MOCK = "false"

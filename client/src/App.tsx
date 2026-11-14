@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import Home from "@/pages/home";
+import GoogleTemplatePickerPage from "@/pages/google-template-picker";
 import DashboardPage from "@/pages/dashboard";
 import ProjectsPage from "@/pages/projects";
 import ProjectDetailPage from "@/pages/project-detail";
@@ -183,6 +184,8 @@ function AppLayout() {
 }
 
 function Router() {
+  const [location] = useLocation();
+  if (location === "/google-template-picker") return <GoogleTemplatePickerPage />;
   return (
     <AuthGate>
       <AppLayout />

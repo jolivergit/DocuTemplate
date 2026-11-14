@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { GoogleDocsPicker } from "@/components/google-docs-picker";
+import { useGooglePickerDialog } from "@/hooks/use-google-picker-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { z } from "zod";
@@ -58,7 +59,6 @@ export function GenerateDocumentDialog({
   const [generatedDocUrl, setGeneratedDocUrl] = useState<string | null>(null);
   const [savedBack, setSavedBack] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -128,11 +128,12 @@ export function GenerateDocumentDialog({
     form.reset();
     onOpenChange(false);
   };
+  const pickerDialog = useGooglePickerDialog(handleClose);
 
   return (
-    <Dialog open={open} onOpenChange={handleClose} modal={false}>
+    <Dialog open={open} {...pickerDialog.dialogProps} modal={false}>
       <DialogContent className="w-[calc(100vw-2rem)] max-w-lg min-w-0 max-h-[90dvh] overflow-y-auto [overflow-wrap:anywhere]" data-testid="dialog-generate-document"
-        onInteractOutside={(event) => { if (pickerOpen) event.preventDefault(); }}>
+        {...pickerDialog.contentProps}>
         <DialogHeader>
           <DialogTitle data-testid="text-generate-title">Generate Document</DialogTitle>
           <DialogDescription data-testid="text-generate-description">
@@ -175,7 +176,7 @@ export function GenerateDocumentDialog({
                   <GoogleDocsPicker
                     selected={{ id: template.documentId, name: template.documentName }}
                     connectOnly
-                    onPickerOpenChange={setPickerOpen}
+                    onPickerOpenChange={pickerDialog.onPickerOpenChange}
                     onSelect={(file) => {
                       if (file.id !== template.documentId) {
                         toast({ title: "Select the original template", description: "Choose the template shown above to keep your mappings. Load a different template from Doc Builder instead.", variant: "destructive" });

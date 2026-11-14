@@ -31,6 +31,7 @@ import { formatCurrencyFlexOrDash } from "@/lib/utils";
 import { ProposalFormDialog } from "@/components/proposal-form-dialog";
 import { AdditionalServicesFormDialog } from "@/components/additional-services-form-dialog";
 import { GoogleDocsPicker, type PickedGoogleDoc } from "@/components/google-docs-picker";
+import { useGooglePickerDialog } from "@/hooks/use-google-picker-dialog";
 import {
   type ProposalWithPhases,
   type ProposalStatus,
@@ -82,7 +83,7 @@ function ConsultantContractDialog({
   const { toast } = useToast();
   const [selectedTemplate, setSelectedTemplate] = useState<PickedGoogleDoc | null>(null);
   const [outputName, setOutputName] = useState("");
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerDialog = useGooglePickerDialog(onOpenChange);
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -122,11 +123,9 @@ function ConsultantContractDialog({
   const canGenerate = selectedTemplate && outputName.trim();
 
   return (
-    <Dialog open={open} onOpenChange={(v) => {
-      onOpenChange(v);
-    }} modal={false}>
+    <Dialog open={open} {...pickerDialog.dialogProps} modal={false}>
       <DialogContent className="w-[calc(100vw-2rem)] max-w-lg min-w-0 max-h-[90dvh] overflow-y-auto [overflow-wrap:anywhere]" data-testid="dialog-consultant-contract"
-        onInteractOutside={(event) => { if (pickerOpen) event.preventDefault(); }}>
+        {...pickerDialog.contentProps}>
         <DialogHeader>
           <DialogTitle data-testid="text-contract-dialog-title">Generate Consultant Contract</DialogTitle>
           <DialogDescription>
@@ -183,7 +182,7 @@ function ConsultantContractDialog({
               selected={selectedTemplate}
               disabled={generateMutation.isPending}
               onSelect={setSelectedTemplate}
-              onPickerOpenChange={setPickerOpen}
+              onPickerOpenChange={pickerDialog.onPickerOpenChange}
             />
           </div>
 

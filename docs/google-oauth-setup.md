@@ -121,6 +121,45 @@ continues to request migration rather than sending that token to the browser.
 
 ## Recovery and verification
 
+### Chooser opens briefly and disappears
+
+The Google authorization popup and the Google file chooser are different stages.
+A successful connection or HTTP 200 from the Picker credential endpoint does not
+prove that Google has accepted the browser API key/origin or shown the chooser.
+
+Picker is inserted outside the application's dialog. The application must guard
+dialog closing synchronously before starting Picker, including its initial focus
+and Escape events; relying on a React state update can dismiss/unmount the parent
+before that update commits. Cancellation restores normal dialog behavior.
+
+Google also requires the **top-most page origin** when embedded in an iframe.
+The app obtains that from an accessible top window or browser ancestor origins.
+It does not guess an outer origin when the browser cannot provide one.
+
+Use **Choose in separate window** under the Picker button if the embedded
+preview blocks Google, fails to show it, or cannot provide its outer origin.
+Allow popups for the app. The original page and its Doc Builder mappings stay
+open; the separate window sends only the selected document ID/name back to the
+original window using matching origin, window identity, and a one-use request ID.
+Tokens, refresh tokens, and API keys are never sent in those window messages.
+Closing the window cancels selection without replacing the current template.
+The original page also provides **Cancel chooser** while opening/waiting.
+
+If Google shows an API configuration error in either window, check the same-project
+Picker API, browser key website restrictions, numeric project number, and OAuth
+client JavaScript origins described above. Do not remove API key restrictions or
+add account-wide Drive permissions as a workaround. A Google error inside its
+cross-origin frame may not be readable by Studio PM; inspect the visible error
+locally without copying token-bearing request URLs into logs or chat.
+
+### Actual template data versus test fixtures
+
+Development now uses `GENERATE_DOCS_MOCK=false`. Keep it false for real selection
+and parsing. The old development-only test setting returned a fixed fake
+template and generated URL, which cannot validate Google access or real tags.
+Focused automated tests may stub Google APIs explicitly, but those tests are
+not evidence of live Google configuration or file access.
+
 The connection popup does not navigate the working page, so cancelling consent,
 closing the popup, choosing a different Google account, or cancelling Picker must
 not discard document mappings, invoice data, or contract names. If popups are
@@ -154,3 +193,4 @@ silently fall back to a Drive-wide permission or mock result.
 - [Drive scopes and per-file migration](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)
 - [Google Docs scopes](https://developers.google.com/workspace/docs/api/auth)
 - [Google Picker setup](https://developers.google.com/workspace/drive/picker/guides/web-picker)
+- [Picker origin when embedded](https://developers.google.com/workspace/drive/picker/reference/picker.pickerbuilder.setorigin)

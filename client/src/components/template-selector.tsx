@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   Dialog,
@@ -11,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { ParsedTemplate } from "@shared/schema";
 import { GoogleDocsPicker, type PickedGoogleDoc } from "@/components/google-docs-picker";
+import { useGooglePickerDialog } from "@/hooks/use-google-picker-dialog";
 
 interface TemplateSelectorProps {
   open: boolean;
@@ -19,7 +19,7 @@ interface TemplateSelectorProps {
 }
 
 export function TemplateSelector({ open, onOpenChange, onTemplateSelect }: TemplateSelectorProps) {
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerDialog = useGooglePickerDialog(onOpenChange);
   const { toast } = useToast();
 
   const parseMutation = useMutation({
@@ -44,9 +44,9 @@ export function TemplateSelector({ open, onOpenChange, onTemplateSelect }: Templ
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
+    <Dialog open={open} {...pickerDialog.dialogProps} modal={false}>
       <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl min-w-0 max-h-[90dvh] overflow-y-auto [overflow-wrap:anywhere]" data-testid="dialog-template-selector"
-        onInteractOutside={(event) => { if (pickerOpen) event.preventDefault(); }}>
+        {...pickerDialog.contentProps}>
         <DialogHeader>
           <DialogTitle data-testid="text-dialog-title">Load Template from Google Drive</DialogTitle>
           <DialogDescription data-testid="text-dialog-description">
@@ -58,7 +58,7 @@ export function TemplateSelector({ open, onOpenChange, onTemplateSelect }: Templ
           <GoogleDocsPicker
             disabled={parseMutation.isPending}
             onSelect={(file) => parseMutation.mutate(file)}
-            onPickerOpenChange={setPickerOpen}
+            onPickerOpenChange={pickerDialog.onPickerOpenChange}
           />
           {parseMutation.isPending && (
             <p className="text-xs text-muted-foreground" role="status">Reading selected template…</p>

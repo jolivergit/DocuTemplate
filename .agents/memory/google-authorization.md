@@ -24,3 +24,15 @@ unverified branding displays the domain.
 
 **How to apply:** Check current official guidance and distinguish code changes
 from Google Cloud setup. See `docs/google-oauth-setup.md` for the owner checklist.
+
+The shared development preview must use real document routes by default. Keep
+Google test doubles isolated to explicit automated tests, not silently enabled
+for people trying the app.
+
+**Why:** Users test their actual Google connection in the preview. A hidden
+development mock can return successful template parsing and generated URLs
+without accessing the selected file, masking permission and integration failures.
+
+**How to apply:** Never enable document mocks to make a live integration check
+appear successful. Distinguish app lifecycle tests from actual Google selection,
+file access, and document creation when reporting verification.

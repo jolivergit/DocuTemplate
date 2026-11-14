@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, ChevronDown, FileText, Loader2, RotateCw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getActiveWorkspaceId } from "@/lib/queryClient";
+import { loadPickerApi, type PickerInstance } from "@/lib/google-picker-api";
+import { browserPickerOrigin, readPickerWindowSelection } from "@/lib/google-picker-lifecycle";
 
 export interface PickedGoogleDoc {
   id: string;
@@ -22,53 +24,6 @@ interface PickerCredentials {
   appId: string;
 }
 
-interface PickerDocument {
-  id: string;
-  name: string;
-}
-
-interface PickerResponse {
-  action: string;
-  docs?: PickerDocument[];
-}
-
-interface PickerBuilder {
-  setDeveloperKey(key: string): PickerBuilder;
-  setAppId(appId: string): PickerBuilder;
-  setOAuthToken(token: string): PickerBuilder;
-  setOrigin(origin: string): PickerBuilder;
-  addView(view: DocsView): PickerBuilder;
-  setMaxItems(count: number): PickerBuilder;
-  setCallback(callback: (data: PickerResponse) => void): PickerBuilder;
-  build(): PickerInstance;
-}
-
-interface DocsView {
-  setMimeTypes(types: string): DocsView;
-}
-
-interface PickerInstance {
-  setVisible(visible: boolean): void;
-}
-
-interface GooglePickerApi {
-  ViewId: { DOCS: string };
-  DocsView: new (viewId: string) => DocsView;
-  PickerBuilder: new () => PickerBuilder;
-  Action: { PICKED: string; CANCEL: string };
-}
-
-interface Gapi {
-  load(name: string, options: { callback: () => void; onerror: () => void; timeout: number; ontimeout: () => void }): void;
-}
-
-declare global {
-  interface Window {
-    gapi?: Gapi;
-    google?: { picker?: GooglePickerApi };
-  }
-}
-
 interface Props {
   selected?: PickedGoogleDoc | null;
   onSelect: (doc: PickedGoogleDoc) => void;
@@ -76,9 +31,9 @@ interface Props {
   className?: string;
   connectOnly?: boolean;
   onPickerOpenChange?: (open: boolean) => void;
+  standalone?: boolean;
 }
 
-const PICKER_SCRIPT = "https://apis.google.com/js/api.js";
 const DOC_MIME = "application/vnd.google-apps.document";
 
 function errorMessage(error: unknown): string {
@@ -109,61 +64,19 @@ async function readError(response: Response): Promise<string> {
   }
 }
 
-async function loadPickerApi(): Promise<GooglePickerApi> {
-  if (!window.gapi) {
-    await new Promise<void>((resolve, reject) => {
-      let script = document.querySelector<HTMLScriptElement>(`script[src="${PICKER_SCRIPT}"]`);
-      const created = !script;
-      if (!script) {
-        script = document.createElement("script");
-        script.src = PICKER_SCRIPT;
-        script.async = true;
-      }
-      const timer = window.setTimeout(() => finish(new Error("Google Picker took too long to load. Try again.")), 12000);
-      const finish = (error?: Error) => {
-        window.clearTimeout(timer);
-        script?.removeEventListener("load", onLoad);
-        script?.removeEventListener("error", onError);
-        if (error) {
-          if (created) script?.remove();
-          reject(error);
-        } else resolve();
-      };
-      const onLoad = () => finish();
-      const onError = () => finish(new Error("Google Picker could not load. Check your connection and retry."));
-      script.addEventListener("load", onLoad, { once: true });
-      script.addEventListener("error", onError, { once: true });
-      if (created) document.head.appendChild(script);
-      else if (window.gapi) finish();
-    });
-  }
-  const gapi = window.gapi;
-  if (!gapi) throw new Error("Google Picker did not initialize. Try again.");
-  await new Promise<void>((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error("Google Picker initialization timed out. Try again.")), 12000);
-    try {
-      gapi.load("picker", {
-        callback: () => { window.clearTimeout(timer); resolve(); },
-        onerror: () => { window.clearTimeout(timer); reject(new Error("Google Picker failed to initialize. Try again.")); },
-        ontimeout: () => { window.clearTimeout(timer); reject(new Error("Google Picker initialization timed out. Try again.")); },
-        timeout: 10000,
-      });
-    } catch {
-      window.clearTimeout(timer);
-      reject(new Error("Google Picker failed to initialize. Try again."));
-    }
-  });
-  if (!window.google?.picker) throw new Error("Google Picker did not initialize. Try again.");
-  return window.google.picker;
-}
-
-export function GoogleDocsPicker({ selected, onSelect, disabled, className, connectOnly, onPickerOpenChange }: Props) {
+export function GoogleDocsPicker({ selected, onSelect, disabled, className, connectOnly, onPickerOpenChange, standalone }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [showLegacyHelp, setShowLegacyHelp] = useState(false);
   const popupRef = useRef<Window | null>(null);
   const pickerRef = useRef<PickerInstance | null>(null);
+  const activeRef = useRef(false);
+  const sessionRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const cancelInlineRef = useRef<(() => void) | null>(null);
+  const chooserCleanupRef = useRef<(() => void) | null>(null);
+  const [windowChooserOpen, setWindowChooserOpen] = useState(false);
   const connectionCleanupRef = useRef<(() => void) | null>(null);
   const mountedRef = useRef(true);
   const pickerOpenChangeRef = useRef(onPickerOpenChange);
@@ -188,9 +101,13 @@ export function GoogleDocsPicker({ selected, onSelect, disabled, className, conn
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      sessionRef.current++;
       connectionCleanupRef.current?.();
+      chooserCleanupRef.current?.();
+      abortRef.current?.abort();
       pickerOpenChangeRef.current?.(false);
       pickerRef.current?.setVisible(false);
+      pickerRef.current?.dispose?.();
       pickerRef.current = null;
       popupRef.current?.close();
       popupRef.current = null;
@@ -198,9 +115,14 @@ export function GoogleDocsPicker({ selected, onSelect, disabled, className, conn
   }, []);
 
   const connect = useCallback(() => {
+    if (activeRef.current) return;
+    activeRef.current = true;
+    pickerOpenChangeRef.current?.(true);
     setError(null);
     const popup = window.open("/auth/google/docs", "studio-google-docs", "popup,width=560,height=700,resizable=yes,scrollbars=yes");
     if (!popup) {
+      activeRef.current = false;
+      pickerOpenChangeRef.current?.(false);
       setError("Your browser blocked the Google sign-in window. Allow pop-ups for Studio PM and try again.");
       return;
     }
@@ -215,7 +137,9 @@ export function GoogleDocsPicker({ selected, onSelect, disabled, className, conn
       window.clearTimeout(timeout);
       connectionCleanupRef.current = null;
       popupRef.current = null;
+      activeRef.current = false;
       if (mountedRef.current) {
+        pickerOpenChangeRef.current?.(false);
         setConnecting(false);
         if (message) setError(message);
       }
@@ -248,9 +172,36 @@ export function GoogleDocsPicker({ selected, onSelect, disabled, className, conn
   }, [refetch]);
 
   const openPicker = useCallback(async () => {
+    if (activeRef.current) return;
+    activeRef.current = true;
+    const session = ++sessionRef.current;
+    // Acquire the parent dialog's synchronous guard before any Google focus.
+    pickerOpenChangeRef.current?.(true);
     setError(null);
     setBusy(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
+    const release = () => {
+      if (sessionRef.current !== session) return;
+      pickerRef.current?.setVisible(false);
+      pickerRef.current?.dispose?.();
+      pickerRef.current = null;
+      cancelInlineRef.current = null;
+      // Keep guarding through Google's focus restoration and delayed outside events.
+      window.setTimeout(() => {
+        if (sessionRef.current !== session) return;
+        activeRef.current = false;
+        if (mountedRef.current) {
+          pickerOpenChangeRef.current?.(false);
+          setBusy(false);
+        }
+      }, 0);
+    };
+    cancelInlineRef.current = () => { controller.abort("cancelled"); release(); };
     try {
+      const origin = browserPickerOrigin();
+      if (!origin) throw new Error("This embedded preview cannot provide Google's required page address. Use “Choose in separate window” below; your current work will stay here.");
       const response = await fetch("/api/google-docs/picker", {
         method: "POST",
         credentials: "include",
@@ -258,45 +209,95 @@ export function GoogleDocsPicker({ selected, onSelect, disabled, className, conn
           "X-Requested-With": "StudioPM",
           ...(getActiveWorkspaceId() ? { "X-Workspace-Id": getActiveWorkspaceId()! } : {}),
         },
+        signal: controller.signal,
       });
       if (!response.ok) throw new Error(await readError(response));
       const credentials = await response.json() as PickerCredentials;
+      window.clearTimeout(timeout);
       const pickerApi = await loadPickerApi();
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || controller.signal.aborted || sessionRef.current !== session) return;
       const view = new pickerApi.DocsView(pickerApi.ViewId.DOCS);
       view.setMimeTypes(DOC_MIME);
-      let picker: PickerInstance;
       const instance = new pickerApi.PickerBuilder()
         .setDeveloperKey(credentials.apiKey)
         .setAppId(credentials.appId)
         .setOAuthToken(credentials.accessToken)
-        .setOrigin(window.location.origin)
+        .setOrigin(origin)
         .addView(view)
         .setMaxItems(1)
         .setCallback((data) => {
-          if (data.action === pickerApi.Action.PICKED && data.docs?.[0]) {
-            onSelect({ id: data.docs[0].id, name: data.docs[0].name });
-          }
+          if (!mountedRef.current || sessionRef.current !== session) return;
           if (data.action === pickerApi.Action.PICKED || data.action === pickerApi.Action.CANCEL) {
-            picker.setVisible(false);
-            pickerRef.current = null;
-            pickerOpenChangeRef.current?.(false);
-            if (mountedRef.current) setBusy(false);
+            const doc = data.action === pickerApi.Action.PICKED ? data.docs?.[0] : undefined;
+            release();
+            if (doc) onSelect({ id: doc.id, name: doc.name });
+          } else if (data.action === "error") {
+            release();
+            setError("Google could not open the file chooser. Retry in a separate window. If it persists, ask the owner to check Picker API, API key website restrictions, and the project number.");
           }
         });
-      picker = instance.build();
+      const picker = instance.build();
       pickerRef.current = picker;
-      pickerOpenChangeRef.current?.(true);
       picker.setVisible(true);
     } catch (caught) {
-      if (mountedRef.current) {
-        pickerOpenChangeRef.current?.(false);
-        setError(errorMessage(caught));
-        setBusy(false);
+      release();
+      if (mountedRef.current && sessionRef.current === session && controller.signal.reason !== "cancelled") {
+        setError(controller.signal.aborted ? "Opening Google timed out. Your work was kept; please retry." : errorMessage(caught));
         void refetch();
       }
+    } finally {
+      window.clearTimeout(timeout);
+      if (abortRef.current === controller) abortRef.current = null;
     }
   }, [onSelect, refetch]);
+
+  const openSeparateChooser = useCallback(() => {
+    if (activeRef.current) return;
+    activeRef.current = true;
+    sessionRef.current++;
+    pickerOpenChangeRef.current?.(true);
+    setError(null);
+    const requestId = crypto.randomUUID();
+    const workspaceId = getActiveWorkspaceId();
+    const hash = new URLSearchParams({ requestId, ...(workspaceId ? { workspaceId } : {}) });
+    const popup = window.open(`/google-template-picker#${hash}`, "_blank", "popup,width=900,height=760,resizable=yes,scrollbars=yes");
+    if (!popup) {
+      activeRef.current = false;
+      pickerOpenChangeRef.current?.(false);
+      setError("Your browser blocked the chooser window. Allow pop-ups for Studio PM and retry. Your work is still here.");
+      return;
+    }
+    setWindowChooserOpen(true);
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("message", receive);
+      window.clearInterval(poll);
+      window.clearTimeout(timeout);
+      popup.close();
+      chooserCleanupRef.current = null;
+      activeRef.current = false;
+      if (mountedRef.current) {
+        pickerOpenChangeRef.current?.(false);
+        setWindowChooserOpen(false);
+      }
+    };
+    const receive = (event: MessageEvent) => {
+      const doc = readPickerWindowSelection(event, { origin: window.location.origin, source: popup, requestId });
+      if (!doc) return;
+      const stillSameWorkspace = workspaceId === getActiveWorkspaceId();
+      finish();
+      if (stillSameWorkspace && mountedRef.current) onSelect(doc);
+    };
+    window.addEventListener("message", receive);
+    const poll = window.setInterval(() => { if (popup.closed) finish(); }, 400);
+    const timeout = window.setTimeout(() => {
+      finish();
+      if (mountedRef.current) setError("The separate chooser timed out. Your work was kept; open it again to retry.");
+    }, 300000);
+    chooserCleanupRef.current = finish;
+  }, [onSelect]);
 
   const needsConnect = !status?.connected || status.legacyBroadAccess;
   const connectLabel = status?.legacyBroadAccess ? "Reconnect Google" : "Connect Google";
@@ -329,7 +330,7 @@ export function GoogleDocsPicker({ selected, onSelect, disabled, className, conn
             {connecting ? "Connecting…" : isLoading ? "Checking Google…" : connectLabel}
           </Button>
         ) : (
-          <Button type="button" variant="outline" size="sm" onClick={openPicker} disabled={disabled || busy || isLoading} data-testid="button-pick-google-doc">
+          <Button type="button" variant="outline" size="sm" onClick={openPicker} disabled={disabled || busy || windowChooserOpen || isLoading} data-testid="button-pick-google-doc">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
             {busy ? "Opening Google Docs…" : "Pick a Google Docs template"}
           </Button>
@@ -347,6 +348,15 @@ export function GoogleDocsPicker({ selected, onSelect, disabled, className, conn
           </Button>
         )}
       </div>
+
+      {busy && <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => cancelInlineRef.current?.()}>Cancel chooser</Button>}
+      {!standalone && status?.connected && !needsConnect && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button type="button" variant="ghost" size="sm" className="h-auto px-0 text-xs underline underline-offset-2" onClick={openSeparateChooser} disabled={disabled || busy || windowChooserOpen} data-testid="button-picker-separate-window">Choose in separate window</Button>
+          {windowChooserOpen && <><span className="text-xs text-muted-foreground" role="status">Waiting for your template selection…</span><Button type="button" variant="ghost" size="sm" onClick={() => chooserCleanupRef.current?.()}>Cancel chooser</Button></>}
+          <p className="w-full text-xs text-muted-foreground">If the preview blocks Google, use the separate window. Your selection returns here without leaving your work.</p>
+        </div>
+      )}
 
       <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
         <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
