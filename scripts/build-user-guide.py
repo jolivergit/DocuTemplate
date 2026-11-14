@@ -1,15 +1,17 @@
-"""Render the guide's deliberately small Markdown subset without dependencies.
+"""Render the documentation's deliberately small Markdown subset without dependencies.
 
 Run: python3 scripts/build-user-guide.py
-The source stays in docs; output is a self-contained, printable HTML asset.
+The sources stay in docs; outputs are self-contained, printable HTML assets.
 """
 from pathlib import Path
 import html
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "docs/studio-pm-user-guide.md"
-TARGET = SOURCE.with_suffix(".html")
+SOURCES = (
+    ROOT / "docs/studio-pm-user-guide.md",
+    ROOT / "docs/uat-checklist.md",
+)
 
 
 def inline(text):
@@ -124,16 +126,24 @@ footer { border-top:1px solid #ddd; margin-top:44px; padding-top:16px; color:#66
 }
 """
 
-document = """<!doctype html>
+for source in SOURCES:
+    text = source.read_text()
+    title = text.splitlines()[0].removeprefix("# ").strip()
+    reviewed = re.search(r"^Reviewed ([^·\n]+)", text, flags=re.MULTILINE)
+    if not reviewed:
+        raise ValueError(f"Missing review date in {source.name}")
+    review_date = reviewed.group(1).strip()
+    document = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="A plain-language walkthrough of Studio PM, from first project to proposals, invoices and Google Docs.">
-<title>Studio PM — User Guide</title><style>""" + CSS + """</style></head>
+<meta name="description" content="Studio PM instructions and acceptance testing for nontechnical users.">
+<title>""" + html.escape(title) + """</title><style>""" + CSS + """</style></head>
 <body><div class="toolbar"><a href="#contents">Jump to contents</a>
 <button type="button" onclick="window.print()">Print / Save as PDF</button></div>
-<main>""" + render(SOURCE.read_text()) + """
-<footer>Studio PM · Everyday user guide · Reviewed November 11, 2026</footer>
+<main>""" + render(text) + """
+<footer>""" + html.escape(title) + " · Reviewed " + html.escape(review_date) + """</footer>
 </main></body></html>
 """
-TARGET.write_text(document)
-print(f"Built {TARGET.relative_to(ROOT)} ({len(document.encode()):,} bytes)")
+    target = source.with_suffix(".html")
+    target.write_text(document)
+    print(f"Built {target.relative_to(ROOT)} ({len(document.encode()):,} bytes)")

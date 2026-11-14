@@ -2,18 +2,18 @@
 
 A practical walkthrough for everyday users
 
-Reviewed November 11, 2026 · No technical experience required
+Reviewed November 14, 2026 · No technical experience required
 
 Studio PM keeps your opportunities, proposals, active projects, billing, and document templates in one place. Start with the quick start, then use the contents to find a specific task.
 
-**About this guide:** Instructions were checked against the current app screens and their underlying behavior. Google consent, file selection, and document creation still depend on the owner's Google setup and your file permissions; this guide is not a claim that those external steps have been live-tested.
+**About this guide:** This edition was reviewed against the implemented screens and their underlying behavior, including company teams, multiple firms and the Google chooser recovery controls. It is a documentation review, not a completed acceptance test. Real Google consent, file access and generated-document formatting still need testing with your own authorized test accounts and templates.
 
 ## Contents
 
 - [Quick start: your first project and document](#quick-start-your-first-project-and-document)
 - [Find your way around](#find-your-way-around)
-- [Work with your company team](#work-with-your-company-team)
 - [Sign in and set up your details](#sign-in-and-set-up-your-details)
+- [Work with your company team](#work-with-your-company-team)
 - [Read the Dashboard](#read-the-dashboard)
 - [Keep companies and contacts organized](#keep-companies-and-contacts-organized)
 - [Create and manage a project](#create-and-manage-a-project)
@@ -26,12 +26,15 @@ Studio PM keeps your opportunities, proposals, active projects, billing, and doc
 - [Use Doc Builder](#use-doc-builder)
 - [Save safely and avoid accidental changes](#save-safely-and-avoid-accidental-changes)
 - [Troubleshooting](#troubleshooting)
+- [Prepare for user acceptance testing](#prepare-for-user-acceptance-testing)
 - [Small glossary](#small-glossary)
 - [Owner-only Google setup](#owner-only-google-setup)
 
 ## Quick start: your first project and document
 
 Use this fictional example throughout the guide: **Maple Street Studio Renovation**, for **Maple Street Design**, with a **$10,000 fixed design fee**. These are practice instructions, not records already created in your app.
+
+**This quick start assumes you are an Owner in the selected firm.** Check the workspace selector before starting. Members should work on an assigned project and ask an Owner to prepare company/contact records, or use **Create firm** to set up their own separate practice firm.
 
 1. Click **Sign in with Google** and choose your work account.
 2. In the sidebar, open **Settings → Firm**. Enter your studio's details and click **Save**. Open **Settings → Contact**, enter your own primary contact name and title, and click **Save**.
@@ -56,11 +59,14 @@ Use the left sidebar to move between these areas:
 | Area | Use it for |
 | --- | --- |
 | Dashboard | See pipeline counts, billing summaries, and recent projects. |
-| Projects | Find every opportunity or project, including Leads and Completed work. |
-| Companies | Keep reusable company details and linked contacts. |
-| Contacts | Keep people and their company relationships. |
-| Settings → Firm | Set your own studio's name, address, phone, and email. |
-| Settings → Contact | Set the primary contact for your studio's documents. |
+| Workspace selector | Choose the firm you are working in and check your Owner/Member role. |
+| Create firm | Create a separate firm workspace you will own; does not add a client company. |
+| Projects | Find opportunities and projects you may access, including Leads and Completed work. |
+| Companies | Owners manage reusable company details; Members see companies linked to assigned projects. |
+| Contacts | Owners manage the people address book; Members see contacts linked to assigned projects. |
+| Settings → Firm | View the selected firm's details; Owners can change them. |
+| Settings → Contact | Set your personal primary document contact. |
+| Settings → Team | Owners name the workspace, invite coworkers and manage membership. |
 | Settings → Doc Builder | Turn a Google Docs template into a new document. |
 
 **Contact versus Contacts:** The singular **Contact** under Settings is your studio's primary contact. **Contacts** in the main menu is the address book for clients and other people.
@@ -83,7 +89,7 @@ Document access is a separate, optional step. The Google permission allows acces
 
 ### Set up your studio
 
-1. Open **Settings → Firm**.
+1. Check the firm and role in the sidebar, then open **Settings → Firm**.
 2. If you are a workspace Owner, complete the firm name, phone, email, and mailing address. Members can read these details but should ask an Owner to change them.
 3. Click **Save** and check for the success message.
 4. Open **Settings → Contact**, enter the primary contact's name and title, and click **Save**.
@@ -96,67 +102,65 @@ Use **Sign out** near your name at the bottom of the sidebar when finished, espe
 
 ### Choose the right workspace
 
-The workspace selector in the sidebar identifies the company account you are
-using. Your own workspace stays separate when you join another studio. Choose
-the correct workspace before opening or creating a project. Switching clears
-open forms and Doc Builder mappings, so save or generate your current work first.
+The workspace selector near the top of the sidebar identifies the firm you are using and your role there. Your original workspace stays separate when you join or create another firm. You can own several firms and be a Member in others; being an Owner in one does not give you Owner access in another.
 
-**Owner:** Can manage all company projects, firm details, the address book,
-invitations, team roles, and project assignments.
+Choose the correct firm before opening or creating a record. When you switch, the app asks whether you want to discard unsaved page edits. Cancel to stay where you are; accept only after saving forms or generating the document you need. Saved records stay in their original firm. Switching clears working screens and Doc Builder mappings; it does not move or copy records.
 
-**Member:** Can see and work on assigned projects only, including their proposals,
-invoices, financial amounts, time, expenses, and notes. Unassigned projects do
-not appear in the Dashboard or searches. Creating a new project assigns it to
-you automatically. Members cannot delete projects, proposals, or invoices.
+Wait for any active save to finish before switching. The current selection is remembered in this browser tab, not as an account-wide preferred firm across devices. After signing in again, check the selector rather than assuming the previous firm opened.
+
+**Owner:** Can manage all projects, firm details, the address book, invitations, team roles and project assignments in the selected firm.
+
+**Member:** Can see and work on assigned projects only, including their proposals, invoices, financial amounts, time, expenses and notes. Unassigned projects do not appear in Dashboard totals or searches. Creating a new project assigns it to you automatically. Members cannot delete projects, proposals or invoices.
+
+### Create another firm
+
+1. Save or generate any work you need on the current page.
+2. Click **Create firm** below the workspace selector.
+3. Enter a **Firm name** of 1–100 characters. Surrounding spaces are removed.
+4. Read the notice about the separate workspace and unsaved edits. Check **I understand that switching to the new firm will discard unsaved page edits.**
+5. Click **Create and open** once and wait. You become its **Owner**, even if you were only a Member in the firm you left.
+6. Check that the selector shows the new firm and Owner. The app opens **Settings → Firm**; complete the firm's contact/business details and save.
+7. Open **Settings → Team** to name the workspace or invite coworkers. Use the selector to return to your original firm when finished.
+
+The new firm starts without your other firm's projects, proposals, invoices, address-book companies/contacts, teammates or invitations. Its firm name initially comes from the workspace name; its other firm-profile values are empty. Your personal contact, content library, working field values and Google connection remain personal. Review those values when preparing documents for a different firm.
+
+**Cancel before submitting** closes the form without creating a firm. Once the server has created a firm, closing a dialog does not delete it. A firm is not a company in the client/vendor address book.
+
+**If an error appears:** Keep the same name and retry in the same dialog so the app can reuse the original creation request. Do not repeatedly start fresh creation attempts. If you see **Your firm is ready**, use **Open firm** to retry opening the existing firm, not to create another one. Check the selector before creating again if you closed the dialog after an uncertain response. Creation recovery is best-effort in the current browser tab; it is not a saved Doc Builder draft.
 
 ### Invite a coworker — Owners only
 
 1. Select the company workspace and open **Settings → Team**.
 2. Use **Workspace name → Save name** to name it if necessary.
 3. Enter the coworker's Google email address and click **Create link**.
-4. Copy the invitation link and send it to that person yourself. The app does
-   not send an email automatically.
-5. The recipient opens the link, signs in with that same verified Google
-   account, and clicks **Accept invitation**.
+4. Copy the invitation link and send it to that person yourself. The app does not send an email automatically.
+5. The recipient opens the link, signs in with that same verified Google account, and clicks **Accept invitation**.
 
-Links expire after seven days and can be used once. Use **Revoke** under Pending
-Invitations if a link should no longer work. A new invitation for the same person
-replaces earlier pending links. If their account needs verification, they should
-sign out and sign in again through Google, then reopen the invitation.
+Links expire after seven days and can be used once. Use **Revoke** under Pending Invitations if a link should no longer work. A new invitation for the same person replaces earlier pending links. If their account needs verification, they should sign out and sign in again through Google, then reopen the invitation.
+
+New invitees join as Members. An Owner can change a person's role using the role selector in **Settings → Team**. Promote someone only if they should manage every project and the team in this firm. A workspace's label under **Workspace name** and its business name under **Settings → Firm** are separate; check both if you rename the studio.
 
 ### Assign a project — Owners only
 
 1. Open the project in the correct workspace.
-2. Find **Project access** and select the coworkers who should work on it.
+2. Find **Project access** and select the Members who should work on it.
 3. Changes save as you change the assignments. Check the saved selection.
 
-A coworker who has just joined but has no assignments will see an empty project
-list. This is expected; joining alone does not grant access to every project.
-Owners can see all projects regardless of assignments.
+A coworker who has just joined but has no assignments will see an empty project list. This is expected; joining alone does not grant access to every project. Owners can see all projects without assignment checkboxes. If the firm has no Members yet, the Project access area asks you to invite a coworker first.
 
 ### Company details and personal details
 
-Firm information belongs to the active workspace. The primary Contact under
-Settings remains your own document contact. Content snippets, categories, field
-values, and Google connections remain personal in this first version.
+Firm information belongs to the active workspace. The primary Contact under Settings remains your own document contact. Content snippets, categories, working field values and Google connections remain personal, including when you own several firms.
 
-Members see address-book companies and contacts only when directly linked to
-their assigned projects. Owners manage these records; ask an Owner to add or
-correct a company/contact. This is different from the workspace's team list.
+Members see address-book companies and contacts only when directly linked to their assigned projects. Owners manage these records; ask an Owner to add or correct a company/contact. This is different from the workspace's team list.
 
 ### Remove access — Owners only
 
-Unselect a project assignment to remove access to that project, or open
-**Settings → Team** and remove the person to end their workspace membership.
-Read the confirmation. At least one Owner must remain.
+Unselect a project assignment to remove a Member's access to that project, or open **Settings → Team** and remove the person to end their workspace membership. Read the confirmation. At least one Owner must remain; the app blocks removal or demotion of the last Owner.
 
-The server blocks further requests immediately; another person's open screen
-may take up to 15 seconds or a browser focus change to refresh. Already downloaded
-data cannot be recalled.
+The server blocks further requests immediately; another person's open screen may take up to 15 seconds or a browser focus change to refresh. Already downloaded data cannot be recalled.
 
-**Google Drive is separate:** Joining Studio PM does not share someone's Drive,
-and removing a member does not revoke Google file sharing they already have.
-Review Drive sharing separately when someone leaves the company.
+**Google Drive is separate:** Joining Studio PM does not share someone's Drive, and removing a member does not revoke Google file sharing they already have. Review Drive sharing separately when someone leaves the company.
 
 ## Read the Dashboard
 
@@ -414,7 +418,7 @@ Google's picker in this app selects Google Docs, not PDFs or arbitrary Word file
 
 Saving a library item makes it reusable; it does not mean it is assigned to the current template. Selecting a tag and then selecting its library item performs that assignment.
 
-Content can itself contain field tags, such as `{{firm_name}}`. Review the corresponding field values before generating. Changing a shared library value can affect later documents that use it, but not copies already created.
+Content can itself contain field tags, such as `{{firm_name}}`. Review the corresponding field values before generating. Changing a saved personal library value can affect your later documents that use it, but not copies already created. The library is not automatically shared with your firm's team.
 
 ### Load the right record, then the template
 
@@ -428,6 +432,20 @@ Then:
 4. Wait for the app to read its tags. The selected template name appears at the top.
 
 You must select the file in Google's picker. An old saved file ID or a pasted document link by itself does not grant the app permission.
+
+### Choose a template in a separate window
+
+**Connecting** authorizes selected-file document access; **picking** chooses a particular template. A Connected message alone does not prove the chooser can open or read a file.
+
+1. Keep the original Doc Builder, invoice or contract screen open.
+2. Connect Google first if requested. Under the picker control, click **Choose in separate window**.
+3. Allow the app's popup if your browser blocks it. In the new window, click **Pick a Google Docs template** and make your selection.
+4. The selection returns to the original page, the separate window closes, and the original page reads the template's tags.
+5. Use **Cancel chooser**, Google's Cancel, or close the separate window to cancel. The existing template and working choices should remain; loading a different template successfully is an intentional replacement.
+
+If the separate window says it cannot use your Studio PM sign-in, open the app in its own browser tab, sign in there and retry the chooser. Do not refresh the original working page as your first recovery step.
+
+**Blank thumbnails:** A checkerboard or blank preview with a filename underneath is a missing preview image, not a missing file entry. Google supplies thumbnails and some may be unavailable. Try Google's list-view control at the upper right, identify the file by name and select it. A successful selection and loaded tags confirm access more reliably than its thumbnail. Do not expand Drive permissions just to get previews.
 
 ### Map and review every tag
 
@@ -464,6 +482,7 @@ Prepared templates may use `{{proposal_phases_table}}`, `{{additional_services_t
 - **Immediate changes:** Project status buttons, invoice status buttons, and some delete controls take effect when clicked. Read confirmation prompts where present.
 - **Doc Builder working choices:** Template selection, mappings, custom text, and section order are working-page choices, not a saved document draft. Navigating away, refreshing, or loading another template can clear them. Generate your document before leaving and save reusable text in the library.
 - **Reconnect cancellation:** Closing Google consent or cancelling the picker should keep the current working page and existing choices. This is different from refreshing the whole page.
+- **Firm switching:** Save or generate first. Manual switching asks for confirmation, and Create firm requires acknowledgement; neither creates a recoverable document draft. A failed or cancelled Google chooser is not a reason to switch firms.
 - **Existing Google Docs:** Editing an app record does not update a previously generated Google Doc. Review whether you need a new document and avoid sending an outdated version.
 - **Delete:** There is no general user-facing trash/restore feature. Deleting linked companies, contacts, projects, proposals, or invoices may affect related information. Ask the owner before removing financial records or records still used elsewhere.
 - **Privacy:** Do not paste passwords, payment-card details, or other secrets into notes, content snippets, or document fields.
@@ -472,7 +491,15 @@ Prepared templates may use `{{proposal_phases_table}}`, `{{additional_services_t
 
 ### I cannot find my project
 
-Open **Projects**, clear the search, and reset the status filter. Check Completed and Lost as well as Active Project. Confirm you signed in with the expected Google account.
+Check the selected firm and Google account first. Then open **Projects**, clear the search, and reset the status filter. Check Completed and Lost as well as Active Project. Members should ask an Owner to check their assignment; an unassigned project is intentionally hidden.
+
+### I cannot find Team settings or assignment controls
+
+Check your role in the selected firm. **Settings → Team** and assignment management are Owner controls. Owners already have all-project access, so they do not appear as assignment checkboxes. Invite a coworker as a Member before expecting Member assignment controls.
+
+### I created a firm but cannot open it
+
+If the creation dialog says the firm exists, use **Open firm** to retry switching. If a response was lost, retry the same name in the same dialog and check the selector before starting over. Cancel before submitting creates nothing, but closing the dialog after the server created a firm does not remove it.
 
 ### Time & Expenses or Invoices is missing
 
@@ -491,6 +518,12 @@ This is an owner configuration issue, not a problem with your template. Ask the 
 Allow popups for Studio PM in your browser, then try **Connect Google** or **Reconnect Google** again. Choose the same Google account you used for Studio PM. If the request expired, start a new connection attempt from the app.
 
 Cancelling the popup should not discard current mappings. Avoid refreshing the whole page just to retry.
+
+If you are already connected but the template chooser fails, try **Choose in separate window** instead. Use **Cancel chooser** if an opening attempt is stuck. If Google reports an API configuration error, ask the app operator to check its setup; do not approve broader access or remove browser security restrictions as a workaround.
+
+### Some Google document previews are blank
+
+If filenames and document icons are present, those entries are available in the chooser even though Google has not displayed their thumbnails. Switch to list view or select the known filename. If selection cannot read its tags, follow the file-access checks below; the screenshot alone does not identify the reason for a blank preview.
 
 ### The app mentions an older broad Drive grant
 
@@ -527,12 +560,25 @@ Read the error and keep the values you entered before leaving. Check the record 
 
 The name shown on Google's screens is controlled by the app owner's Google branding setup. You cannot fix it by changing your own profile name. Ask the owner to check branding verification and publication.
 
+## Prepare for user acceptance testing
+
+Use the separate **Studio PM UAT Checklist** provided with this guide. It contains steps, expected outcomes and blank result/notes tables. Its scenarios are not already marked passed.
+
+Use an approved practice firm, fictional records with a distinctive UAT prefix, and consenting test accounts. A newly created firm is not a separate test environment: it still uses the app's actual data storage and any connected Google account. Create copies of templates, never use live client financial records as disposable test data, and do not send practice documents to clients.
+
+Test the Owner and Member paths separately, including a Member who owns a different firm. Confirm both what is visible and what must be denied. Complete the Google cases with real authorized test accounts and check the source template as well as the generated copy. Report the exact screen, role, selected firm, steps, expected outcome and actual outcome; redact sensitive content and never include passwords, tokens or credential-bearing request URLs.
+
+This documentation update does not claim that production was migrated, that the full app passed UAT, or that all live Google document workflows were verified.
+
 ## Small glossary
 
 | Term | Plain-language meaning |
 | --- | --- |
 | Lead | A possible job, before approval. |
 | Pipeline | Your opportunities and projects grouped by stage. |
+| Firm / workspace | An independent studio account with its own business records and team. |
+| Owner | A person who manages all projects and the team within one firm. |
+| Member | A coworker whose project access is limited to assignments within that firm. |
 | Proposal | A saved offer describing scope and fees. |
 | Standard proposal | The base scope used to start regular project billing. |
 | Additional Services | Extra scope recorded separately from the original offer. |
@@ -551,7 +597,7 @@ The name shown on Google's screens is controlled by the app owner's Google brand
 
 ## Owner-only Google setup
 
-Daily users should not need Google Cloud Console. The studio owner manages the app's Google branding, allowed website addresses, enabled APIs, and selected-file permission configuration.
+Daily users should not need Google Cloud Console. The app operator manages Google branding, allowed website addresses, enabled APIs and selected-file permission configuration. Having the Owner role in a firm does not itself give you access to Google Cloud Console or the app's database.
 
 The detailed owner checklist is in **docs/google-oauth-setup.md** in the project files. It covers the Google Picker API key and project number, branding verification/publication, and a live verification checklist. It is separate from this everyday user guide.
 

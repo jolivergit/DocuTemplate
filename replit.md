@@ -1,12 +1,22 @@
 # Studio PM — Project Pipeline Manager + Google Docs Template Generator
 
+## Working agreement
+- **Do not suggest follow-up tasks unless I ask.**
+
+## Documentation and UAT
+- Everyday instructions: `docs/studio-pm-user-guide.md`; printable/downloadable edition: `docs/studio-pm-user-guide.html`.
+- Acceptance scenarios and blank result log: `docs/uat-checklist.md`; printable edition: `docs/uat-checklist.html`.
+- Workspace access/migration reference: `docs/company-workspaces.md`. App-operator Google setup: `docs/google-oauth-setup.md`.
+- Rebuild the printable documents with `python3 scripts/build-user-guide.py`. Edit the Markdown sources, not the generated HTML.
+- A documentation review or an implemented feature is not UAT sign-off. Record actual test results separately; do not treat planned or archived task titles as the current implementation.
+
 ## Overview
 Studio PM is a full project pipeline manager for Oliver Studios with three stages: **Lead → Proposal → Project**. It includes an integrated Google Docs template builder for generating client documents, and a Firm/Contact profile that syncs field values to the Doc Builder automatically.
 
 ### Pipeline Stages
-- **Lead Management** (Complete): Track opportunities with status, probability, potential fee, square footage, and 6 associated company roles per lead
-- **Proposal Management** (Complete): Create multi-phase proposals with fee breakdown by service category and discipline. Mark as Signed to advance lead to Active Project. "Load to Doc Builder" button pre-fills proposal + firm field values and saves generated doc URL back to the proposal record.
-- **Additional Services Proposals** (Complete): Separate proposal type on signed projects — phase × consultant fee grid. "Load to Doc Builder" stores `_additional_services_json` and supports `{{additional_services_table}}` doc tag.
+- **Lead Management** (Implemented): Track opportunities with status, probability, potential fee, square footage, and company/contact associations using suggested or custom roles.
+- **Proposal Management** (Implemented): Create multi-phase Standard proposals with a fee line per selected consultant. Mark as Signed to advance a Standard proposal's lead to Active Project. "Load to Doc Builder" pre-fills proposal + firm field values and saves the generated doc URL back to the originating proposal.
+- **Additional Services Proposals** (Implemented): Separate proposal type with description-and-amount line items, not the Standard phase/consultant grid. "Load to Doc Builder" supports the `{{additional_services_table}}` tag.
 - **Consultant Contracts** (Complete): Generate per-consultant Google Docs directly from a signed proposal's fee lines. Each contract record stores the generated doc URL.
 - **Project & Invoice Management** (Complete): Track invoices built on top of signed proposals, with hours entries, expense entries, and a project comments log. "Load to Doc Builder" button pre-fills invoice field values. Invoice doc URLs are saved back automatically.
 
@@ -44,11 +54,14 @@ When "Load to Doc Builder" is triggered from a specific record, a `returnTo` con
 
 ### Company workspaces and access
 - A workspace is the studio's account, separate from the client Companies address book.
+- **Create firm** below the sidebar selector creates another empty workspace, makes the creator Owner, and opens Firm settings. It is available to Members as well as Owners; roles remain independent in each firm.
+- Creation is transactional and uses a creator-bound request ID for safe same-intent retries. Ownership comes from membership, not `legacyOwnerId`; that nullable unique marker identifies only the user's original workspace for migration/recovery.
 - Owners manage all workspace projects, membership, assignments, address-book records, and firm details. Members see/edit only assigned projects and their child records, including financial data; project/proposal/invoice deletion is Owner-only.
 - Each API request resolves active membership and `X-Workspace-Id`, then propagates a fail-closed request context. Never authorize workspace records by their original creator's `userId` alone.
 - Personal snippets, categories, working field values, Google credentials, and primary contact remain user-owned. Google selected-file permissions are not company permissions.
 - Workspace changes/permission revisions clear scoped client queries and remount open working UI. Server permissions take effect on the next request.
-- Run `npm run db:migrate:workspaces` before starting this version on an unmigrated database. Development has been migrated; production has not been changed. Migration, backup/rollback, access matrix, and reconciliation details: `docs/company-workspaces.md`.
+- Manual switching confirms unsaved edits will be discarded; creation requires acknowledgement. Opening an already-created firm is retried separately from creation. Browser-tab selection is not an account-wide preferred starting firm.
+- Run `npm run db:migrate:workspaces` before starting this version on an unmigrated database. Development migration was recorded during the November 14, 2026 multi-firm verification; this documentation review did not inspect or change production. Confirm the destination schema before publishing. Migration, backup/rollback, access matrix, and reconciliation: `docs/company-workspaces.md`.
 - Regression checks: `npm run test:workspaces` (synthetic DB fixtures) and `npm run test:google`.
 
 ### Database Schema
@@ -59,10 +72,10 @@ When "Load to Doc Builder" is triggered from a specific record, a `returnTo` con
 - **profiles** — Personal document contact and legacy firm data. The API merges workspace-level firm details with personal contactName/contactTitle. Saving syncs the acting user's Doc Builder field values.
 - **workspaces**, **workspaceMembers**, **workspaceInvitations**, **projectAssignments** — Studio firm data, Owner/Member membership, hashed expiring invitations, and assigned-project access. Projects/companies/contacts carry workspace ownership while retaining original creator IDs.
 - **leads** — Project opportunities (serial PK for project numbers)
-- **leadCompanies** — 6 typed company associations per lead (ContractHolder, Client, MEP, Structural, EquipmentVendor, FurnitureVendor)
+- **leadCompanies** — Project company entries with free-form roles, optional company/contact links and company/address snapshots
 - **contacts** — Standalone address book entries (fullName, title, phone, email, companyName, notes). Independent from projects; shown in Contacts page alongside project-derived contacts.
 - **proposals** — Proposals linked to leads (statuses: Draft, Sent, Revision, Signed, Declined). `proposalType` field: `"Standard"` | `"Additional Services"`. Stores `docUrl` for the generated Google Doc.
-- **proposalPhases** — Phases within a proposal (Phase 1, Phase 2 for Add Services, etc.)
+- **proposalPhases** — Selected phases within Standard proposals; Additional Services uses its separate flat line items
 - **proposalFeeLines** — Fee lines per phase: service category × discipline × feeType (Fixed/Hourly) × amount. For Additional Services proposals: phase × consultant × feeType × amount.
 - **consultantContracts** — Per-consultant contract records on a signed proposal. Fields: proposalId, consultant (name), templateId, templateName, outputName, docUrl. Created when a consultant contract Google Doc is generated.
 - **invoices** — Invoices for active projects, linked to signed proposals (statuses: Draft, Sent, Paid)
@@ -74,12 +87,14 @@ When "Load to Doc Builder" is triggered from a specific record, a `returnTo` con
 ### Key Routes
 - `/` → Dashboard (pipeline strip + billing summary + recent projects — no in-page title)
 - `/projects` → Projects list (pipeline)
-- `/projects/:id` → Project detail page with tabs: Overview | Proposals | Project
+- `/projects/:id` → Overview | Proposals | Notes; Active Project/Completed also expose Time & Expenses | Invoices
 - `/companies` → Companies address book
 - `/contacts` → Contacts page (address book + project-derived contacts)
 - `/doc-builder` → Google Docs template builder (accepts `?returnTo=proposal&returnToId=<id>` for auto save-back)
 - `/profile/firm` → Firm info (name, phone, email, address) — Settings section
 - `/profile/contact` → Primary contact (name, title) — Settings section
+- `/settings/team` → Workspace naming, invitation links, roles and member removal — Owner only
+- `/google-template-picker` → Standalone chooser opened by the app; returns a selected file to the original working page
 
 ---
 
@@ -88,8 +103,9 @@ When "Load to Doc Builder" is triggered from a specific record, a `returnTo` con
 ### App Shell
 - **Sidebar** (Shadcn `Sidebar`, fixed width `14rem`):
   - Header: `studioarchheader` wide banner image (h-20, object-cover object-left) — swaps to `studioarchheaderdark` in dark mode
+  - Workspace selector shows the active firm and role; **Create firm** is available below it
   - Main nav: Dashboard, Projects, Companies, Contacts
-  - Footer: collapsible Settings section (defaults open) with **Firm**, **Contact**, and **Doc Builder** nav items, then a separator, then avatar + user name + Sign out button
+  - Footer: collapsible Settings section (defaults open) with **Firm**, **Contact**, **Doc Builder**, and owner-only **Team**, followed by identity and Sign out
 - **Header bar** (h-14, border-b): sidebar toggle (left) | current page title in uppercase tracking-widest (center-left) | theme toggle (right)
 - **Main content**: fills remaining space, each page manages its own scroll
 
@@ -135,22 +151,22 @@ No top header bar. Full-screen two-column split:
 - `status` — Lead | Proposal | Active Project | Completed | Lost
 
 ### Lead Companies
-Each lead can have up to 6 companies by role: ContractHolder, Client, MEP, Structural, EquipmentVendor, FurnitureVendor. Each has: companyName, address, contactFullName, contactTitle, contactPhone, contactEmail.
+Project company entries use free-form roles with common suggestions such as Contract Holder, Client, MEP Engineering and Structural Engineering. They can link company/contact address-book records; access follows the selected workspace and project assignment. Do not assume the suggestions impose a six-entry limit or that old inline contact columns still exist.
 
 ---
 
 ## Proposal Management
 
 ### Proposal Types
-- **Standard** (`proposalType: "Standard"`) — Base scope proposals. Phase → Service Category → Discipline fee grid (Documentation | Bid & Permit | Construction Administration) × (Interior Design | MEP & FP | Structural). Each discipline line: feeType (Fixed or Hourly) and amount.
-- **Additional Services** (`proposalType: "Additional Services"`) — Add-on proposals on active projects. Phase × Consultant fee grid; each line has a consultant name, feeType, and amount.
+- **Standard** (`proposalType: "Standard"`) — Selected phase → selected consultant fee lines. Phases include Schematic Design, Design Development, Documentation, Bid/Permit, Construction Administration and Furniture (FF&E). Each line has a Fixed/Hourly fee type and applicable amount.
+- **Additional Services** (`proposalType: "Additional Services"`) — Add-on scope with flat description-and-amount line items.
 
 ### Proposal Structure
 - A lead can have multiple proposals (base + additional services)
 - Each proposal has: name, description, status, proposalType, docUrl, dateSent, dateSigned
-- Signing a proposal automatically advances the parent lead to "Active Project"
+- Signing a Standard proposal advances the parent lead to "Active Project"; signing Additional Services does not perform that transition
 - **"Load to Doc Builder"** button navigates to `/doc-builder?returnTo=proposal&returnToId=<id>`, pre-fills all field values, and after generation auto-saves the doc URL back to the proposal's `docUrl` field
-- **Proposal detail panel** shows the saved `docUrl` as a clickable "Open Document" link with a "Regenerate" affordance
+- **Proposal detail panel** exposes the saved document through **View Document**; starting generation again can create a new copy
 
 ### Additional Services in Invoice Builder
 When creating an invoice, if the project has signed Additional Services proposals, an AS billing section appears alongside the standard fee snapshot rows.
@@ -184,10 +200,10 @@ Invoice detail page has a self-contained "Generate Doc" button that calls `/api/
 ## Firm Profile
 
 ### Purpose
-Stores the studio's firm info and primary contact. On save, automatically syncs to Doc Builder field values so `{{firm_name}}`, `{{firm_contact_name}}`, etc. are always current in generated documents.
+Combines active-workspace firm information with the user's personal document contact. Saving syncs the acting user's Doc Builder fields; switching firms does not rewrite all personal working values, so load the correct record and review mappings before generation.
 
 ### API
-- `GET /api/profile` — Fetch current user's profile (404 if not yet created)
+- `GET /api/profile` — Return the active firm's details with the personal contact; falls back to the workspace name when no firm name is saved
 - `PATCH /api/profile` — Upsert profile (creates or updates). Body matches `insertProfileSchema`.
 
 ### Pages
@@ -244,13 +260,16 @@ Stores the studio's firm info and primary contact. On save, automatically syncs 
 ## Authentication
 - Google OAuth via Passport.js
 - Session stored in PostgreSQL (connect-pg-simple)
-- All API routes protected by `requireAuth` middleware
+- Business/workspace API routes require an authenticated session and validated workspace membership
+- Basic login requests identity only. Optional document access uses `drive.file` and Google Picker, not account-wide Drive/Docs access.
+- Picker must not dismiss the parent dialog while its external frame takes focus. **Choose in separate window** offers a same-origin fallback; only validated file ID/name metadata returns to the original page.
+- Blank Google thumbnails do not prove a file is inaccessible. Do not broaden Google scopes just to obtain previews; operator guidance is in `docs/google-oauth-setup.md`.
 
 ---
 
 ## Project Detail Page — Tab Structure
 
-Active Project / Completed leads get 5 tabs: **Overview | Proposals | Time & Exp | Invoices | Notes**. Lead / Proposal status leads get 3 tabs (Overview, Proposals, Notes). Time & Expenses and Invoices tabs are only visible when `status ∈ { "Active Project", "Completed" }`.
+Active Project / Completed leads get 5 tabs: **Overview | Proposals | Time & Expenses | Invoices | Notes**. Other statuses get Overview, Proposals and Notes. Time & Expenses and Invoices appear only when `status ∈ { "Active Project", "Completed" }`.
 
 ### Proposals Tab
 Displays all proposals for the project. A dropdown "New Proposal" button lets users create either a Standard or Additional Services proposal. Each proposal shows a type badge (Standard proposals have no badge; AS proposals show an "Additional Services" badge). Signed proposals expose a Consultant Contracts section.
@@ -272,9 +291,9 @@ When creating a new invoice, a collapsible "Attach Project Entries" section appe
 
 ---
 
-## Refactoring — Completed
+## Historical Refactoring Notes
 
-All planned refactoring has been completed. This section documents the final state of each effort.
+These describe prior refactoring, not a current code audit or UAT result. Verify paths and behavior against the current source before making changes; historical line counts are not implementation contracts.
 
 **`server/routes/` — Split by domain** ✓
 `server/routes.ts` was a single 2,060-line file. Now split into: `auth.ts`, `leads.ts`, `proposals.ts`, `invoices.ts`, `companies.ts`, `field-values.ts`, `doc-builder.ts`, and `index.ts` barrel.
@@ -283,13 +302,13 @@ All planned refactoring has been completed. This section documents the final sta
 All four tabs extracted to `client/src/components/tabs/`: `proposals-tab.tsx`, `time-expenses-tab.tsx`, `invoices-tab.tsx`, `notes-tab.tsx`. Parent page is a thin shell.
 
 **`server/storage.ts` — Domain repositories** ✓
-Split into `server/repositories/`: `lead-repository.ts`, `proposal-repository.ts`, `invoice-repository.ts`, `doc-builder-repository.ts`, and `index.ts` barrel.
+The storage facade delegates to `server/repositories/leads.ts`, `proposals.ts`, `invoices.ts`, `companies.ts` and `doc-builder.ts`.
 
 **Currency formatting** ✓
 `formatCurrency(n)` lives in `client/src/lib/utils.ts`; `formatCurrency(n)` in `server/utils.ts`. No inline `Intl.NumberFormat` calls remain.
 
 **`fetch` vs `apiRequest` standardization** ✓
-All client-side mutations use `apiRequest` from `@/lib/queryClient`. No raw `fetch` + manual `!r.ok` guards remain in components.
+Ordinary scoped mutations use `apiRequest` from `@/lib/queryClient`. Workspace bootstrapping/switching and short-lived Google credential flows also use explicit `fetch` with their own response, scope and cancellation checks; do not assume there are no raw-fetch exceptions.
 
 **`client/src/components/lead-form-dialog.tsx` — Sub-component extraction** ✓
 Four embedded helper components extracted to `client/src/components/lead-form/`: `types.ts` (schema + FormValues), `role-suggestion-picker.tsx`, `company-address-book-picker.tsx`, `contact-picker.tsx`, `company-entry.tsx`. Main dialog is ~220 lines.

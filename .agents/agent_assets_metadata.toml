@@ -10,14 +10,14 @@ title = "greyscale architectural skyscraper"
 id = "H9oEKYYh2GsG9leI-VsWK"
 uri = "file://docs/studio-pm-user-guide.html"
 type = "html"
-title = "Studio PM User Guide — Company Teams"
-description = "Updated printable guide with workspace switching, invitations, project assignments, and Google Drive access boundaries."
+title = "Studio PM User Guide"
+description = "Updated November 14: everyday workflows, multiple firms, Owner/Member access, Google chooser recovery and printable instructions."
 logical_id = "1e2cfb88-3e64-47d4-b584-3fef0df3baad"
-content_hash = "sha256:0daab8f640322c90c56cced34e9b6730d5c3b2df40fb763e4d58f37a09878935"
-size = 47775
-mtime_ms = 1794434778118
-storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:276dae68-32a0-426a-a0fe-f788497b5a17/1e2cfb88-3e64-47d4-b584-3fef0df3baad/c56202b2-47e2-4d49-b6af-85f568684251"
-storage_version_token = "1794435340249628"
+content_hash = "sha256:61f5ce04f9ec3d43589f17cb8ea77cd8a5175c7cdf3f29ade2c686bd52195804"
+size = 57339
+mtime_ms = 1794691619993
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:276dae68-32a0-426a-a0fe-f788497b5a17/1e2cfb88-3e64-47d4-b584-3fef0df3baad/131596bb-e984-43f1-b3f8-b672443b2409"
+storage_version_token = "1794691692956185"
 content_type = "text/html"
 
 [[outputs]]
@@ -33,3 +33,17 @@ mtime_ms = 1794432012947
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:276dae68-32a0-426a-a0fe-f788497b5a17/480ef920-1c23-4744-ab01-75131fd6c23a/e4f8b548-fb0d-4adf-a98b-92e3cb35b014"
 storage_version_token = "1794432065109173"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "YYE-uZch0-Ej42tE0-7IB"
+uri = "file://docs/uat-checklist.html"
+type = "html"
+title = "Studio PM UAT Checklist"
+description = "32 practice scenarios with expected outcomes, blank result fields and a safe bug-report template. All scenarios start Not run."
+logical_id = "44fa7600-f4da-4117-bb0f-450fb4a89456"
+content_hash = "sha256:4659991e197488c67c6cc7179f8e1cb1d37f9a17e4de31d0dbfec4c7ec5251ca"
+size = 24358
+mtime_ms = 1794691619998
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:276dae68-32a0-426a-a0fe-f788497b5a17/44fa7600-f4da-4117-bb0f-450fb4a89456/2df4653a-1db8-4d55-b74c-4e033178b848"
+storage_version_token = "1794691693610144"
+content_type = "text/html"

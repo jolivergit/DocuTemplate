@@ -1,5 +1,9 @@
 # Google sign-in, branding, and document access
 
+This is for the **app operator** who administers the app's Google Cloud project.
+Being an Owner of a Studio PM firm does not automatically grant Google Cloud or
+database access. Everyday users should use the user guide and its recovery steps.
+
 ## What the app requests
 
 Ordinary sign-in requests `openid`, `profile`, and `email` only. It does not
@@ -154,8 +158,10 @@ locally without copying token-bearing request URLs into logs or chat.
 
 ### Actual template data versus test fixtures
 
-Development now uses `GENERATE_DOCS_MOCK=false`. Keep it false for real selection
-and parsing. The old development-only test setting returned a fixed fake
+Real selection and parsing require `GENERATE_DOCS_MOCK=false`; that setting was
+recorded during the November 14, 2026 development verification. Confirm the
+configuration in the environment being tested rather than treating this
+historical note as a runtime check. The old development-only setting returned a fixed fake
 template and generated URL, which cannot validate Google access or real tags.
 Focused automated tests may stub Google APIs explicitly, but those tests are
 not evidence of live Google configuration or file access.
@@ -187,6 +193,29 @@ Picker configuration, account permissions, or live document-generation success.
 Missing Picker configuration must show an explicit owner-setup message, not
 silently fall back to a Drive-wide permission or mock result.
 
+### Blank thumbnails are not missing file entries
+
+Google supplies Picker's preview images. A file listed by name with a blank or
+checkerboard thumbnail may still be selectable; successful loading of its tags
+is a separate check. Some thumbnails appearing does not establish why the others
+are absent. Do not diagnose an API key or sharing failure from that image alone.
+
+Google recommends list mode with scopes other than account-wide `drive` or
+`drive.readonly`, because thumbnail access may not be granted. Users can use
+Picker's list-view control; this documentation refresh does not change its
+default display mode or broaden the selected-file scope. Do not request wider
+Drive access solely to obtain thumbnails.
+
+### Documentation review and UAT boundary
+
+The November 14, 2026 documentation refresh checked instructions against the
+implemented chooser, connection and recovery paths without making provider
+configuration changes. Earlier browser lifecycle checks used a Google test
+double, and the user subsequently reported the live chooser working. Neither is
+a completed live test of every parsing/generation/record-linking workflow.
+Use the fresh-grant checks above and `docs/uat-checklist.md` to record actual
+results with consenting test accounts.
+
 ## Authoritative references
 
 - [Manage OAuth App Branding](https://support.google.com/cloud/answer/15549049?hl=en)
@@ -194,3 +223,4 @@ silently fall back to a Drive-wide permission or mock result.
 - [Google Docs scopes](https://developers.google.com/workspace/docs/api/auth)
 - [Google Picker setup](https://developers.google.com/workspace/drive/picker/guides/web-picker)
 - [Picker origin when embedded](https://developers.google.com/workspace/drive/picker/reference/picker.pickerbuilder.setorigin)
+- [Picker display mode and thumbnail access](https://developers.google.com/workspace/drive/picker/reference/picker.docsview.setmode)

@@ -6,6 +6,10 @@ Workspaces are the studio's account, not entries in the Companies address book.
 Each authenticated account can belong to multiple workspaces and selects one at
 a time. Google accounts and refresh tokens remain personal.
 
+A firm's Owner role applies only inside that workspace. It does not grant
+Google Cloud Console access or database-administration privileges; those are
+separate responsibilities of the app operator.
+
 ## Create and switch firms
 
 1. Click **Create firm** below the workspace selector in the sidebar.
@@ -77,9 +81,11 @@ npm run db:migrate:workspaces
 ```
 
 Run with that environment's existing database configuration. Do not point this
-command at production until the owner approves the migration and has confirmed
-a recoverable backup with their database provider. This task applied the
-migration to development only; production was not changed or published.
+command at production until the app operator approves the migration and has
+confirmed a recoverable backup with their database provider. The November 14,
+2026 multi-firm verification recorded a successful development migration.
+This documentation refresh did not inspect or change production, publish the
+app, or rerun migrations. Confirm the destination schema before publication.
 
 The SQL migration:
 - Runs in one transaction with an advisory lock.
@@ -115,6 +121,14 @@ npm run build
 Workspace tests use synthetic users and records, clean them up, and also run the
 legacy migration twice in an isolated schema inside a rolled-back transaction.
 They do not call Google or email external recipients.
+
+The November 14 multi-firm verification recorded 17 workspace tests and 24
+Google/request-isolation tests, a successful type check/build, and a synthetic
+browser journey through firm creation, a lost-response retry, settings,
+invitation links and switching. These are earlier focused checks, not a new
+all-app UAT pass or evidence of live Google document generation. The UAT
+scenarios and blank result log are in `docs/uat-checklist.md`; the documentation
+review scope and limitations are in `docs/documentation-review.md`.
 
 After a merge into another environment, apply the same migration before
 restarting its managed application workflow. Confirm expected project counts,
