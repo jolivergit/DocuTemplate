@@ -9,6 +9,12 @@ Project and proposal phases are the same thing. They are associated with fees, b
 
 **How to apply:** Plan shared project information and phases reused by tasks and proposal preparation, not separate lists or manual copy/re-entry workflows.
 
+Users should be able to add ad-hoc phases as well.
+
+**Why:** The user explicitly requested ad-hoc phases.
+
+**How to apply:** Support custom project phases without requiring predefined names, a fee, or an existing proposal; reuse the same phase for tasks and any later proposal inclusion.
+
 The user does not need the current standalone project notes saved; replace them with task notes.
 
 **Why:** The user explicitly rejected retaining the existing notes as history.
