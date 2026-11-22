@@ -15,6 +15,12 @@ Users should be able to add ad-hoc phases as well.
 
 **How to apply:** Support custom project phases without requiring predefined names, a fee, or an existing proposal; reuse the same phase for tasks and any later proposal inclusion.
 
+Phases may or may not have a timeline, such as “5 weeks” or “8–10 weeks.”
+
+**Why:** The user explicitly described phase timelines as optional and gave both single-duration and range examples.
+
+**How to apply:** Support optional phase durations and ranges without requiring fixed calendar dates.
+
 The user does not need the current standalone project notes saved; replace them with task notes.
 
 **Why:** The user explicitly rejected retaining the existing notes as history.
