@@ -20,7 +20,7 @@ const fromEntry = (entry: LeadCompanyWithLinked): Entry => ({
 const blank: Entry = { companyRole: "", companyId: null, contactId: null, companyName: "", addressLine1: "", addressLine2: "", city: "", state: "", zip: "" };
 const field = "h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm";
 
-export function CompaniesEditor({ leadId, entries, options, version, disabled = false, onDirtyChange }: { leadId: number; entries: LeadCompanyWithLinked[]; options: ProjectSetupOptions; version: number; disabled?: boolean; onDirtyChange?: (dirty: boolean) => void }) {
+export function CompaniesEditor({ leadId, entries, options, version, disabled = false, onDirtyChange, onStatusChange }: { leadId: number; entries: LeadCompanyWithLinked[]; options: ProjectSetupOptions; version: number; disabled?: boolean; onDirtyChange?: (dirty: boolean) => void; onStatusChange?: (status: { dirty: boolean; saving: boolean; error: boolean; reloading: boolean }) => void }) {
   const [draft, setDraft] = useState(() => entries.map(fromEntry));
   const [baseline, setBaseline] = useState(() => entries.map(fromEntry));
   const [baseVersion, setBaseVersion] = useState(version);
@@ -31,6 +31,8 @@ export function CompaniesEditor({ leadId, entries, options, version, disabled = 
   dirtyRef.current = dirty;
   const dirtyCallback = useRef(onDirtyChange);
   dirtyCallback.current = onDirtyChange;
+  const statusCallback = useRef(onStatusChange);
+  statusCallback.current = onStatusChange;
   useEffect(() => { dirtyCallback.current?.(dirty); }, [dirty]);
   const save = useMutation({
     mutationFn: (payload: { version: number; entries: Entry[] }) => apiRequest<LeadWithCompanies>("PATCH", `/api/leads/${leadId}/setup`, {
@@ -86,9 +88,14 @@ export function CompaniesEditor({ leadId, entries, options, version, disabled = 
   };
   const isConflict = (save.error as { status?: number } | null)?.status === 409;
   const locked = disabled || save.isPending || reloading;
+  const hasError = !!save.error || !!reloadError;
+  useEffect(() => {
+    statusCallback.current?.({ dirty, saving: save.isPending, error: hasError, reloading });
+  }, [dirty, save.isPending, hasError, reloading]);
 
   return <div>
     <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
+    <Button variant="outline" size="sm" className="mb-3" onClick={() => setDraft(current => [...current, { ...blank }])}><Plus className="mr-1.5 h-4 w-4" />Add company entry</Button>
     {draft.length === 0 ? <div className="rounded-lg border border-dashed px-4 py-6 text-center"><p className="text-sm font-medium">No companies attached yet</p><p className="mt-1 text-xs text-muted-foreground">Add a client, consultant, vendor, or any other project participant.</p></div> :
       <div className="space-y-3">{draft.map((entry, index) => {
         const linkedContact = options.contacts.find(contact => contact.id === entry.contactId);
@@ -115,7 +122,6 @@ export function CompaniesEditor({ leadId, entries, options, version, disabled = 
         </div>
       </article>;
       })}</div>}
-    <Button variant="outline" size="sm" className="mt-3" onClick={() => setDraft(current => [...current, { ...blank }])}><Plus className="mr-1.5 h-4 w-4" />Add company entry</Button>
     {save.error && <p role="alert" className="mt-3 text-xs text-destructive">{save.error instanceof Error ? save.error.message : "Could not save company entries. Your changes are preserved."}</p>}
     {dirty && <div className="mt-4 flex justify-end gap-2 border-t pt-3"><Button size="sm" variant="ghost" onClick={cancel}>Cancel</Button><Button size="sm" disabled={draft.some(entry => !entry.companyRole.trim())} onClick={() => save.mutate({ version: baseVersion, entries: draft })}>{save.isPending ? "Saving…" : "Save companies"}</Button></div>}
     {options.companies.length === 0 && <p className="mt-3 text-[11px] text-muted-foreground">No accessible company records. You can still keep project-specific names and contact details here.</p>}

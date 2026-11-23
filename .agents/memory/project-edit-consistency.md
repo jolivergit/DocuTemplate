@@ -46,3 +46,13 @@ also cannot authorize leaving while a save may still fail or complete later.
 navigation is accepted/restored. Preserve history state and index entries from
 bootstrap. Internal record/type/return actions need a separate pending channel
 and must block until settlement; test cancelled history and failed pending saves.
+
+Keep cached editor data mounted through transient background refresh failures.
+
+**Why:** Hiding an editor without unmounting it is not enough if a query's error
+flag then replaces the cached-data editor with an error-only fallback. That can
+still destroy local input and the draft's original concurrency baseline.
+
+**How to apply:** Render from available cached data and show refresh/retry
+information alongside it. Use a no-data fallback for initial loading failures;
+keep workspace revocation and authorization handling intact.

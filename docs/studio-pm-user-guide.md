@@ -241,6 +241,24 @@ The project is one page, in this order:
 3. **Documents & billing:** supporting proposals, time/expenses and invoices.
    Open the relevant section and record in place when needed.
 
+**Team and Companies start collapsed**, even while setup is open. Their headers
+show saved counts and a short names/roles summary. Click either header to expand
+just that section; use **Collapse** to close it again. Keyboard users can focus
+the header and press Enter or Space. If setup is already complete, use
+**Edit setup** first.
+
+In an empty section, **Assign a teammate** or **Add a company** opens its editor.
+Within Companies, **Add company entry** is above the entries, so you do not need
+to scroll through existing companies to add another.
+
+Collapsing these two sections only hides their fields: it does not save, cancel
+or discard edits. Reopen the section to continue typing or use its existing
+Save/Cancel controls. The header shows **Unsaved changes**, **Saving…** or
+**Needs attention** when applicable. Counts and names describe the saved record,
+not a pending draft. Errors offer **Open to review**; a missing Project Admin
+warning stays visible. Leaving or refreshing the whole page is different from
+collapsing a section—save your work before doing either.
+
 There are no project tabs. Expanding a section or using a section link does not
 take you to another project screen. Proposal and invoice details/builders stay
 within the project, with return/cancel/save controls. Keep one financial editor

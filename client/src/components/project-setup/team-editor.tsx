@@ -14,7 +14,7 @@ const membersFrom = (team: ProjectTeam): MemberDraft[] => team.members.map(membe
 }));
 
 export function TeamEditor({
-  leadId, team, blockedReason, disabled = false, onDirtyChange, onSavingChange,
+  leadId, team, blockedReason, disabled = false, onDirtyChange, onSavingChange, onStatusChange,
 }: {
   leadId: number;
   team: ProjectTeam;
@@ -22,6 +22,7 @@ export function TeamEditor({
   disabled?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
   onSavingChange?: (saving: boolean) => void;
+  onStatusChange?: (status: { dirty: boolean; saving: boolean; error: boolean; reloading: boolean }) => void;
 }) {
   const queryClientFromHook = useQueryClient();
   const [draft, setDraft] = useState(() => membersFrom(team));
@@ -37,6 +38,8 @@ export function TeamEditor({
   callbackRef.current = onDirtyChange;
   const savingCallbackRef = useRef(onSavingChange);
   savingCallbackRef.current = onSavingChange;
+  const statusCallbackRef = useRef(onStatusChange);
+  statusCallbackRef.current = onStatusChange;
   const queryKey = useMemo(() => teamKey(leadId), [leadId]);
 
   useEffect(() => { callbackRef.current?.(dirty); }, [dirty]);
@@ -111,6 +114,16 @@ export function TeamEditor({
   const admins = draft.filter(member => member.assigned && member.roles.includes("Project Admin")).length;
   const isConflict = (save.error as { status?: number } | null)?.status === 409;
   const locked = disabled || save.isPending || teamMutations > 0 || reloading;
+  const hasError = !!save.error || !!reloadError;
+
+  useEffect(() => {
+    statusCallbackRef.current?.({
+      dirty,
+      saving: save.isPending || teamMutations > 0,
+      error: hasError,
+      reloading,
+    });
+  }, [dirty, save.isPending, teamMutations, hasError, reloading]);
 
   return <div>
     <p className="mb-3 text-xs text-muted-foreground">Project roles apply here only. Firm Owners retain access even when not assigned to this project.</p>

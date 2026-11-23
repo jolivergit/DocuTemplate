@@ -5,7 +5,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { Badge, badgeVariants } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { LeadWithCompanies } from "@shared/schema";
 import type { ProjectTeam, ProjectSetupOptions } from "@shared/project-setup";
@@ -45,6 +45,10 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
   const [message, setMessage] = useState("");
   const [sectionDirty, setSectionDirty] = useState({ team: false, companies: false, phases: false });
   const [teamSavingLocal, setTeamSavingLocal] = useState(false);
+  const [teamStatus, setTeamStatus] = useState({ dirty: false, saving: false, error: false, reloading: false });
+  const [companiesStatus, setCompaniesStatus] = useState({ dirty: false, saving: false, error: false, reloading: false });
+  const [teamOpen, setTeamOpen] = useState(false);
+  const [companiesOpen, setCompaniesOpen] = useState(false);
   const [identityReloading, setIdentityReloading] = useState(false);
   const id = lead.id;
   const teamMutations = useIsMutating({ mutationKey: ["project-team-save", id] });
@@ -114,6 +118,13 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
     : dirtyIdentity || sectionDirty.companies || sectionDirty.phases
       ? "Save or cancel the other setup edits before saving team access."
       : undefined;
+  const assignedMembers = team?.members.filter(member => member.assigned) ?? [];
+  const teamSummary = assignedMembers.length
+    ? `${assignedMembers.slice(0, 2).map(member => `${member.name} · ${member.roles.length ? member.roles.join(", ") : "No role"}`).join(" / ")}${assignedMembers.length > 2 ? ` · +${assignedMembers.length - 2} more` : ""}`
+    : "No teammates assigned";
+  const companiesSummary = lead.companies.length
+    ? `${lead.companies.slice(0, 2).map(company => `${company.companyName || "Unnamed company"} · ${company.companyRole}`).join(" / ")}${lead.companies.length > 2 ? ` · +${lead.companies.length - 2} more` : ""}`
+    : "No companies attached";
   useEffect(() => {
     if (dirtyIdentity || identitySave.isPending || identityReloading) return;
     const latest = identityFrom(lead);
@@ -236,16 +247,61 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
           </section>
 
           <div className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0">
-            <section className="min-w-0 px-4 py-5 sm:px-6">
-              <h2 className="flex items-center gap-2 text-sm font-semibold"><Users className="h-4 w-4 text-primary" />Team</h2>
-              <p className="mb-4 mt-1 text-xs text-muted-foreground">Project access and roles, managed together.</p>
-              {teamLoading ? <div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div> : teamError || !team ? <div role="alert" className="text-sm text-muted-foreground">Team could not load. <Button variant="ghost" size="sm" disabled={setupMutationPending} onClick={() => void refetchTeam()}>Retry</Button></div> : <TeamEditor leadId={id} team={team} disabled={teamSaving} blockedReason={teamBlockReason} onSavingChange={setTeamSavingLocal} onDirtyChange={dirty => setSectionDirty(current => current.team === dirty ? current : { ...current, team: dirty })} />}
-              {team && !hasAdmin && <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-50/60 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-100">No Project Admin is assigned yet. Set an admin before completing setup. Project work remains available.</p>}
+            <section className="min-w-0 px-4 py-4 sm:px-6">
+              <button type="button" onClick={() => setTeamOpen(value => !value)} aria-expanded={teamOpen} aria-controls={`project-team-panel-${id}`} className="flex w-full min-w-0 items-start justify-between gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                <span className="flex min-w-0 items-start gap-3">
+                  <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><Users className="h-4 w-4" /></span>
+                  <span className="min-w-0">
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold">Team <span className="font-normal text-muted-foreground">{teamLoading ? "Loading…" : `${assignedMembers.length} assigned`}</span></span>
+                    <span className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-muted-foreground">{team ? teamSummary : "Project access and roles"}</span>
+                    <span className="mt-2 flex flex-wrap gap-1.5">
+                      {teamStatus.dirty && <span className={badgeVariants({ variant: "outline" })}>Unsaved changes</span>}
+                      {(teamStatus.saving || teamSaving) && <span className={badgeVariants({ variant: "secondary" })}>Saving…</span>}
+                      {teamStatus.reloading && <span className={badgeVariants({ variant: "secondary" })}>Refreshing…</span>}
+                      {(teamStatus.error || teamError) && <span className={badgeVariants({ variant: "destructive" })}>Needs attention</span>}
+                    </span>
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2 pt-1 text-xs font-medium text-primary">{teamOpen ? "Collapse" : assignedMembers.length === 0 ? "Assign a teammate" : "Edit team"}{teamOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</span>
+              </button>
+              {team && !hasAdmin && <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-50/60 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
+                <span>No Project Admin is assigned. Set an admin before completing setup; project work remains available.</span>
+                {!teamOpen && <Button variant="outline" size="sm" className="h-7 bg-background" onClick={() => setTeamOpen(true)}>Open team</Button>}
+              </div>}
+              {(teamError || teamStatus.error) && <div role="status" className="mt-2 flex flex-wrap items-center gap-2 text-xs text-destructive">
+                <span>{teamError ? "Team could not load." : "Team changes need attention."}</span>
+                <Button variant="ghost" size="sm" className="h-7" onClick={() => setTeamOpen(true)}>Open to review</Button>
+                {teamError && <Button variant="ghost" size="sm" className="h-7" disabled={setupMutationPending} onClick={() => void refetchTeam()}>Retry</Button>}
+              </div>}
+              <div id={`project-team-panel-${id}`} hidden={!teamOpen} className="pt-4">
+                {team ? <TeamEditor leadId={id} team={team} disabled={teamSaving} blockedReason={teamBlockReason} onSavingChange={setTeamSavingLocal} onDirtyChange={dirty => setSectionDirty(current => current.team === dirty ? current : { ...current, team: dirty })} onStatusChange={status => setTeamStatus(current => current.dirty === status.dirty && current.saving === status.saving && current.error === status.error && current.reloading === status.reloading ? current : status)} /> : teamLoading ? <div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div> : <div role="alert" className="text-sm text-muted-foreground">Team could not load. <Button variant="ghost" size="sm" disabled={setupMutationPending} onClick={() => void refetchTeam()}>Retry</Button></div>}
+              </div>
             </section>
-            <section className="min-w-0 px-4 py-5 sm:px-6">
-              <h2 className="flex items-center gap-2 text-sm font-semibold"><Building2 className="h-4 w-4 text-primary" />Companies</h2>
-              <p className="mb-4 mt-1 text-xs text-muted-foreground">Project-specific participants and contact links.</p>
-              {optionsLoading ? <div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div> : optionsError || !options ? <div role="alert" className="text-sm text-muted-foreground">Company records could not load. <Button variant="ghost" size="sm" disabled={setupMutationPending} onClick={() => void refetchOptions()}>Retry</Button></div> : <CompaniesEditor leadId={id} entries={lead.companies} options={options} version={lead.setupVersion} disabled={teamSaving} onDirtyChange={dirty => setSectionDirty(current => current.companies === dirty ? current : { ...current, companies: dirty })} />}
+            <section className="min-w-0 px-4 py-4 sm:px-6">
+              <button type="button" onClick={() => setCompaniesOpen(value => !value)} aria-expanded={companiesOpen} aria-controls={`project-companies-panel-${id}`} className="flex w-full min-w-0 items-start justify-between gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                <span className="flex min-w-0 items-start gap-3">
+                  <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><Building2 className="h-4 w-4" /></span>
+                  <span className="min-w-0">
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold">Companies <span className="font-normal text-muted-foreground">{lead.companies.length} {lead.companies.length === 1 ? "entry" : "entries"}</span></span>
+                    <span className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-muted-foreground">{companiesSummary}</span>
+                    <span className="mt-2 flex flex-wrap gap-1.5">
+                      {companiesStatus.dirty && <span className={badgeVariants({ variant: "outline" })}>Unsaved changes</span>}
+                      {companiesStatus.saving && <span className={badgeVariants({ variant: "secondary" })}>Saving…</span>}
+                      {companiesStatus.reloading && <span className={badgeVariants({ variant: "secondary" })}>Refreshing…</span>}
+                      {(companiesStatus.error || optionsError) && <span className={badgeVariants({ variant: "destructive" })}>Needs attention</span>}
+                    </span>
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2 pt-1 text-xs font-medium text-primary">{companiesOpen ? "Collapse" : lead.companies.length === 0 ? "Add a company" : "Edit companies"}{companiesOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</span>
+              </button>
+              {(optionsError || companiesStatus.error) && <div role="status" className="mt-2 flex flex-wrap items-center gap-2 text-xs text-destructive">
+                <span>{optionsError ? "Company records could not load." : "Company changes need attention."}</span>
+                <Button variant="ghost" size="sm" className="h-7" onClick={() => setCompaniesOpen(true)}>Open to review</Button>
+                {optionsError && <Button variant="ghost" size="sm" className="h-7" disabled={setupMutationPending} onClick={() => void refetchOptions()}>Retry</Button>}
+              </div>}
+              <div id={`project-companies-panel-${id}`} hidden={!companiesOpen} className="pt-4">
+                {options ? <CompaniesEditor leadId={id} entries={lead.companies} options={options} version={lead.setupVersion} disabled={teamSaving} onDirtyChange={dirty => setSectionDirty(current => current.companies === dirty ? current : { ...current, companies: dirty })} onStatusChange={status => setCompaniesStatus(current => current.dirty === status.dirty && current.saving === status.saving && current.error === status.error && current.reloading === status.reloading ? current : status)} /> : optionsLoading ? <div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div> : <div role="alert" className="text-sm text-muted-foreground">Company records could not load. <Button variant="ghost" size="sm" disabled={setupMutationPending} onClick={() => void refetchOptions()}>Retry</Button></div>}
+              </div>
             </section>
           </div>
 

@@ -11,6 +11,18 @@ Use this alongside the Studio PM User Guide. UAT means user acceptance testing: 
 This is separate from customer sign-off; the manual result cells below remain
 blank for your own acceptance testing.
 
+- A focused collapsible-setup walkthrough passed in a separate fictional firm:
+  independent default-closed sections, Enter/Space keyboard toggles, saved entry
+  counts, capped summaries and the top-positioned Add company entry button.
+  Collapse/reopen retained the same company input node and draft values without
+  a write or confirmation. Team-role drafts survived collapse; cancelling the
+  team draft did not discard the company draft, and company edits still blocked
+  team saves. A held company save displayed Saving while closed; an intentional
+  failure displayed Needs attention/Open to review, retained input and succeeded
+  on retry. Desktop and 390px open/closed layouts had no horizontal page overflow.
+  No console errors or warnings were captured. Background options-refetch failure
+  and the missing-admin warning were inspected in code, not asserted in this
+  browser run; synthetic focus events did not trigger that refetch.
 - TypeScript and the production build passed. The running-log, setup, workspace,
   project-work, project-navigation and Google regression suites passed 81 checks
   in total across the rollout. The added billing regression verifies signed
@@ -148,6 +160,9 @@ Project roles do not replace the firm's Owner/Member roles.
 | S7 | Make a Member Project Admin. Test their project team/setup and company choices; try an unassigned project and firm team/address-book edits. Then test Manager/Designer. | Project Admin works only within assigned project and can choose same-firm address records; no firm admin powers. Manager/Designer can edit ordinary work, not team/complete setup. | Not run |
 | S8 | Attempt to remove the last Project Admin from the roster and from firm membership. Transfer responsibility, then remove. | Both removal paths block a stranded project; transfer succeeds. Last firm Owner protection is separate. | Not run |
 | S9 | Edit setup in two authorized tabs and save competing values. Keep another setup/work draft while attempting a team change. | Stale saves fail with draft retained and explicit reload/review. Team refresh does not silently discard another draft. | Not run |
+| S10 | Open a populated project, using Edit setup if necessary. Toggle Team and Companies independently with mouse and keyboard. Repeat at 390px. | Both start collapsed with saved member/entry counts and short summaries. Opening one does not change the other. Headers remain usable without horizontal page overflow. | Not run |
+| S11 | Type a company edit and change a disposable team-role draft. Collapse/reopen each section without saving. | No write, discard prompt or lost values. Unsaved changes stays visible on the closed header; team saves still respect other project drafts. Save/Cancel remain inside the reopened editor. | Not run |
+| S12 | In an approved practice environment, delay/fail a company save, collapse its section and then reopen it. Check a project with no assigned admin and a separate empty Companies section. | Saving/Needs attention is discoverable while closed, failed input remains available, and Open to review reaches recovery controls. Missing-admin warning remains visible. Add a company opens the empty editor; Add company entry sits above the entries. | Not run |
 
 The running log and tab-free project layout are available. Documents & billing
 contains expandable supporting records below daily work; it is not another set
