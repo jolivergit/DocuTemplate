@@ -251,6 +251,13 @@ In an empty section, **Assign a teammate** or **Add a company** opens its editor
 Within Companies, **Add company entry** is above the entries, so you do not need
 to scroll through existing companies to add another.
 
+Each saved company entry also starts collapsed. Click its name/role header to
+open just that entry; other entries can stay closed. A newly added entry opens
+automatically. Collapsing an entry keeps its fields and any unsaved input intact.
+Choose **Project role** from the dropdown. Existing custom roles remain available;
+choose the custom-role option if you need a role outside the suggestions.
+Use **Save companies** to save the entries together, as before.
+
 Collapsing these two sections only hides their fields: it does not save, cancel
 or discard edits. Reopen the section to continue typing or use its existing
 Save/Cancel controls. The header shows **Unsaved changes**, **Saving…** or

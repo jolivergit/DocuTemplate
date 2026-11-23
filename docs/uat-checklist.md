@@ -11,6 +11,17 @@ Use this alongside the Studio PM User Guide. UAT means user acceptance testing: 
 This is separate from customer sign-off; the manual result cells below remain
 blank for your own acceptance testing.
 
+- Individual company-card verification used another fictional firm: saved cards
+  began collapsed and new entries opened automatically. Address input retained
+  the same DOM node/value through inner and outer collapse and removal of an
+  earlier entry; neighboring card state stayed independent. The role dropdown
+  saved/reloaded an existing custom role, a standard Client role and a new
+  Lighting Consultant role. Captured save data contained no client-only keys,
+  disclosure state or dropdown prefixes. The Add company entry button stayed
+  above the cards; newly added rows still append. Desktop and 390px layouts had
+  no horizontal page overflow and no fresh console errors were captured.
+  Keyboard-only inner-card toggling and the opened native mobile dropdown menu
+  were not exercised in that browser run.
 - A focused collapsible-setup walkthrough passed in a separate fictional firm:
   independent default-closed sections, Enter/Space keyboard toggles, saved entry
   counts, capped summaries and the top-positioned Add company entry button.
@@ -163,6 +174,7 @@ Project roles do not replace the firm's Owner/Member roles.
 | S10 | Open a populated project, using Edit setup if necessary. Toggle Team and Companies independently with mouse and keyboard. Repeat at 390px. | Both start collapsed with saved member/entry counts and short summaries. Opening one does not change the other. Headers remain usable without horizontal page overflow. | Not run |
 | S11 | Type a company edit and change a disposable team-role draft. Collapse/reopen each section without saving. | No write, discard prompt or lost values. Unsaved changes stays visible on the closed header; team saves still respect other project drafts. Save/Cancel remain inside the reopened editor. | Not run |
 | S12 | In an approved practice environment, delay/fail a company save, collapse its section and then reopen it. Check a project with no assigned admin and a separate empty Companies section. | Saving/Needs attention is discoverable while closed, failed input remains available, and Open to review reaches recovery controls. Missing-admin warning remains visible. Add a company opens the empty editor; Add company entry sits above the entries. | Not run |
+| S13 | Expand individual saved company entries, add a new entry, and choose standard/custom Project roles from the dropdown. Collapse/reopen a draft, remove an earlier entry, then save/reload. | Saved cards start closed, new cards open automatically, and each toggles independently without losing input. Removing a neighbor does not transfer card state. Standard and existing/custom roles persist with company/contact/address fields; no new company-role restriction is imposed. | Not run |
 
 The running log and tab-free project layout are available. Documents & billing
 contains expandable supporting records below daily work; it is not another set
