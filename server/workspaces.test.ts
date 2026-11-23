@@ -283,9 +283,11 @@ test("workspace APIs enforce company isolation, assignments and invitations", as
     let publicProposal: any;
     let privateInvoice: any;
     await t.test("proposal, invoice, time, notes and save-back inherit project access", async () => {
-      const phases = [{ name: "Schematic Design", sortOrder: 0, feeLines: [{ consultant: "Interior Design", feeType: "Fixed", amount: "1000", sortOrder: 0 }] }];
-      privateProposal = (await A("POST", `/api/leads/${hidden.id}/proposals`, { name: "Private", status: "Signed", phases })).body;
-      publicProposal = (await M("POST", `/api/leads/${assigned.id}/proposals`, { name: "Visible", status: "Signed", phases })).body;
+      const phase = { name: "Schematic Design", feeLines: [{ consultant: "Interior Design", feeType: "Fixed", amount: "1000" }] };
+      const privatePhase = (await A("POST", `/api/leads/${hidden.id}/work/phases`, phase)).body;
+      const publicPhase = (await M("POST", `/api/leads/${assigned.id}/work/phases`, phase)).body;
+      privateProposal = (await A("POST", `/api/leads/${hidden.id}/proposals`, { name: "Private", status: "Signed", selectedPhaseIds: [privatePhase.id] })).body;
+      publicProposal = (await M("POST", `/api/leads/${assigned.id}/proposals`, { name: "Visible", status: "Signed", selectedPhaseIds: [publicPhase.id] })).body;
       assert.ok(publicProposal.id);
       privateInvoice = (await A("POST", `/api/leads/${hidden.id}/invoices`, { proposalId: privateProposal.id, feeLineInputs: [], hoursInputs: [], expenseInputs: [] })).body;
       assert.ok(privateInvoice.id);
@@ -294,7 +296,7 @@ test("workspace APIs enforce company isolation, assignments and invitations", as
       assert.equal((await M("PATCH", `/api/proposals/${privateProposal.id}`, { docUrl: "https://example.invalid" })).status, 404);
       assert.equal((await M("GET", `/api/invoices/${privateInvoice.id}`)).status, 404);
       assert.equal((await M("PATCH", `/api/invoices/${privateInvoice.id}/doc-url`, { docUrl: "https://example.invalid" })).status, 404);
-      assert.deepEqual((await M("GET", `/api/leads/${hidden.id}/comments`)).body, []);
+      assert.equal((await M("GET", `/api/leads/${hidden.id}/comments`)).status, 410);
       assert.notEqual((await M("POST", `/api/leads/${hidden.id}/comments`, { content: "forbidden" })).status, 200);
       const entry = (await A("POST", `/api/leads/${hidden.id}/hours`, { date: "2026-11-11", description: "Private", hours: "1", ratePerHour: "10" })).body;
       assert.ok(entry.id);

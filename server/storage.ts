@@ -35,7 +35,6 @@ import type {
   InvoiceAdditionalLineItemInput,
   HoursEntry,
   ExpenseEntry,
-  ProjectComment,
   ConsultantContract,
 } from "@shared/schema";
 
@@ -99,8 +98,8 @@ export interface IStorage {
   getProposalBillingSummary(userId: string, proposalId: string): Promise<Record<string, number>>;
   getProposals(userId: string, leadId: number): Promise<ProposalWithPhases[]>;
   getProposalById(userId: string, proposalId: string): Promise<ProposalWithPhases | undefined>;
-  createProposal(userId: string, proposal: InsertProposal, phases: ProposalPhaseInput[], additionalLineItems?: AdditionalLineItemInput[]): Promise<ProposalWithPhases>;
-  updateProposal(userId: string, proposalId: string, updates: Partial<InsertProposal>, phases?: ProposalPhaseInput[], additionalLineItems?: AdditionalLineItemInput[]): Promise<ProposalWithPhases | undefined>;
+  createProposal(userId: string, proposal: InsertProposal, phases: ProposalPhaseInput[], additionalLineItems?: AdditionalLineItemInput[], selectedPhaseIds?: string[]): Promise<ProposalWithPhases>;
+  updateProposal(userId: string, proposalId: string, updates: Partial<InsertProposal>, phases?: ProposalPhaseInput[], additionalLineItems?: AdditionalLineItemInput[], selectedPhaseIds?: string[]): Promise<ProposalWithPhases | undefined>;
   deleteProposal(userId: string, proposalId: string): Promise<boolean>;
   signProposal(userId: string, proposalId: string): Promise<ProposalWithPhases | undefined>;
 
@@ -125,11 +124,6 @@ export interface IStorage {
   createExpenseEntry(userId: string, invoiceId: string | null, leadId: number, entry: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }): Promise<ExpenseEntry>;
   updateExpenseEntry(userId: string, id: string, updates: Partial<{ date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string; invoiceId: string | null }>): Promise<ExpenseEntry | undefined>;
   deleteExpenseEntry(userId: string, id: string): Promise<boolean>;
-
-  // Project comments
-  getProjectComments(userId: string, leadId: number): Promise<ProjectComment[]>;
-  createProjectComment(userId: string, leadId: number, content: string): Promise<ProjectComment>;
-  deleteProjectComment(userId: string, commentId: string, leadId: number): Promise<boolean>;
 
   // Contacts
   getContacts(userId: string): Promise<ContactWithCompanies[]>;
@@ -196,8 +190,8 @@ export class DatabaseStorage implements IStorage {
   getProposalBillingSummary(userId: string, proposalId: string) { return proposalsRepo.getProposalBillingSummary(userId, proposalId); }
   getProposals(userId: string, leadId: number) { return proposalsRepo.getProposals(userId, leadId); }
   getProposalById(userId: string, proposalId: string) { return proposalsRepo.getProposalById(userId, proposalId); }
-  createProposal(userId: string, data: InsertProposal, phases: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[], additionalLineItems?: { description: string; amount: string | null; sortOrder: number }[]) { return proposalsRepo.createProposal(userId, data, phases, additionalLineItems); }
-  updateProposal(userId: string, proposalId: string, updates: Partial<InsertProposal>, phases?: { name: string; sortOrder: number; feeLines: { consultant: string; feeType: string; amount: string | null; sortOrder: number }[] }[], additionalLineItems?: { description: string; amount: string | null; sortOrder: number }[]) { return proposalsRepo.updateProposal(userId, proposalId, updates, phases, additionalLineItems); }
+  createProposal(userId: string, data: InsertProposal, phases: ProposalPhaseInput[], additionalLineItems?: AdditionalLineItemInput[], selectedPhaseIds?: string[]) { return proposalsRepo.createProposal(userId, data, phases, additionalLineItems, selectedPhaseIds); }
+  updateProposal(userId: string, proposalId: string, updates: Partial<InsertProposal>, phases?: ProposalPhaseInput[], additionalLineItems?: AdditionalLineItemInput[], selectedPhaseIds?: string[]) { return proposalsRepo.updateProposal(userId, proposalId, updates, phases, additionalLineItems, selectedPhaseIds); }
   deleteProposal(userId: string, proposalId: string) { return proposalsRepo.deleteProposal(userId, proposalId); }
   signProposal(userId: string, proposalId: string) { return proposalsRepo.signProposal(userId, proposalId); }
 
@@ -222,11 +216,6 @@ export class DatabaseStorage implements IStorage {
   createExpenseEntry(userId: string, invoiceId: string | null, leadId: number, entry: { date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string }) { return invoicesRepo.createExpenseEntry(userId, invoiceId, leadId, entry); }
   updateExpenseEntry(userId: string, id: string, updates: Partial<{ date: string; expenseType: string; billedDate?: string; milesTraveled?: string; ratePerMile?: string; amount?: string; invoiceId: string | null }>) { return invoicesRepo.updateExpenseEntry(userId, id, updates); }
   deleteExpenseEntry(userId: string, id: string) { return invoicesRepo.deleteExpenseEntry(userId, id); }
-
-  // Project comments
-  getProjectComments(userId: string, leadId: number) { return invoicesRepo.getProjectComments(userId, leadId); }
-  createProjectComment(userId: string, leadId: number, content: string) { return invoicesRepo.createProjectComment(userId, leadId, content); }
-  deleteProjectComment(userId: string, commentId: string, leadId: number) { return invoicesRepo.deleteProjectComment(userId, commentId, leadId); }
 
   // Contacts
   getContacts(userId: string) { return companiesRepo.getContacts(userId); }

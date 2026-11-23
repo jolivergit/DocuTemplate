@@ -2,6 +2,8 @@ import { db } from "../db";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { verifyLeadOwnership } from "./leads";
 import { projectPredicate, ownerOnly, context } from "../workspace-context";
+import { refreshProposalScope, proposalScopeLocked } from "./proposal-project-scope";
+import { lockProject, readPhases } from "./project-work";
 import {
   proposals,
   proposalPhases,
@@ -37,7 +39,7 @@ async function buildProposalWithPhases(proposal: Proposal): Promise<ProposalWith
       .from(proposalAdditionalLineItems)
       .where(eq(proposalAdditionalLineItems.proposalId, proposal.id))
       .orderBy(proposalAdditionalLineItems.sortOrder);
-    return { ...proposal, phases: [], additionalLineItems: additionalLineItemsEmpty };
+    return hydrateDraft({ ...proposal, phases: [], additionalLineItems: additionalLineItemsEmpty });
   }
 
   const phaseIds = phases.map(p => p.id);
@@ -58,7 +60,26 @@ async function buildProposalWithPhases(proposal: Proposal): Promise<ProposalWith
     .where(eq(proposalAdditionalLineItems.proposalId, proposal.id))
     .orderBy(proposalAdditionalLineItems.sortOrder);
 
-  return { ...proposal, phases: phasesWithLines, additionalLineItems };
+  return hydrateDraft({ ...proposal, phases: phasesWithLines, additionalLineItems });
+}
+
+async function hydrateDraft(proposal: ProposalWithPhases): Promise<ProposalWithPhases> {
+  if (proposal.proposalType !== "Standard") return proposal;
+  const scopeLocked = await db.transaction(tx => proposalScopeLocked(tx, proposal));
+  if (scopeLocked) return { ...proposal, scopeLocked };
+  const current = await db.transaction(tx => readPhases(tx, proposal.leadId));
+  return { ...proposal, scopeLocked, phases: proposal.phases.map(snapshot => {
+    const shared = current.find(phase => phase.id === snapshot.projectPhaseId);
+    if (!shared) return snapshot; // unresolved legacy data is kept, never guessed
+    return {
+      ...snapshot, name: shared.name, timeline: shared.timeline,
+      feeLines: shared.feeLines.map(fee => ({
+        ...fee,
+        id: snapshot.feeLines.find(f => f.consultant === fee.consultant && f.feeType === fee.feeType)?.id || fee.id,
+        phaseId: snapshot.id,
+      })),
+    };
+  }) };
 }
 
 function toProposalDbValues(data: Partial<InsertProposal>): Record<string, unknown> {
@@ -107,15 +128,15 @@ export async function getProposals(userId: string, leadId: number): Promise<Prop
     .orderBy(proposalAdditionalLineItems.sortOrder);
 
   // Assemble in memory — no further DB round-trips
-  return rows.map(proposal => {
+  return Promise.all(rows.map(async proposal => {
     const proposalPhasesList = allPhases.filter(ph => ph.proposalId === proposal.id);
     const phasesWithLines: ProposalPhaseWithLines[] = proposalPhasesList.map(phase => ({
       ...phase,
       feeLines: allFeeLines.filter(fl => fl.phaseId === phase.id),
     }));
     const additionalLineItems = allAdditionalLineItems.filter(ali => ali.proposalId === proposal.id);
-    return { ...proposal, phases: phasesWithLines, additionalLineItems };
-  });
+    return hydrateDraft({ ...proposal, phases: phasesWithLines, additionalLineItems });
+  }));
 }
 
 export async function getProposalById(userId: string, proposalId: string): Promise<ProposalWithPhases | undefined> {
@@ -131,14 +152,19 @@ export async function createProposal(
   proposalData: InsertProposal,
   phases: ProposalPhaseInput[],
   additionalLineItemsInput?: AdditionalLineItemInput[]
+  , selectedPhaseIds?: string[]
 ): Promise<ProposalWithPhases> {
   const owned = await verifyLeadOwnership(userId, proposalData.leadId);
   if (!owned) throw new Error('Lead not found or access denied');
 
-  return await db.transaction(async (tx) => {
+  const created = await db.transaction(async (tx) => {
+    await lockProject(tx, proposalData.leadId);
+    const standard = !proposalData.proposalType || proposalData.proposalType === "Standard";
+    const targetStatus = proposalData.status || "Draft";
+    if (standard && phases.length) throw new Error("Manage shared phases and fees on the project, then select them for the proposal.");
     const [proposal] = await tx
       .insert(proposals)
-      .values(toProposalDbValues(proposalData) as typeof proposals.$inferInsert)
+      .values(toProposalDbValues({ ...proposalData, status: standard ? "Draft" : targetStatus }) as typeof proposals.$inferInsert)
       .returning();
 
     const phasesWithLines: ProposalPhaseWithLines[] = [];
@@ -177,8 +203,13 @@ export async function createProposal(
         .returning();
     }
 
-    return { ...proposal, phases: phasesWithLines, additionalLineItems: savedAdditionalItems };
+    if (standard) {
+      await refreshProposalScope(tx, proposal.id, selectedPhaseIds);
+      if (targetStatus !== "Draft") await tx.update(proposals).set({ status: targetStatus }).where(eq(proposals.id, proposal.id));
+    }
+    return { ...proposal, status: targetStatus, phases: phasesWithLines, additionalLineItems: savedAdditionalItems };
   });
+  return buildProposalWithPhases(created);
 }
 
 export async function updateProposal(
@@ -187,6 +218,7 @@ export async function updateProposal(
   updates: Partial<InsertProposal>,
   phases?: ProposalPhaseInput[],
   additionalLineItemsInput?: AdditionalLineItemInput[]
+  , selectedPhaseIds?: string[]
 ): Promise<ProposalWithPhases | undefined> {
   const existing = await getProposalById(userId, proposalId);
   if (!existing) return undefined;
@@ -195,6 +227,19 @@ export async function updateProposal(
   void _leadId; void _id; void _userId;
 
   const updated = await db.transaction(async (tx) => {
+    await lockProject(tx, existing.leadId);
+    const [current] = await tx.select().from(proposals).where(eq(proposals.id, proposalId)).for("update");
+    if (safeUpdates.proposalType && safeUpdates.proposalType !== current.proposalType) throw new Error("A proposal document's type cannot be changed.");
+    if (current.proposalType === "Standard") {
+      if (phases !== undefined) throw new Error("Edit phases and fees on the project, not on a proposal document.");
+      const issued = await proposalScopeLocked(tx, current);
+      if (issued && ((safeUpdates.status && safeUpdates.status !== current.status && ["Draft", "Revision"].includes(safeUpdates.status as string)) || selectedPhaseIds !== undefined)) {
+        throw new Error("Create a new draft to change an issued proposal's scope.");
+      }
+      if (!issued && (selectedPhaseIds !== undefined || (safeUpdates.status && safeUpdates.status !== current.status))) {
+        await refreshProposalScope(tx, proposalId, selectedPhaseIds);
+      }
+    }
     const [updatedProposal] = await tx
       .update(proposals)
       .set({ ...toProposalDbValues(safeUpdates as Partial<InsertProposal>), updatedAt: sql`CURRENT_TIMESTAMP` } as Parameters<ReturnType<typeof tx.update>["set"]>[0])
@@ -260,6 +305,11 @@ export async function signProposal(userId: string, proposalId: string): Promise<
   if (!existing) return undefined;
 
   const updated = await db.transaction(async (tx) => {
+    await lockProject(tx, existing.leadId);
+    const [current] = await tx.select().from(proposals).where(eq(proposals.id, proposalId)).for("update");
+    if (current.proposalType === "Standard" && ["Draft", "Revision"].includes(current.status) && !await proposalScopeLocked(tx, current)) {
+      await refreshProposalScope(tx, proposalId);
+    }
     const [updatedProposal] = await tx
       .update(proposals)
       .set({ status: 'Signed', dateSigned: sql`NOW()`, updatedAt: sql`CURRENT_TIMESTAMP` })

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { ExternalLink, Check, X, Edit, Trash2, ArrowLeft, FileText, ScrollText, Loader2 } from "lucide-react";
+import { ExternalLink, Check, X, Edit, Trash2, ArrowLeft, FileText, ScrollText, Loader2, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -29,6 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/lib/workspace";
 import { formatCurrencyFlexOrDash } from "@/lib/utils";
 import { ProposalFormDialog } from "@/components/proposal-form-dialog";
+import { scopeRefreshIds } from "@shared/proposal-scope";
 import { AdditionalServicesFormDialog } from "@/components/additional-services-form-dialog";
 import { GoogleDocsPicker, type PickedGoogleDoc } from "@/components/google-docs-picker";
 import { useGooglePickerDialog } from "@/hooks/use-google-picker-dialog";
@@ -37,6 +38,7 @@ import {
   type ProposalStatus,
   type ConsultantContract,
 } from "@shared/schema";
+import type { ProjectWork } from "@shared/project-work";
 
 const STATUS_COLORS: Record<ProposalStatus, string> = {
   Draft: "bg-secondary text-secondary-foreground",
@@ -226,6 +228,33 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
   const [showSignConfirm, setShowSignConfirm] = useState(false);
   const [isLoadingDocBuilder, setIsLoadingDocBuilder] = useState(false);
   const [contractDialogConsultant, setContractDialogConsultant] = useState<string | null>(null);
+  const [scopeError, setScopeError] = useState("");
+  const canRefreshScope = !proposal.scopeLocked && ["Draft", "Revision"].includes(proposal.status);
+  const { data: projectWork, isLoading: isProjectWorkLoading } = useQuery<ProjectWork>({
+    queryKey: ["/api/leads", leadId, "work"],
+  });
+  const refreshScopeMutation = useMutation({
+    mutationFn: async () => {
+      if (!projectWork) throw new Error("Project scope is still loading. Try again in a moment.");
+      if (projectWork.needsReconciliation) throw new Error("Reconcile legacy project scope before refreshing a proposal.");
+      const selectedPhaseIds = scopeRefreshIds(proposal.phases);
+      if (canRefreshScope) {
+        return apiRequest("POST", `/api/proposals/${proposal.id}/refresh-from-project`, { selectedPhaseIds });
+      }
+      return apiRequest("POST", `/api/leads/${leadId}/proposals`, {
+        name: `${proposal.name} — Updated draft`,
+        description: proposal.description || null,
+        status: "Draft",
+        selectedPhaseIds,
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
+      toast({ title: canRefreshScope ? "Project scope refreshed" : "Updated draft created", description: canRefreshScope ? "The unissued proposal now uses current project inputs." : "The issued proposal remains unchanged." });
+      setScopeError("");
+    },
+    onError: error => setScopeError(error instanceof Error ? error.message : "Could not refresh project scope."),
+  });
 
   const { data: consultantContracts = [] } = useQuery<ConsultantContract[]>({
     queryKey: ["/api/proposals", proposal.id, "consultant-contracts"],
@@ -274,6 +303,7 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
   const handleLoadToDocBuilder = async () => {
     setIsLoadingDocBuilder(true);
     try {
+      const currentProposal = await apiRequest<ProposalWithPhases>("GET", `/api/proposals/${proposal.id}`);
       await apiRequest("DELETE", "/api/field-values/by-prefix", {
         prefixes: ["proposal_", "project_name", "_proposal_phases", "_additional_services"],
       });
@@ -285,13 +315,16 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
         profile = null;
       }
 
-      const totalStr = grandTotal > 0 ? `$${grandTotal.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "";
+      const currentTotal = currentProposal.proposalType === "Additional Services"
+        ? (currentProposal.additionalLineItems || []).reduce((sum, item) => sum + (item.amount ? Number(item.amount) || 0 : 0), 0)
+        : currentProposal.phases.reduce((sum, phase) => sum + phaseTotal(phase), 0);
+      const totalStr = currentTotal > 0 ? `$${currentTotal.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "";
 
       const fieldMappings: { name: string; value: string }[] = [
         { name: "project_name", value: projectName || "" },
-        { name: "proposal_name", value: proposal.name },
+        { name: "proposal_name", value: currentProposal.name },
         { name: "proposal_total", value: totalStr },
-        { name: "proposal_date", value: proposal.dateSent ? new Date(proposal.dateSent).toLocaleDateString() : new Date().toLocaleDateString() },
+        { name: "proposal_date", value: currentProposal.dateSent ? new Date(currentProposal.dateSent).toLocaleDateString() : new Date().toLocaleDateString() },
         ...(profile ? [
           { name: "firm_name", value: profile.name || "" },
           { name: "firm_contact_name", value: profile.contactName || "" },
@@ -311,8 +344,8 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
         ),
       ];
 
-      if (isAdditionalServices) {
-        const asRows = (proposal.additionalLineItems || []).map((item) => ({
+      if (currentProposal.proposalType === "Additional Services") {
+        const asRows = (currentProposal.additionalLineItems || []).map((item) => ({
           description: item.description,
           amount: item.amount,
         }));
@@ -325,14 +358,12 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
           );
         }
       } else {
-        const phasesRows = proposal.phases.flatMap(phase =>
-          phase.feeLines.map(fl => ({
-            phase: phase.name,
-            consultant: fl.consultant,
-            feeType: fl.feeType,
-            amount: fl.amount,
-          }))
-        );
+        const phasesRows = currentProposal.phases.flatMap(phase => {
+          const timeline = (phase as typeof phase & { timeline?: string | null }).timeline ?? null;
+          return phase.feeLines.length
+            ? phase.feeLines.map(fl => ({ phase: phase.name, timeline, consultant: fl.consultant, feeType: fl.feeType, amount: fl.amount }))
+            : [{ phase: phase.name, timeline, consultant: "", feeType: "", amount: null }];
+        });
         if (phasesRows.length > 0) {
           allWrites.push(
             apiRequest("POST", "/api/field-values/upsert-by-name", {
@@ -395,6 +426,22 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
             <FileText className="w-4 h-4" />
             {isLoadingDocBuilder ? "Loading..." : "Load to Doc Builder"}
           </Button>
+          {proposal.proposalType !== "Additional Services" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refreshScopeMutation.mutate()}
+              disabled={refreshScopeMutation.isPending || isProjectWorkLoading || !!projectWork?.needsReconciliation}
+              data-testid="button-refresh-project-scope"
+            >
+              <RotateCw className="mr-1.5 h-4 w-4" />
+              {refreshScopeMutation.isPending
+                ? "Updating…"
+                : canRefreshScope
+                  ? "Refresh from project"
+                  : "Create updated draft"}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setShowEdit(true)} data-testid="button-edit-proposal">
             <Edit className="w-4 h-4" />
             Edit
@@ -404,6 +451,8 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
           </Button>}
         </div>
       </div>
+      {projectWork?.needsReconciliation && <p className="rounded-md border border-amber-500/40 bg-amber-50/60 px-3 py-2 text-xs text-muted-foreground dark:bg-amber-950/20">Reconcile legacy project scope before refreshing or creating an updated draft.</p>}
+      {scopeError && <p role="alert" className="rounded-md border border-destructive/30 p-3 text-sm text-destructive">{scopeError} The existing proposal has not been changed.</p>}
 
       {/* Proposal card */}
       <div className="rounded-md border bg-card p-5 space-y-4">
@@ -614,6 +663,7 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
           onOpenChange={setShowEdit}
           leadId={leadId}
           existing={proposal}
+          onSaved={() => setScopeError("")}
         />
       )}
 

@@ -396,6 +396,8 @@ export const proposalPhases = pgTable("proposal_phases", {
   proposalId: varchar("proposal_id").references(() => proposals.id, { onDelete: "cascade" }).notNull(),
   name: text("name").notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
+  projectPhaseId: varchar("project_phase_id").references(() => projectPhases.id, { onDelete: "set null" }),
+  timeline: text("timeline"),
 }, (t) => ({
   proposalIdIdx: index("proposal_phases_proposal_id_idx").on(t.proposalId),
 }));
@@ -439,6 +441,7 @@ export const insertAdditionalLineItemSchema = createInsertSchema(proposalAdditio
 export interface ProposalWithPhases extends Proposal {
   phases: ProposalPhaseWithLines[];
   additionalLineItems: ProposalAdditionalLineItem[];
+  scopeLocked?: boolean;
 }
 
 // ─── Invoices ───────────────────────────────────────────────────────────────────
@@ -527,6 +530,61 @@ export const projectComments = pgTable("project_comments", {
 });
 
 export type ProjectComment = typeof projectComments.$inferSelect;
+
+// Project-owned work is independent of a proposal document's issued snapshot.
+export const projectWorkSetup = pgTable("project_work_setup", {
+  leadId: integer("lead_id").primaryKey().references(() => leads.id, { onDelete: "cascade" }),
+  sourceProposalId: varchar("source_proposal_id"),
+  initializedAt: timestamp("initialized_at").notNull().defaultNow(),
+});
+export const projectPhases = pgTable("project_phases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: integer("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  timeline: text("timeline"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  archived: boolean("archived").notNull().default(false),
+  version: integer("version").notNull().default(1),
+}, t => ({ leadIdx: index("project_phases_lead_idx").on(t.leadId) }));
+export const projectPhaseFees = pgTable("project_phase_fees", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phaseId: varchar("phase_id").notNull().references(() => projectPhases.id, { onDelete: "cascade" }),
+  consultant: text("consultant").notNull(),
+  feeType: text("fee_type").notNull().default("Fixed"),
+  amount: numeric("amount", { precision: 12, scale: 2 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+}, t => ({ phaseIdx: index("project_phase_fees_phase_idx").on(t.phaseId) }));
+export const projectTasks = pgTable("project_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: integer("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  phaseId: varchar("phase_id").references(() => projectPhases.id),
+  assigneeId: varchar("assignee_id").references(() => users.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  priority: text("priority").notNull().default("Normal"),
+  status: text("status").notNull().default("To do"),
+  dueDate: text("due_date"),
+  archived: boolean("archived").notNull().default(false),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, t => ({ leadIdx: index("project_tasks_lead_idx").on(t.leadId) }));
+export const projectTaskNotes = pgTable("project_task_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull().references(() => projectTasks.id, { onDelete: "cascade" }),
+  authorId: varchar("author_id").references(() => users.id, { onDelete: "set null" }),
+  authorName: text("author_name").notNull(),
+  content: text("content").notNull(),
+  requestId: varchar("request_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, t => ({
+  taskIdx: index("project_task_notes_task_idx").on(t.taskId),
+  requestUnique: uniqueIndex("project_task_note_request_unique").on(t.taskId, t.requestId),
+}));
+export const appDataMigrations = pgTable("app_data_migrations", {
+  name: text("name").primaryKey(),
+  appliedAt: timestamp("applied_at").notNull().defaultNow(),
+});
 
 // ─── Consultant Contracts ──────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 import { Readable } from "stream";
 import type { docs_v1, drive_v3 } from "googleapis";
 
-export type PhaseRow = { phase: string; consultant: string; feeType: string; amount: string | null };
+export type PhaseRow = { phase: string; timeline?: string | null; consultant: string; feeType: string; amount: string | null };
 
 export interface AdditionalServiceRow {
   description: string;
@@ -310,7 +310,7 @@ export async function insertPhaseTable(
   const tableCellTexts: string[][] = [
     ['Phase', 'Consultant', 'Fee Type', 'Amount'],
     ...phasesData.map(d => [
-      d.phase || '',
+      [d.phase, d.timeline ? `(${d.timeline})` : ''].filter(Boolean).join(' '),
       d.consultant || '',
       d.feeType || '',
       d.feeType === 'Fixed' && d.amount

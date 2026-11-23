@@ -1,6 +1,14 @@
 # Documentation review for UAT
 
-Reviewed November 14, 2026.
+## Project-work update — November 22, 2026
+
+The guide and UAT checklist now cover task-first project pages, shared phases and fees, custom/ad-hoc phases, optional duration ranges, task assignees/status/priority/due dates, attributed task discussions, archive/restore, conflict recovery, and proposal preparation without duplicate entry. The legacy Notes tab and its data are deliberately retired; no old-note archive is promised.
+
+See `docs/project-work-rollout.md` for the migration's destructive effect, explicit legacy-source reconciliation, issued financial snapshots, and environment boundaries. Printable HTML has been regenerated, and its internal links checked. The checklist's added cases remain **Not run** until someone records user-acceptance results; engineering checks are not UAT acceptance.
+
+The earlier documentation-only review below is historical. Its feature descriptions and referenced Notes component reflect the app at that time, not the current task-based workflow.
+
+## Historical review — November 14, 2026
 
 ## Scope and outcome
 

@@ -45,7 +45,7 @@ import { COMPANY_ROLE_LABELS, LEAD_STATUSES } from "@shared/schema";
 import { ProposalsTab } from "@/components/tabs/proposals-tab";
 import { TimeExpensesTab } from "@/components/tabs/time-expenses-tab";
 import { InvoicesTab } from "@/components/tabs/invoices-tab";
-import { NotesTab } from "@/components/tabs/notes-tab";
+import { ProjectWorkWorkspace } from "@/components/project-work/project-workspace";
 
 const STATUS_COLORS: Record<LeadStatus, string> = {
   Lead: "bg-secondary text-secondary-foreground",
@@ -265,11 +265,11 @@ export default function ProjectDetailPage({ params }: Props) {
   const companyMap = new Map(lead.companies.map((c) => [c.companyRole, c]));
   const isProject = lead.status === "Active Project" || lead.status === "Completed";
 
-  const tabColsClass = isProject ? "grid grid-cols-5" : "grid grid-cols-3";
+  const tabColsClass = isProject ? "grid grid-cols-4" : "grid grid-cols-2";
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      <div className="max-w-3xl mx-auto w-full p-6 space-y-6">
+      <div className="mx-auto w-full max-w-7xl space-y-5 px-4 py-4 sm:px-6 sm:py-6">
         {/* Back + actions header */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <Link href="/projects">
@@ -299,35 +299,8 @@ export default function ProjectDetailPage({ params }: Props) {
           </div>
         </div>
 
-        {workspace.isOwner && (assignments || assignmentsError) && (
-          <section className="rounded-md border bg-card">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <div><h2 className="text-xs font-semibold">PROJECT ACCESS</h2><p className="mt-0.5 text-xs text-muted-foreground">Only assigned members can see this project.</p></div>
-              {assignmentMutation.isPending && <span className="text-xs text-muted-foreground">Saving…</span>}
-            </div>
-            {assignmentsError ? <div className="px-4 py-3 text-xs text-muted-foreground">Could not load assignments. <Button size="sm" variant="outline" className="ml-2 h-7" onClick={() => void refetchAssignments()}>Retry</Button></div> : !assignments?.members.some(member => member.role === "Member") ? <p className="px-4 py-3 text-xs text-muted-foreground">Invite a coworker in Settings → Team to assign projects. Owners already have access to every project.</p> :
-              <div className="divide-y">{assignments?.members.filter((member) => member.role !== "Owner").map((member) => (
-                <label key={member.userId} className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={member.assigned}
-                    disabled={assignmentMutation.isPending}
-                    onChange={(event) => {
-                      const next = (assignments?.members || []).filter((person) => person.role !== "Owner" && person.assigned && person.userId !== member.userId).map((person) => person.userId);
-                      if (event.target.checked) next.push(member.userId);
-                      assignmentMutation.mutate(next);
-                    }}
-                    className="h-4 w-4 accent-current"
-                    aria-label={`Assign ${member.name} to project`}
-                  />
-                  <span className="flex-1">{member.name}</span><span className="text-xs text-muted-foreground">{member.email}</span>
-                </label>
-              ))}</div>}
-          </section>
-        )}
-
-        {/* Project header card */}
-        <div className="rounded-md border bg-card p-5 space-y-4">
+        {/* Compact identity keeps the daily task view above the fold. */}
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-4">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -349,40 +322,66 @@ export default function ProjectDetailPage({ params }: Props) {
                   {lead.probability}
                 </Badge>
               </div>
-              <h1 className="text-xl font-semibold" data-testid="text-project-name">{lead.projectName}</h1>
-              {lead.description && (
-                <p className="text-sm text-muted-foreground mt-1" data-testid="text-description">{lead.description}</p>
-              )}
+              <h1 className="text-xl font-semibold normal-case tracking-normal sm:text-2xl" data-testid="text-project-name">{lead.projectName}</h1>
+              {lead.description && <p className="mt-1 max-w-3xl text-sm text-muted-foreground line-clamp-1" data-testid="text-description">{lead.description}</p>}
             </div>
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2 border-t">
-            <DetailField label="Square Footage" value={lead.squareFootage ? Number(lead.squareFootage).toLocaleString() + " sq ft" : null} />
-            <DetailField label="Potential Fee" value={formatCurrencyOrDash(lead.potentialFee)} />
-            <DetailField label="Created" value={new Date(lead.createdAt).toLocaleDateString()} />
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+            {lead.squareFootage && <span>{Number(lead.squareFootage).toLocaleString()} sq ft</span>}
+            <span>Potential fee {formatCurrencyOrDash(lead.potentialFee)}</span>
+            <span>Created {new Date(lead.createdAt).toLocaleDateString()}</span>
           </div>
         </div>
 
-        {/* Status progression */}
-        <div className="rounded-md border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground mb-3">Update Status</p>
-          <div className="flex flex-wrap gap-2">
-            {LEAD_STATUSES.map((s) => (
-              <Button
-                key={s}
-                variant={lead.status === s ? "default" : "outline"}
-                size="sm"
-                onClick={() => lead.status !== s && updateStatusMutation.mutate(s)}
-                disabled={updateStatusMutation.isPending}
-                data-testid={`button-status-${s.replace(/\s+/g, "-").toLowerCase()}`}
-              >
-                {s}
-              </Button>
-            ))}
-          </div>
-        </div>
+        <ProjectWorkWorkspace leadId={leadId} />
 
-        {/* Tabs */}
+        {workspace.isOwner && (assignments || assignmentsError) && (
+          <Collapsible>
+            <section className="rounded-md border bg-card">
+              <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+                <span><span className="block text-sm font-medium">Project access</span><span className="mt-0.5 block text-xs text-muted-foreground">Choose which Members can see this project.</span></span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="border-t">
+                  {assignmentMutation.isPending && <p className="border-b px-4 py-2 text-xs text-muted-foreground">Saving access changes…</p>}
+                  {assignmentsError ? <div className="px-4 py-3 text-xs text-muted-foreground">Could not load assignments. <Button size="sm" variant="outline" className="ml-2 h-7" onClick={() => void refetchAssignments()}>Retry</Button></div> : !assignments?.members.some(member => member.role === "Member") ? <p className="px-4 py-3 text-xs text-muted-foreground">Invite a coworker in Settings → Team to assign projects. Owners already have access to every project.</p> :
+                    <div className="divide-y">{assignments?.members.filter(member => member.role !== "Owner").map(member => <label key={member.userId} className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm">
+                      <input type="checkbox" checked={member.assigned} disabled={assignmentMutation.isPending} onChange={event => {
+                        const next = (assignments?.members || []).filter(person => person.role !== "Owner" && person.assigned && person.userId !== member.userId).map(person => person.userId);
+                        if (event.target.checked) next.push(member.userId);
+                        assignmentMutation.mutate(next);
+                      }} className="h-4 w-4 accent-current" aria-label={`Assign ${member.name} to project`} />
+                      <span className="flex-1">{member.name}</span><span className="text-xs text-muted-foreground">{member.email}</span>
+                    </label>)}</div>}
+                </div>
+              </CollapsibleContent>
+            </section>
+          </Collapsible>
+        )}
+
+        <Collapsible>
+          <section className="rounded-md border bg-card">
+            <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+              <span><span className="block text-sm font-medium">Project status and details</span><span className="mt-0.5 block text-xs text-muted-foreground">Change lifecycle status or review the full project details.</span></span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-4 border-t p-4">
+                <div className="flex flex-wrap gap-2">
+                  {LEAD_STATUSES.map(s => <Button key={s} variant={lead.status === s ? "default" : "outline"} size="sm" onClick={() => lead.status !== s && updateStatusMutation.mutate(s)} disabled={updateStatusMutation.isPending} data-testid={`button-status-${s.replace(/\s+/g, "-").toLowerCase()}`}>{s}</Button>)}
+                </div>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  <DetailField label="Square Footage" value={lead.squareFootage ? Number(lead.squareFootage).toLocaleString() + " sq ft" : null} />
+                  <DetailField label="Potential Fee" value={formatCurrencyOrDash(lead.potentialFee)} />
+                  <DetailField label="Created" value={new Date(lead.createdAt).toLocaleDateString()} />
+                </div>
+              </div>
+            </CollapsibleContent>
+          </section>
+        </Collapsible>
+
+        {/* Project records remain available alongside the everyday work view. */}
         <Tabs defaultValue="overview">
           <TabsList className={`w-full ${tabColsClass}`}>
             <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
@@ -393,7 +392,6 @@ export default function ProjectDetailPage({ params }: Props) {
             {isProject && (
               <TabsTrigger value="invoices" data-testid="tab-invoices">Invoices</TabsTrigger>
             )}
-            <TabsTrigger value="notes" data-testid="tab-notes">Notes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-6">
@@ -425,9 +423,6 @@ export default function ProjectDetailPage({ params }: Props) {
             </TabsContent>
           )}
 
-          <TabsContent value="notes" className="mt-6">
-            <NotesTab leadId={leadId} />
-          </TabsContent>
         </Tabs>
       </div>
 

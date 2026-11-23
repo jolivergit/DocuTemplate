@@ -2,7 +2,7 @@
 
 Practice scenarios and a blank acceptance-test record
 
-Reviewed November 14, 2026 · Results have not been filled in
+Reviewed November 22, 2026 · Results have not been filled in
 
 Use this alongside the Studio PM User Guide. UAT means user acceptance testing: you try real workflows and decide whether the app meets your needs. These are instructions and expected outcomes, not a report that the scenarios passed.
 
@@ -11,6 +11,7 @@ Use this alongside the Studio PM User Guide. UAT means user acceptance testing: 
 - [Before you start](#before-you-start)
 - [Sign-in, firms and safe switching](#sign-in-firms-and-safe-switching)
 - [Project through proposal and invoice](#project-through-proposal-and-invoice)
+- [Project tasks and shared phases](#project-tasks-and-shared-phases)
 - [Documents and Google recovery](#documents-and-google-recovery)
 - [Additional services and consultant contracts](#additional-services-and-consultant-contracts)
 - [Coworker access and differing roles](#coworker-access-and-differing-roles)
@@ -57,12 +58,29 @@ Use Firm A for this sequence. Reuse one fictional project, for example **UAT Map
 | ID | What to do | Expected outcome | Result / notes |
 | --- | --- | --- | --- |
 | P1 | As Owner create a fictional company and contact, link them, and create the practice Lead using those address-book entries. Edit and save a harmless project detail; search/filter for it and inspect Overview. | Records persist and linked details are visible. Suggested company roles do not require entering duplicate address-book companies. | Not run |
-| P2 | Create the $10,000 Standard proposal. Reopen it, review phases/consultants/Fixed versus Hourly, then record fictional approval with Mark as Signed. | The proposal retains its fee breakdown. Signing the Standard proposal makes the project Active Project and shows Time & Expenses and Invoices. No email or electronic signature is sent. | Not run |
+| P2 | Add a shared Schematic Design phase with Interior Design / Fixed / $10,000 on the project. Create a Standard proposal by selecting that phase without retyping the fee. Reopen it, then record fictional approval with Mark as Signed. | Shared inputs are reused. The signed proposal retains its financial snapshot. Signing makes the project Active Project and shows Time & Expenses and Invoices. No email or electronic signature is sent. | Not run |
 | P3 | Add the 2-hour Hours entry and $20 Parking entry on the project. Check their Unattached badges. Correct a disposable entry with its pencil control and save. | Dates, descriptions and amounts persist. Entries are not billed twice merely because they appear in the project list. Review attached entries carefully before changing them. | Not run |
 | P4 | Create the first invoice at cumulative 25% complete. Attach the existing two entries; do not retype them as new entries. | With no other billing/charges, fixed earned and current fee are $2,500, Hours $200, Parking $20, total $2,720. Included entries gain an invoice badge and no longer appear as Unattached. | Not run |
 | P5 | On this practice invoice only, simulate sending and payment with Mark as Sent and Mark as Paid. Inspect Dashboard summaries. Start a later invoice at 50% complete and review before saving. | Statuses are recordkeeping, not email or payment processing. Totals follow access/statuses. With $2,500 previous fixed billing, 50% cumulative gives $2,500 new fixed billing, not $5,000; do not reattach the first invoice's entries. | Not run |
 | P6 | Add a fictional project note. Correct it by posting a new note if needed. | Notes retain dates/text. There is no general note edit form; trash controls are destructive. No client message is sent. | Not run |
 | P7 | Check project lists, company/contact lists, Dashboard totals and the practice project link while switching between Firms A and B. | Firm A's records do not appear in Firm B. Owning both firms does not merge their business records. Personal content library/contact values may remain available because they are personal, not firm-shared. | Not run |
+
+## Project tasks and shared phases
+
+Use fictional project data in Firm A. Old standalone Project Notes are deliberately removed by the upgrade; do not expect a history archive.
+
+| ID | What to do | Expected outcome | Result / notes |
+| --- | --- | --- | --- |
+| T1 | Open the project on desktop and phone. Add an ad-hoc phase called UAT Lighting, with no fee. Set timeline to 5 weeks, then 8–10 weeks, then clear it; reload between changes. | Tasks are directly visible. Custom phase and optional timeline persist; blank is unspecified. No proposal, fee, calendar dates, or task due-date changes are required. | Not run |
+| T2 | Add an eligible-assignee task in that phase, a General task without assignee, and tasks with priorities/statuses. Change status/priority inline and open full details to edit description and due date. | Saved fields survive reload. General/Unassigned work is allowed. Only eligible current firm users appear, not address-book contacts or unassigned coworkers. | Not run |
+| T3 | Set practice due dates to yesterday, today, and tomorrow; mark one past-due task Done. Filter Me/Unassigned/status/priority, search a unique title, and change sort order. | Due today is not overdue. Done/archived tasks are excluded from overdue. Summary counts are independent of list filters and tasks group under their shared phases. | Not run |
+| T4 | Add a task discussion note, reload, then deliberately lose connectivity and attempt another note. Restore connectivity and retry without changing its text. | Notes have author/timestamp and render as text. Retry does not duplicate the same note; failure preserves entered text. No standalone Notes tab remains. | Not run |
+| T5 | Start editing task fields/notes, try to close or open another task, and cancel discard. In a second authorized tab save a conflicting edit, then attempt the first tab's save. | Draft text is not silently discarded. Stale saves are rejected with a reload/review path rather than silently overwriting another user's work. | Not run |
+| T6 | Archive/restore a task and phase; reorder phases. Add a task while the phase is archived. | Archive/restore does not delete history. Archived tasks are discoverable; archived phases remain referenced by existing tasks but cannot be selected for new tasks. Phase order persists. | Not run |
+| T7 | Add a Fixed fee to UAT Lighting, select it in a new draft proposal, and review timeline/fee without retyping. Rename the shared phase/change its fee and revisit draft preparation. | Task and draft-preparation views reuse the same phase. No duplicate entry is needed. No-fee phases are also selectable. | Not run |
+| T8 | Sign a practice proposal, create a practice invoice, then change shared fees. Create an updated draft from the issued proposal and delete only that new disposable draft. | Issued amounts and invoice totals stay unchanged. Updated draft uses current shared inputs. Deleting it does not remove phases, fees, or tasks. | Not run |
+| T9 | Where a legacy practice project is available, compare sources and explicitly choose one; reload. Rename another unmapped draft without changing scope, try its refresh, then explicitly choose replacement scope and confirm it. Separately create an empty draft, add a priced phase, refresh and sign the empty draft. | No conflicting fees are merged. Metadata edits preserve old phase/fee IDs and amounts; unmapped refresh asks for explicit selection. Replacement requires confirmation. An empty selection stays empty even after priced phases are added. Mark Not run if no suitable legacy fixture exists. | Not run |
+| T10 | As an assigned Member use the task flow; then have an Owner unassign that Member and revisit. Switch to Firm B while another practice task is open. | Unassigned project access is denied on the next protected request. Owner sees the previous assignee flagged for reassignment; history stays. Firm B does not display Firm A tasks or stale responses. | Not run |
 
 ## Documents and Google recovery
 

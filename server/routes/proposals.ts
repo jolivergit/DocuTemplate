@@ -11,6 +11,7 @@ import {
   type User,
 } from "@shared/schema";
 import { z } from "zod";
+import { explicitlyRefreshProposal } from "../repositories/proposal-project-scope";
 
 export function registerProposalRoutes(app: Express): void {
   // Proposals
@@ -52,7 +53,7 @@ export function registerProposalRoutes(app: Express): void {
       const userId = (req.user as User).id;
       const leadId = parseInt(req.params.leadId, 10);
       if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
-      const { phases, additionalLineItems, ...proposalRaw } = req.body;
+      const { phases, additionalLineItems, selectedPhaseIds, ...proposalRaw } = req.body;
       const parsedPhases = z.array(proposalPhaseInputSchema).parse(phases ?? []);
       const parsedAdditional = additionalLineItems != null
         ? z.array(additionalLineItemInputSchema).parse(additionalLineItems)
@@ -61,7 +62,8 @@ export function registerProposalRoutes(app: Express): void {
         userId,
         insertProposalSchema.parse({ ...proposalRaw, leadId }),
         parsedPhases,
-        parsedAdditional
+        parsedAdditional,
+        selectedPhaseIds === undefined ? undefined : z.array(z.string().uuid()).max(200).parse(selectedPhaseIds)
       );
       res.json(proposal);
     } catch (error) {
@@ -72,7 +74,7 @@ export function registerProposalRoutes(app: Express): void {
   app.patch("/api/proposals/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;
-      const { phases, additionalLineItems } = req.body;
+      const { phases, additionalLineItems, selectedPhaseIds } = req.body;
       const ALLOWED_FIELDS = ["name", "description", "status", "proposalType", "docUrl", "dateSent", "dateSigned"] as const;
       const updates: Partial<Record<typeof ALLOWED_FIELDS[number], unknown>> = {};
       for (const field of ALLOWED_FIELDS) {
@@ -89,7 +91,8 @@ export function registerProposalRoutes(app: Express): void {
         req.params.id,
         updates as Parameters<typeof storage.updateProposal>[2],
         parsedPhases,
-        parsedAdditional
+        parsedAdditional,
+        selectedPhaseIds === undefined ? undefined : z.array(z.string().uuid()).max(200).parse(selectedPhaseIds)
       );
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       res.json(proposal);
@@ -98,6 +101,15 @@ export function registerProposalRoutes(app: Express): void {
     }
   });
 
+  app.post("/api/proposals/:id/refresh-from-project", requireAuth, async (req, res) => {
+    try {
+      const parsed = z.object({ selectedPhaseIds: z.array(z.string().uuid()).max(200).optional() }).strict().parse(req.body);
+      await explicitlyRefreshProposal(req.params.id, parsed.selectedPhaseIds);
+      res.json(await storage.getProposalById((req.user as User).id, req.params.id));
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Could not refresh proposal." });
+    }
+  });
   app.post("/api/proposals/:id/sign", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as User).id;

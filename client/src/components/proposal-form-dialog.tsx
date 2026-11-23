@@ -1,99 +1,21 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Clock3, FileText } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { formatCurrencyWhole } from "@/lib/utils";
-import {
-  PHASE_TYPES,
-  CONSULTANTS,
-  PROPOSAL_STATUSES,
-  type PhaseType,
-  type ProposalWithPhases,
-} from "@shared/schema";
+import { formatCurrencyOrDash } from "@/lib/utils";
+import { PROPOSAL_STATUSES, type ProposalWithPhases } from "@shared/schema";
+import type { ProjectWork, WorkPhase } from "@shared/project-work";
+import { scopeSaveFields } from "@shared/proposal-scope";
 
-type FeeType = "Fixed" | "Hourly";
-
-interface ConsultantState {
-  selected: boolean;
-  feeType: FeeType;
-  amount: string;
-}
-
-interface PhaseState {
-  selected: boolean;
-  consultants: Record<string, ConsultantState>;
-}
-
-type PhasesState = Record<string, PhaseState>;
-
-function initConsultantsState(): Record<string, ConsultantState> {
-  const state: Record<string, ConsultantState> = {};
-  for (const c of CONSULTANTS) {
-    state[c] = { selected: false, feeType: "Fixed", amount: "" };
-  }
-  return state;
-}
-
-function initPhasesState(existing?: ProposalWithPhases): PhasesState {
-  const state: PhasesState = {};
-  for (const pt of PHASE_TYPES) {
-    state[pt] = { selected: false, consultants: initConsultantsState() };
-  }
-  if (existing) {
-    for (const phase of existing.phases) {
-      const pt = PHASE_TYPES.find((p) => p === phase.name);
-      if (pt) {
-        state[pt].selected = true;
-        for (const fl of phase.feeLines) {
-          const c = CONSULTANTS.find((c) => c === fl.consultant);
-          if (c) {
-            state[pt].consultants[c] = {
-              selected: true,
-              feeType: fl.feeType as FeeType,
-              amount: fl.amount || "",
-            };
-          }
-        }
-      }
-    }
-  }
-  return state;
-}
-
-function phaseSubtotal(phaseData: PhaseState): number {
-  return CONSULTANTS.reduce((sum, c) => {
-    const cs = phaseData.consultants[c];
-    if (cs.selected && cs.feeType === "Fixed" && cs.amount) {
-      const n = parseFloat(cs.amount);
-      return isNaN(n) ? sum : sum + n;
-    }
-    return sum;
-  }, 0);
-}
-
+type ExistingPhaseMapping = ProposalWithPhases["phases"][number] & { projectPhaseId?: string | null };
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -101,338 +23,101 @@ interface Props {
   existing?: ProposalWithPhases;
   onSaved?: () => void;
 }
+const workKey = (id: number) => ["/api/leads", id, "work"];
+function phaseTotal(phase: WorkPhase) {
+  return phase.feeLines.reduce((sum, line) => sum + (line.feeType === "Fixed" && line.amount ? Number(line.amount) || 0 : 0), 0);
+}
 
 export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSaved }: Props) {
   const { toast } = useToast();
   const isEdit = !!existing;
+  const isIssued = !!existing && (existing.scopeLocked || !["Draft", "Revision"].includes(existing.status));
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<string>("Draft");
+  const [selectedPhaseIds, setSelectedPhaseIds] = useState<string[]>([]);
+  const [scopeTouched, setScopeTouched] = useState(false);
+  const [legacyReplacementConfirmed, setLegacyReplacementConfirmed] = useState(false);
+  const hasUnmappedScope = !!existing?.phases.some(phase => !phase.projectPhaseId);
+  const [formError, setFormError] = useState("");
+  const initializedFor = useRef("");
+  const { data: work, isLoading: workLoading, isError: workError, refetch } = useQuery<ProjectWork>({ queryKey: workKey(leadId), enabled: open });
 
-  const [name, setName] = useState(existing?.name || "");
-  const [description, setDescription] = useState(existing?.description || "");
-  const [status, setStatus] = useState<string>(existing?.status || "Draft");
-  const [phases, setPhases] = useState<PhasesState>(() => initPhasesState(existing));
-  const [openPhases, setOpenPhases] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    if (existing) {
-      for (const phase of existing.phases) {
-        if (PHASE_TYPES.includes(phase.name as PhaseType)) initial.add(phase.name);
-      }
-    }
-    return initial;
-  });
+  useEffect(() => {
+    if (!open) { initializedFor.current = ""; return; }
+    const key = `${existing?.id ?? "new"}`;
+    if (initializedFor.current === key || (!work && !workError)) return;
+    setName(existing?.name || "");
+    setDescription(existing?.description || "");
+    setStatus(existing?.status || "Draft");
+    const mapped = (existing?.phases || []).map(phase => {
+      return (phase as ExistingPhaseMapping).projectPhaseId;
+    }).filter((id): id is string => !!id);
+    setSelectedPhaseIds(mapped);
+    setScopeTouched(false);
+    setLegacyReplacementConfirmed(false);
+    setFormError("");
+    initializedFor.current = key;
+  }, [open, existing?.id, work, workError]);
 
-  const togglePhaseSelected = (pt: string) => {
-    setPhases((prev) => {
-      const next = { ...prev, [pt]: { ...prev[pt], selected: !prev[pt].selected } };
-      return next;
-    });
-    setOpenPhases((prev) => {
-      const next = new Set(Array.from(prev));
-      if (next.has(pt)) {
-        // If deselecting, remove from open set
-        if (phases[pt].selected) next.delete(pt);
-      } else {
-        // If selecting, auto-open
-        if (!phases[pt].selected) next.add(pt);
-      }
-      return next;
-    });
-  };
-
-  const togglePhaseOpen = (pt: string) => {
-    setOpenPhases((prev) => {
-      const next = new Set(Array.from(prev));
-      if (next.has(pt)) next.delete(pt);
-      else next.add(pt);
-      return next;
-    });
-  };
-
-  const toggleConsultant = (pt: string, c: string) => {
-    setPhases((prev) => ({
-      ...prev,
-      [pt]: {
-        ...prev[pt],
-        consultants: {
-          ...prev[pt].consultants,
-          [c]: { ...prev[pt].consultants[c], selected: !prev[pt].consultants[c].selected },
-        },
-      },
-    }));
-  };
-
-  const updateConsultantField = (pt: string, c: string, field: "feeType" | "amount", value: string) => {
-    setPhases((prev) => ({
-      ...prev,
-      [pt]: {
-        ...prev[pt],
-        consultants: {
-          ...prev[pt].consultants,
-          [c]: {
-            ...prev[pt].consultants[c],
-            [field]: value,
-            ...(field === "feeType" && value === "Hourly" ? { amount: "" } : {}),
-          },
-        },
-      },
-    }));
-  };
-
-  const selectedPhases = PHASE_TYPES.filter((pt) => phases[pt].selected);
-  const grandTotal = selectedPhases.reduce((sum, pt) => sum + phaseSubtotal(phases[pt]), 0);
-
+  const sortedPhases = useMemo(() => [...(work?.phases || [])].filter(phase => !phase.archived || selectedPhaseIds.includes(phase.id)).sort((a, b) => a.sortOrder - b.sortOrder), [work?.phases, selectedPhaseIds]);
+  const originalPhaseIds = (existing?.phases || []).map(phase => (phase as ExistingPhaseMapping).projectPhaseId).filter((id): id is string => !!id);
+  const dirty = name !== (existing?.name || "") || description !== (existing?.description || "") || status !== (existing?.status || "Draft") || !isIssued && (selectedPhaseIds.join("|") !== originalPhaseIds.join("|") || hasUnmappedScope && scopeTouched);
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: () => {
       const body = {
-        name: name.trim(),
-        description: description.trim() || null,
-        status,
-        phases: selectedPhases.map((pt, idx) => ({
-          name: pt,
-          sortOrder: idx,
-          feeLines: CONSULTANTS.filter((c) => phases[pt].consultants[c].selected).map((c, cidx) => ({
-            consultant: c,
-            feeType: phases[pt].consultants[c].feeType,
-            amount: phases[pt].consultants[c].amount || null,
-            sortOrder: cidx,
-          })),
-        })),
+        name: name.trim(), description: description.trim() || null, status,
+        ...scopeSaveFields({ editing: isEdit, locked: !!isIssued, selectionChanged: scopeTouched, selectedPhaseIds }),
       };
-      if (isEdit) {
-        return apiRequest("PATCH", `/api/proposals/${existing.id}`, body);
-      } else {
-        return apiRequest("POST", `/api/leads/${leadId}/proposals`, body);
-      }
+      return isEdit ? apiRequest("PATCH", `/api/proposals/${existing.id}`, body) : apiRequest("POST", `/api/leads/${leadId}/proposals`, body);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
       toast({ title: isEdit ? "Proposal updated" : "Proposal created" });
       onSaved?.();
       onOpenChange(false);
     },
-    onError: (err: Error) => {
-      toast({ title: "Failed to save proposal", description: err.message, variant: "destructive" });
-    },
+    onError: error => setFormError(error instanceof Error ? error.message : "Could not save proposal. Your edits remain here."),
   });
+  const close = (next: boolean) => {
+    if (!next && dirty && !window.confirm("Discard unsaved proposal edits?")) return;
+    if (!next && saveMutation.isPending) return;
+    if (!next) setFormError("");
+    onOpenChange(next);
+  };
+  const toggle = (id: string, checked: boolean | "indeterminate") => {
+    setScopeTouched(true);
+    setLegacyReplacementConfirmed(false);
+    setSelectedPhaseIds(previous => checked ? previous.includes(id) ? previous : previous.concat(id) : previous.filter(value => value !== id));
+  };
 
-  const canSave = name.trim().length > 0;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Proposal" : "New Proposal"}</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto space-y-6 pr-1">
-          {/* Basic info */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-1">
-              <Label htmlFor="proposal-name">Proposal Name</Label>
-              <Input
-                id="proposal-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Base Scope Proposal"
-                data-testid="input-proposal-name"
-              />
-            </div>
-            <div className="col-span-2 space-y-1">
-              <Label htmlFor="proposal-description">Description (optional)</Label>
-              <Textarea
-                id="proposal-description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe the scope of this proposal…"
-                rows={2}
-                data-testid="input-proposal-description"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger data-testid="select-proposal-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROPOSAL_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Fee breakdown */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold">Fee Breakdown</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Select phases, then choose which consultants are involved in each.</p>
-              </div>
-              {grandTotal > 0 && (
-                <span className="text-sm font-semibold">{formatCurrencyWhole(grandTotal)}</span>
-              )}
-            </div>
-
-            {/* Phase toggles */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {PHASE_TYPES.map((pt) => (
-                <button
-                  key={pt}
-                  type="button"
-                  onClick={() => togglePhaseSelected(pt)}
-                  className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
-                    phases[pt].selected
-                      ? "bg-foreground text-background border-foreground"
-                      : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground"
-                  }`}
-                  data-testid={`toggle-phase-${pt.replace(/\s+/g, "-").toLowerCase()}`}
-                >
-                  {pt}
-                </button>
-              ))}
-            </div>
-
-            {/* Selected phase panels */}
-            {selectedPhases.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-6 border rounded-md bg-muted/10">
-                Select one or more phases above to build the fee breakdown.
-              </p>
-            )}
-            <div className="space-y-2">
-              {selectedPhases.map((pt) => {
-                const phaseData = phases[pt];
-                const isOpen = openPhases.has(pt);
-                const subtotal = phaseSubtotal(phaseData);
-                const selectedConsultantCount = CONSULTANTS.filter((c) => phaseData.consultants[c].selected).length;
-
-                return (
-                  <div key={pt} className="rounded-md border">
-                    <Collapsible open={isOpen} onOpenChange={() => togglePhaseOpen(pt)}>
-                      <CollapsibleTrigger asChild>
-                        <button
-                          type="button"
-                          className="w-full flex items-center justify-between p-3 text-left hover-elevate rounded-md"
-                        >
-                          <div className="flex items-center gap-2">
-                            {isOpen
-                              ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                              : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                            }
-                            <span className="text-sm font-medium">{pt}</span>
-                            {!isOpen && selectedConsultantCount > 0 && (
-                              <span className="text-xs text-muted-foreground">
-                                {selectedConsultantCount} consultant{selectedConsultantCount !== 1 ? "s" : ""}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {subtotal > 0 && (
-                              <Badge variant="secondary" className="text-xs">{formatCurrencyWhole(subtotal)}</Badge>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                togglePhaseSelected(pt);
-                              }}
-                              data-testid={`button-remove-phase-${pt.replace(/\s+/g, "-").toLowerCase()}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
-                            </Button>
-                          </div>
-                        </button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="border-t divide-y">
-                          {CONSULTANTS.map((c) => {
-                            const cs = phaseData.consultants[c];
-                            return (
-                              <div
-                                key={c}
-                                className={`grid grid-cols-[auto_1fr_120px_140px] gap-3 items-center px-4 py-2.5 ${!cs.selected ? "opacity-50" : ""}`}
-                              >
-                                <Checkbox
-                                  id={`${pt}-${c}`}
-                                  checked={cs.selected}
-                                  onCheckedChange={() => toggleConsultant(pt, c)}
-                                  data-testid={`checkbox-consultant-${pt.replace(/\s+/g, "-").toLowerCase()}-${c.replace(/\s+/g, "-").toLowerCase()}`}
-                                />
-                                <label
-                                  htmlFor={`${pt}-${c}`}
-                                  className="text-sm cursor-pointer select-none"
-                                >
-                                  {c}
-                                </label>
-                                {cs.selected ? (
-                                  <>
-                                    <Select
-                                      value={cs.feeType}
-                                      onValueChange={(v) => updateConsultantField(pt, c, "feeType", v)}
-                                    >
-                                      <SelectTrigger
-                                        className="h-8 text-xs"
-                                        data-testid={`select-feetype-${pt.replace(/\s+/g, "-").toLowerCase()}-${c.replace(/\s+/g, "-").toLowerCase()}`}
-                                      >
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="Fixed">Fixed</SelectItem>
-                                        <SelectItem value="Hourly">Hourly</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                    {cs.feeType === "Fixed" ? (
-                                      <div className="relative">
-                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          step="100"
-                                          value={cs.amount}
-                                          onChange={(e) => updateConsultantField(pt, c, "amount", e.target.value)}
-                                          className="h-8 pl-5 text-sm"
-                                          placeholder="0"
-                                          data-testid={`input-fee-${pt.replace(/\s+/g, "-").toLowerCase()}-${c.replace(/\s+/g, "-").toLowerCase()}`}
-                                        />
-                                      </div>
-                                    ) : (
-                                      <span className="text-xs text-muted-foreground italic px-2">Billed at invoice</span>
-                                    )}
-                                  </>
-                                ) : (
-                                  <>
-                                    <div />
-                                    <div />
-                                  </>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+  return <Dialog open={open} onOpenChange={close}>
+    <DialogContent className="flex max-h-[90dvh] max-w-2xl flex-col">
+      <DialogHeader><DialogTitle>{isEdit ? "Edit proposal" : "New standard proposal"}</DialogTitle><DialogDescription>Choose shared project phases. Project fee inputs are maintained once; this proposal retains its own recorded financial snapshot.</DialogDescription></DialogHeader>
+      <div className="flex-1 space-y-6 overflow-y-auto pr-1">
+        {hasUnmappedScope && !isIssued && <div className="rounded-md border border-amber-500/40 p-3 text-sm">
+          <p className="font-medium">Legacy proposal scope is retained</p>
+          <p className="mt-1 text-xs text-muted-foreground">This document has phases that are not linked to shared project phases. Changing its name or description keeps its original phase and fee breakdown. Selecting shared phases replaces that scope only after your confirmation.</p>
+          <ul className="mt-2 list-inside list-disc text-xs">{existing?.phases.map(phase => <li key={phase.id}>{phase.name}</li>)}</ul>
+          {!scopeTouched && <Button className="mt-3" size="sm" variant="outline" onClick={() => setScopeTouched(true)}>Choose replacement scope</Button>}
+          {scopeTouched && <label className="mt-3 flex items-start gap-2 text-xs"><Checkbox checked={legacyReplacementConfirmed} onCheckedChange={value => setLegacyReplacementConfirmed(value === true)} /><span>I intend to replace this document's legacy phases and fees with the selected shared phases.</span></label>}
+        </div>}
+        {work?.needsReconciliation && <div role="alert" className="rounded-md border border-amber-500/40 bg-amber-50/60 p-3 text-sm dark:bg-amber-950/20"><p className="font-medium">Reconcile existing project scope first</p><p className="mt-1 text-xs text-muted-foreground">Choose the intended legacy phase and fee source on the project before saving a Standard proposal.</p></div>}
+        {isIssued && <div className="rounded-md border bg-muted/30 p-3 text-sm"><p className="font-medium">Issued scope is locked</p><p className="mt-1 text-xs text-muted-foreground">Sent and Signed proposal scope and fees remain as recorded. Only proposal metadata can be edited here; use the project page to create an updated draft.</p></div>}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="proposal-name">Proposal name</Label><Input id="proposal-name" value={name} onChange={e => setName(e.target.value)} maxLength={240} placeholder="e.g. Main residence renovation" /></div>
+          <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="proposal-description">Description</Label><Textarea id="proposal-description" value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Proposal-specific scope context" /></div>
+          <div className="space-y-1.5"><Label>Status</Label><Select value={status} onValueChange={setStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PROPOSAL_STATUSES.map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></div>
         </div>
-
-        <DialogFooter className="pt-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button
-            onClick={() => saveMutation.mutate()}
-            disabled={!canSave || saveMutation.isPending}
-            data-testid="button-save-proposal"
-          >
-            {saveMutation.isPending ? "Saving…" : isEdit ? "Save Changes" : "Create Proposal"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+        <section className="border-t pt-5"><div className="mb-3 flex items-start justify-between gap-3"><div><h3 className="font-semibold">Project scope</h3><p className="mt-1 text-sm text-muted-foreground">Choose shared phases; recorded proposal amounts remain a snapshot, with no manual duplicate entry.</p></div><span className="text-xs text-muted-foreground">{selectedPhaseIds.length} selected</span></div>
+          {workLoading ? <div className="space-y-2"><div className="h-14 animate-pulse rounded-md bg-muted" /><div className="h-14 animate-pulse rounded-md bg-muted" /></div> : workError ? <div role="alert" className="rounded-md border border-destructive/30 p-4 text-sm">Project phases could not load. <Button size="sm" variant="outline" onClick={() => void refetch()}>Retry</Button></div> : sortedPhases.length ? <div className="divide-y rounded-md border">{sortedPhases.map(phase => {
+            const selected = selectedPhaseIds.includes(phase.id);
+            return <label key={phase.id} className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 px-3 py-3 ${phase.archived ? "bg-muted/30" : ""}`}><Checkbox checked={selected} disabled={isIssued || !!work?.needsReconciliation || phase.archived && !selected} onCheckedChange={value => toggle(phase.id, value)} aria-label={`Include ${phase.name}`} /><span className="min-w-0"><span className="flex flex-wrap items-center gap-2 text-sm font-medium">{phase.name}{phase.archived && <span className="text-[10px] font-normal uppercase text-muted-foreground">Archived · existing selection</span>}</span><span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">{phase.timeline && <span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{phase.timeline}</span>}<span>{phase.feeLines.length ? `${phase.feeLines.length} consultant fee line${phase.feeLines.length === 1 ? "" : "s"}` : "No fee lines"}</span></span>{selected && phase.feeLines.length > 0 && <span className="mt-2 block space-y-1 border-l-2 border-primary/20 pl-2">{phase.feeLines.map(line => <span key={line.id} className="flex justify-between gap-4 text-xs text-muted-foreground"><span>{line.consultant} · {line.feeType}{line.feeType === "Hourly" && line.amount ? " · reference amount" : ""}</span><span>{line.amount ? formatCurrencyOrDash(line.amount) : line.feeType === "Hourly" ? "Hourly" : "Unpriced"}</span></span>)}</span>}</span><span className="text-right text-xs font-medium tabular-nums">{phaseTotal(phase) > 0 ? formatCurrencyOrDash(phaseTotal(phase).toFixed(2)) : "—"}</span></label>;
+          })}</div> : <div className="rounded-md border border-dashed px-4 py-7 text-center"><FileText className="mx-auto h-5 w-5 text-muted-foreground" /><p className="mt-2 text-sm font-medium">No shared phases yet</p><p className="mt-1 text-xs text-muted-foreground">Add phases and optional fee inputs on the project page first.</p></div>}
+        </section>
+        {formError && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">{formError} Your text has been preserved.</p>}
+      </div>
+      <DialogFooter className="border-t pt-4"><Button variant="outline" onClick={() => close(false)}>Cancel</Button><Button disabled={!name.trim() || saveMutation.isPending || workLoading || workError || !!work?.needsReconciliation || hasUnmappedScope && scopeTouched && !legacyReplacementConfirmed} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? "Saving…" : isEdit ? "Save proposal" : "Create proposal"}</Button></DialogFooter>
+    </DialogContent>
+  </Dialog>;
 }

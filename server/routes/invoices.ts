@@ -276,43 +276,11 @@ export function registerInvoiceRoutes(app: Express): void {
     }
   });
 
-  // Project comments
-  app.get("/api/leads/:leadId/comments", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as User).id;
-      const leadId = parseInt(req.params.leadId, 10);
-      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
-      const comments = await storage.getProjectComments(userId, leadId);
-      res.json(comments);
-    } catch (error) {
-      res.status(500).json({ error: (error as Error).message });
-    }
+  // Standalone project notes have been replaced by task discussions.
+  app.all("/api/leads/:leadId/comments", requireAuth, (_req, res) => {
+    res.status(410).json({ error: "Project Notes has been replaced by task notes." });
   });
-
-  app.post("/api/leads/:leadId/comments", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as User).id;
-      const leadId = parseInt(req.params.leadId, 10);
-      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
-      const { content } = req.body;
-      if (!content?.trim()) return res.status(400).json({ error: "Content is required" });
-      const comment = await storage.createProjectComment(userId, leadId, content.trim());
-      res.json(comment);
-    } catch (error) {
-      res.status(400).json({ error: (error as Error).message });
-    }
-  });
-
-  app.delete("/api/leads/:leadId/comments/:commentId", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as User).id;
-      const leadId = parseInt(req.params.leadId, 10);
-      if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
-      const success = await storage.deleteProjectComment(userId, req.params.commentId, leadId);
-      if (!success) return res.status(404).json({ error: "Comment not found" });
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: (error as Error).message });
-    }
+  app.all("/api/leads/:leadId/comments/:commentId", requireAuth, (_req, res) => {
+    res.status(410).json({ error: "Project Notes has been replaced by task notes." });
   });
 }

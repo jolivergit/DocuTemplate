@@ -2,7 +2,7 @@
 
 A practical walkthrough for everyday users
 
-Reviewed November 14, 2026 · No technical experience required
+Reviewed November 22, 2026 · No technical experience required
 
 Studio PM keeps your opportunities, proposals, active projects, billing, and document templates in one place. Start with the quick start, then use the contents to find a specific task.
 
@@ -22,7 +22,7 @@ Studio PM keeps your opportunities, proposals, active projects, billing, and doc
 - [Generate consultant contracts](#generate-consultant-contracts)
 - [Log time and expenses](#log-time-and-expenses)
 - [Create and manage invoices](#create-and-manage-invoices)
-- [Keep project notes](#keep-project-notes)
+- [Track tasks and notes](#track-tasks-and-notes)
 - [Use Doc Builder](#use-doc-builder)
 - [Save safely and avoid accidental changes](#save-safely-and-avoid-accidental-changes)
 - [Troubleshooting](#troubleshooting)
@@ -40,7 +40,7 @@ Use this fictional example throughout the guide: **Maple Street Studio Renovatio
 2. In the sidebar, open **Settings → Firm**. Enter your studio's details and click **Save**. Open **Settings → Contact**, enter your own primary contact name and title, and click **Save**.
 3. Open **Companies → New Company** and save Maple Street Design. Open **Contacts → New Contact** and save a fictional client contact, such as Jordan Sample. Link the contact to the company if desired.
 4. Open **Projects → New Project**. Name it Maple Street Studio Renovation, leave its status as **Lead**, fill in the known details, and select the client company/contact under the appropriate company role. Click **Create Project**.
-5. Open the project, choose **Proposals → New Proposal → Standard Proposal**, and name it Maple Street Design Proposal. Select **Schematic Design**, select **Interior Design**, choose **Fixed**, and enter **10000**. Click **Create Proposal**.
+5. On the project, add a phase named **Schematic Design**, optionally enter a timeline such as **5 weeks**, and add an **Interior Design / Fixed / 10000** fee line. Then choose **Proposals → New Proposal → Standard Proposal**, name it Maple Street Design Proposal, select that shared phase, and click **Create proposal**. You do not enter its fee again.
 6. Open the saved proposal and click **Load to Doc Builder**. This loads its name, total, project name, and available firm details into the field library.
 7. Have a Google Doc template ready with `{{project_name}}`, `{{proposal_name}}`, `{{proposal_total}}`, and `{{firm_name}}` typed into its body. See **Use Doc Builder** for a sample.
 8. In Doc Builder click **Load Template**. If asked, click **Connect Google**, complete the separate document permission screen using the same account, then click **Pick a Google Docs template** and select your template.
@@ -223,13 +223,15 @@ The **Update Status** buttons change the project status immediately; there is no
 
 **Important:** Manually changing a project to Active Project is not the same as signing its proposal. Invoices still need a signed Standard proposal.
 
-### Use the project tabs
+### Use the project workspace
+
+Tasks and their summary appear directly below the project heading. Shared phases and fee inputs are managed on this page, before or after you prepare a proposal. Expand the project details/access controls when needed.
 
 - **Overview:** Expand each row under **Associated Companies** to see company and contact details.
 - **Proposals:** Create and review proposals.
 - **Time & Expenses:** Available when status is Active Project or Completed.
 - **Invoices:** Also available when status is Active Project or Completed.
-- **Notes:** Record dated project updates.
+- Task details contain the team's dated discussion notes; there is no separate Notes tab.
 
 If the billing tabs disappear, check the project status before assuming data has been deleted.
 
@@ -238,16 +240,21 @@ If the billing tabs disappear, check the project status before assuming data has
 1. Open the project and select **Proposals**.
 2. Click **New Proposal → Standard Proposal**.
 3. Enter the proposal name, description, and status.
-4. In **Fee Breakdown**, select the phases you need. Options include Schematic Design, Design Development, Documentation, Bid/Permit, Construction Administration, and Furniture (FF&E).
-5. Expand each selected phase and select the consultants involved, such as Interior Design, Architecture, or MEP Engineering.
-6. Choose **Fixed** or **Hourly** for each selected consultant line. Enter the fixed amount where applicable.
-7. Review the breakdown and click **Create Proposal**. When editing an existing proposal, use **Save Changes**.
+4. Select the shared project phases you want to include. Their fees and optional timelines are shown for review, not entered a second time.
+5. If a phase or fee needs changing, cancel this form and edit it on the project page, then reopen proposal preparation.
+6. Review the selection and click **Create proposal**. When editing an unissued proposal, use **Save proposal**.
 
-For Maple Street, start with one Schematic Design / Interior Design line at a Fixed fee of $10,000.
+For Maple Street, first create one Schematic Design phase on the project with an Interior Design line at a Fixed fee of $10,000. Phases can have any custom name; no fee is required. The same phase can contain both project tasks and proposal fee lines.
 
 **Fixed versus Hourly:** Fixed amounts contribute to the proposal's fixed-fee total. An Hourly line is not a guaranteed lump sum; hours and rates are entered when billing. Do not read the displayed fixed-fee total as a forecast of all hourly work.
 
-Click a saved proposal to see its detail view. Use **Edit** to revise it. **Load to Doc Builder** prepares its values for a document; it does not generate or send a document by itself.
+Click a saved proposal to see its detail view. **Edit** changes document-specific information and, for an unissued proposal, its selected phases. **Load to Doc Builder** prepares its values for a document; it does not generate or send a document by itself.
+
+Draft/Revision preparation uses current shared phase names, timelines, and fee inputs. Sent, Signed, and other issued/closed proposal records retain their financial snapshot. Use the project-scope refresh action for an unissued document; for an issued document, create an updated draft instead. Later project changes do not rewrite issued documents or invoice amounts. A new phase does not automatically add a charge or change an existing proposal's selected scope.
+
+For older projects, you may first see **Choose the existing project scope**. Review the listed proposals and their phase/fee totals, choose the intended source, and click **Use selected source**. This establishes shared project data without retyping. **Start with an empty project** is an explicit alternative; original proposal records remain intact. Different existing proposals are not silently merged. An older proposal with no mapped shared phases needs an explicit selection before refreshing or issuing.
+
+An empty proposal selection stays empty when you refresh, send or sign it, even if someone adds priced phases to the project later. On an older unmapped proposal, changing only its name or description preserves its original phase/fee breakdown. To replace that scope, open **Edit**, choose shared phases (or **Choose replacement scope** for an intentionally empty selection), and check the confirmation that you intend to replace its legacy phases and fees. Refresh will ask for this choice rather than guessing.
 
 Proposal statuses include **Draft**, **Sent**, **Revision**, **Signed**, and **Declined**. Record Sent or Revision through the edit form when appropriate. Changing a status is recordkeeping, not an email action.
 
@@ -364,16 +371,40 @@ An invoice starts as **Draft**. After actually sending it yourself, click **Mark
 
 Neither action sends email or processes payment. The detail view advances statuses forward; it does not offer a general-purpose invoice editor or a reverse-status control. Ask the studio owner before correcting a sent or paid invoice.
 
-## Keep project notes
+## Track tasks and notes
 
-1. Open the project and choose **Notes**.
-2. Type a clear update under **Project Notes**.
-3. Click **Post**.
-4. Check that the dated note appears in the list.
+### Create phases once
 
-Example: “Client approved the Schematic Design proposal; schedule kickoff.”
+1. Open the project and click **Phase** in the work area.
+2. Enter a custom phase name. Ad-hoc phases can be added at any point; you are not limited to a predefined list.
+3. Optionally enter **Estimated timeline**, such as **5 weeks** or **8–10 weeks**. Leave it blank if unknown. This is an estimate, not a required start/end date or an automatic task schedule.
+4. Optionally add a consultant fee line, choose Fixed or Hourly, and save. More fee rows can be added through the phase's Edit controls.
+5. Use phase controls to edit, reorder, archive, or restore phases. Archiving preserves existing task references; archived phases cannot be assigned to new tasks.
 
-Notes are project records, not messages sent to clients. Existing notes do not have an edit form; post a clear correction when necessary. The trash-can control can remove a note directly, so treat it as a permanent action rather than an undoable draft change.
+The same project phases and fees are reused when preparing proposals. Changing their timeline does not change task due dates. An Hourly line is not a guaranteed fixed fee; hours and rates are entered when billing.
+
+### Add and manage tasks
+
+1. Click **New task** and enter a clear title, such as “Review the lighting layout.”
+2. Choose a phase or leave **General**, then choose an eligible teammate or leave **Unassigned**.
+3. Select priority (**Low, Normal, High, Urgent**) and an optional due date, then click **Add task**.
+4. Open the task to edit its description, phase, assignee, status, priority, and due date. Click **Save task**. Status choices are **To do, In progress, Blocked, Done**.
+5. Use the row's status/priority controls for quick changes. Filter by assignee, **Me**, Unassigned, status, or priority; search titles and sort by due date or priority. Tasks are grouped by phase.
+6. **Archive task** removes it from the active list without deleting it. Switch to the archive view and use **Restore task** to return it.
+
+The summary counts non-archived tasks. Open includes work not Done; Blocked is a subset of open work. A task is overdue when its due date is before today on your device and it is not Done. Due today is not overdue.
+
+Assignees must be firm users who already have access to the project: Owners and assigned Members. Address-book contacts are not task assignees, and assigning a task does not grant access. If someone's project access is removed, their task stays visible to authorized users and shows that reassignment is needed.
+
+### Add task notes
+
+1. Open the relevant task.
+2. In **Discussion**, enter an update and click **Add note**.
+3. Confirm that the note appears with its author's name and timestamp.
+
+Notes are internal project records, not messages sent to clients. Saved notes are append-only; post a correction if needed. Failed saves keep your text so you can retry. If another person changed the task, review/reload the latest version before saving again rather than overwriting it unknowingly.
+
+**The previous standalone Project Notes feature has been replaced, and its old notes are removed during the approved upgrade. There is no old-notes archive.** New task discussions are stored separately.
 
 ## Use Doc Builder
 

@@ -8,6 +8,7 @@
 - Acceptance scenarios and blank result log: `docs/uat-checklist.md`; printable edition: `docs/uat-checklist.html`.
 - Workspace access/migration reference: `docs/company-workspaces.md`. App-operator Google setup: `docs/google-oauth-setup.md`.
 - Rebuild the printable documents with `python3 scripts/build-user-guide.py`. Edit the Markdown sources, not the generated HTML.
+- Shared phase/task rollout and intentional legacy-note removal: `docs/project-work-rollout.md`.
 - A documentation review or an implemented feature is not UAT sign-off. Record actual test results separately; do not treat planned or archived task titles as the current implementation.
 
 ## Overview
@@ -15,7 +16,8 @@ Studio PM is a full project pipeline manager for Oliver Studios with three stage
 
 ### Pipeline Stages
 - **Lead Management** (Implemented): Track opportunities with status, probability, potential fee, square footage, and company/contact associations using suggested or custom roles.
-- **Proposal Management** (Implemented): Create multi-phase Standard proposals with a fee line per selected consultant. Mark as Signed to advance a Standard proposal's lead to Active Project. "Load to Doc Builder" pre-fills proposal + firm field values and saves the generated doc URL back to the originating proposal.
+- **Project Tasks and Shared Scope**: Project-owned phases support ad-hoc names, optional duration/range text, ordering/archive, and optional fee lines. Tasks on the project page have one eligible assignee, phase, priority, status, due date and attributed append-only notes. Task/phase edits use versions to reject stale writes; only project-authorized users can access them.
+- **Proposal Management**: Standard proposals select shared project phases/fees without re-entry. Draft/Revision preparation uses current shared inputs; issued snapshots preserve agreed amounts for billing/contracts. Mark as Signed advances a Standard proposal's lead to Active Project. "Load to Doc Builder" pre-fills proposal + firm values and saves the generated doc URL back.
 - **Additional Services Proposals** (Implemented): Separate proposal type with description-and-amount line items, not the Standard phase/consultant grid. "Load to Doc Builder" supports the `{{additional_services_table}}` tag.
 - **Consultant Contracts** (Complete): Generate per-consultant Google Docs directly from a signed proposal's fee lines. Each contract record stores the generated doc URL.
 - **Project & Invoice Management** (Complete): Track invoices built on top of signed proposals, with hours entries, expense entries, and a project comments log. "Load to Doc Builder" button pre-fills invoice field values. Invoice doc URLs are saved back automatically.
@@ -75,8 +77,9 @@ When "Load to Doc Builder" is triggered from a specific record, a `returnTo` con
 - **leadCompanies** — Project company entries with free-form roles, optional company/contact links and company/address snapshots
 - **contacts** — Standalone address book entries (fullName, title, phone, email, companyName, notes). Independent from projects; shown in Contacts page alongside project-derived contacts.
 - **proposals** — Proposals linked to leads (statuses: Draft, Sent, Revision, Signed, Declined). `proposalType` field: `"Standard"` | `"Additional Services"`. Stores `docUrl` for the generated Google Doc.
-- **proposalPhases** — Selected phases within Standard proposals; Additional Services uses its separate flat line items
-- **proposalFeeLines** — Fee lines per phase: service category × discipline × feeType (Fixed/Hourly) × amount. For Additional Services proposals: phase × consultant × feeType × amount.
+- **projectPhases / projectPhaseFees** — Shared project phases and fee inputs; optional timeline, ad-hoc names, stable identities used by tasks and proposal preparation.
+- **projectTasks / projectTaskNotes** — Project-scoped work with status, priority, date-only due date, eligible user assignment, optimistic versioning and attributed discussion.
+- **proposalPhases / proposalFeeLines** — Selected document/financial snapshots referencing shared phase identities. They preserve issued scope, not a second manual project-data editor. Additional Services retains its separate flat line items.
 - **consultantContracts** — Per-consultant contract records on a signed proposal. Fields: proposalId, consultant (name), templateId, templateName, outputName, docUrl. Created when a consultant contract Google Doc is generated.
 - **invoices** — Invoices for active projects, linked to signed proposals (statuses: Draft, Sent, Paid)
 - **invoiceFeeLineSnapshots** — Snapshot of each fee line at invoice time: % complete, earned, previous billing, current billing
@@ -87,7 +90,7 @@ When "Load to Doc Builder" is triggered from a specific record, a `returnTo` con
 ### Key Routes
 - `/` → Dashboard (pipeline strip + billing summary + recent projects — no in-page title)
 - `/projects` → Projects list (pipeline)
-- `/projects/:id` → Overview | Proposals | Notes; Active Project/Completed also expose Time & Expenses | Invoices
+- `/projects/:id` → task-first shared project workspace with phases/fees; secondary Overview | Proposals, plus Time & Expenses | Invoices for Active Project/Completed. Project access/status details are collapsible; standalone Notes is retired.
 - `/companies` → Companies address book
 - `/contacts` → Contacts page (address book + project-derived contacts)
 - `/doc-builder` → Google Docs template builder (accepts `?returnTo=proposal&returnToId=<id>` for auto save-back)
@@ -158,7 +161,7 @@ Project company entries use free-form roles with common suggestions such as Cont
 ## Proposal Management
 
 ### Proposal Types
-- **Standard** (`proposalType: "Standard"`) — Selected phase → selected consultant fee lines. Phases include Schematic Design, Design Development, Documentation, Bid/Permit, Construction Administration and Furniture (FF&E). Each line has a Fixed/Hourly fee type and applicable amount.
+- **Standard** (`proposalType: "Standard"`) — Select shared project phases, with any custom name and optional timeline. Their consultant fee lines use Fixed/Hourly and applicable amounts. Edit shared inputs on the project, not in each proposal.
 - **Additional Services** (`proposalType: "Additional Services"`) — Add-on scope with flat description-and-amount line items.
 
 ### Proposal Structure
@@ -221,9 +224,10 @@ Combines active-workspace firm information with the user's personal document con
 
 ### Proposals
 - `GET /api/leads/:leadId/proposals` — List all proposals for a lead
-- `POST /api/leads/:leadId/proposals` — Create a proposal (with phases and fee lines)
+- `POST /api/leads/:leadId/proposals` — Create a proposal; Standard uses `selectedPhaseIds` from shared project data, Additional Services uses its flat items
 - `GET /api/proposals/:id` — Get proposal with all phases and fee lines
-- `PATCH /api/proposals/:id` — Update proposal (optionally replaces phases; allowed fields include `docUrl`)
+- `PATCH /api/proposals/:id` — Update document metadata and unissued Standard phase selection; issued scope is protected. Allowed fields include `docUrl`.
+- `/api/leads/:leadId/work` — Shared phases/fees, tasks and eligible assignees; subroutes support reconciliation, phase reorder, task edits/archive, and task notes.
 - `POST /api/proposals/:id/sign` — Sign proposal (advances lead to Active Project)
 - `POST /api/proposals/:id/decline` — Decline proposal
 - `DELETE /api/proposals/:id` — Delete proposal
@@ -269,7 +273,7 @@ Combines active-workspace firm information with the user's personal document con
 
 ## Project Detail Page — Tab Structure
 
-Active Project / Completed leads get 5 tabs: **Overview | Proposals | Time & Expenses | Invoices | Notes**. Other statuses get Overview, Proposals and Notes. Time & Expenses and Invoices appear only when `status ∈ { "Active Project", "Completed" }`.
+Every project opens with its task workspace and shared phases/fees. Secondary tabs are **Overview | Proposals**, plus **Time & Expenses | Invoices** when `status ∈ { "Active Project", "Completed" }`. Standalone Notes has been replaced by task discussions; the approved migration removes its old data once.
 
 ### Proposals Tab
 Displays all proposals for the project. A dropdown "New Proposal" button lets users create either a Standard or Additional Services proposal. Each proposal shows a type badge (Standard proposals have no badge; AS proposals show an "Additional Services" badge). Signed proposals expose a Consultant Contracts section.
@@ -299,7 +303,7 @@ These describe prior refactoring, not a current code audit or UAT result. Verify
 `server/routes.ts` was a single 2,060-line file. Now split into: `auth.ts`, `leads.ts`, `proposals.ts`, `invoices.ts`, `companies.ts`, `field-values.ts`, `doc-builder.ts`, and `index.ts` barrel.
 
 **`client/src/pages/project-detail.tsx` — Tab extraction** ✓
-All four tabs extracted to `client/src/components/tabs/`: `proposals-tab.tsx`, `time-expenses-tab.tsx`, `invoices-tab.tsx`, `notes-tab.tsx`. Parent page is a thin shell.
+Proposals, time/expenses, and invoices remain extracted under `client/src/components/tabs/`. The retired notes tab was removed; project work lives under `client/src/components/project-work/`.
 
 **`server/storage.ts` — Domain repositories** ✓
 The storage facade delegates to `server/repositories/leads.ts`, `proposals.ts`, `invoices.ts`, `companies.ts` and `doc-builder.ts`.

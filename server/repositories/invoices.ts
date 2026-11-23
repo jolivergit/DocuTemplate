@@ -8,7 +8,6 @@ import {
   invoiceAdditionalLineItemSnapshots,
   hoursEntries,
   expenseEntries,
-  projectComments,
   proposals,
   proposalFeeLines,
   proposalPhases,
@@ -19,7 +18,6 @@ import {
   type InvoiceAdditionalLineItemSnapshot,
   type HoursEntry,
   type ExpenseEntry,
-  type ProjectComment,
 } from "@shared/schema";
 import type { DashboardStats } from "../storage";
 
@@ -382,28 +380,6 @@ export async function deleteExpenseEntry(userId: string, id: string): Promise<bo
   const owned = await verifyLeadOwnership(userId, existing.leadId);
   if (!owned) return false;
   const result = await db.delete(expenseEntries).where(eq(expenseEntries.id, id));
-  return result.rowCount ? result.rowCount > 0 : false;
-}
-
-// ─── Project Comments ─────────────────────────────────────────────────────────
-
-export async function getProjectComments(userId: string, leadId: number): Promise<ProjectComment[]> {
-  const owned = await verifyLeadOwnership(userId, leadId);
-  if (!owned) return [];
-  return db.select().from(projectComments).where(eq(projectComments.leadId, leadId)).orderBy(projectComments.createdAt);
-}
-
-export async function createProjectComment(userId: string, leadId: number, content: string): Promise<ProjectComment> {
-  const owned = await verifyLeadOwnership(userId, leadId);
-  if (!owned) throw new Error('Access denied');
-  const [row] = await db.insert(projectComments).values({ leadId, content }).returning();
-  return row;
-}
-
-export async function deleteProjectComment(userId: string, commentId: string, leadId: number): Promise<boolean> {
-  const owned = await verifyLeadOwnership(userId, leadId);
-  if (!owned) return false;
-  const result = await db.delete(projectComments).where(and(eq(projectComments.id, commentId), eq(projectComments.leadId, leadId)));
   return result.rowCount ? result.rowCount > 0 : false;
 }
 

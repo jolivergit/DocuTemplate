@@ -10,6 +10,8 @@
     "check": "tsc",
     "test:google": "tsx --test server/google-permissions.test.ts server/services/google-documents.test.ts client/src/lib/queryClient.test.ts client/src/lib/google-picker-lifecycle.test.ts",
     "test:workspaces": "tsx --test server/workspaces.test.ts",
+    "test:project-work": "tsx --test server/project-work.test.ts",
+    "db:migrate:project-work": "tsx scripts/migrate-project-work.ts",
     "db:migrate:workspaces": "tsx scripts/migrate-workspaces.ts",
     "db:push": "drizzle-kit push"
   },
