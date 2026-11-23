@@ -67,9 +67,9 @@ export default function ProjectDetailPage({ params }: Props) {
           </div>
         </div>
 
-        <ProjectSetup lead={lead} workDirty={workDirty} />
+        <div id="project-setup"><ProjectSetup lead={lead} workDirty={workDirty} /></div>
         <fieldset disabled={teamSaving} aria-busy={teamSaving} className="m-0 min-w-0 border-0 p-0">
-          <ProjectWorkWorkspace leadId={leadId} onDirtyChange={setWorkDirty} />
+          <ProjectWorkWorkspace leadId={leadId} lead={lead} onDirtyChange={setWorkDirty} />
         </fieldset>
 
         <Tabs defaultValue="overview">

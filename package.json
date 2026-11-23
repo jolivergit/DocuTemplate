@@ -12,6 +12,8 @@
     "test:workspaces": "tsx --test server/workspaces.test.ts",
     "test:project-work": "tsx --test server/project-work.test.ts",
     "test:project-setup": "tsx --test server/project-setup.test.ts",
+    "test:project-log": "tsx --test server/project-log.test.ts",
+    "db:migrate:project-log": "tsx scripts/migrate-project-log.ts",
     "db:migrate:project-setup": "tsx scripts/migrate-project-setup.ts",
     "db:migrate:project-work": "tsx scripts/migrate-project-work.ts",
     "db:migrate:workspaces": "tsx scripts/migrate-workspaces.ts",

@@ -6,7 +6,7 @@ Reviewed November 22, 2026 · No technical experience required
 
 Studio PM keeps your opportunities, proposals, active projects, billing, and document templates in one place. Start with the quick start, then use the contents to find a specific task.
 
-**About this guide:** This edition covers inline project setup, multi-person project roles, company teams, multiple firms and Google chooser recovery controls. It is not a completed customer acceptance test. Real Google consent, file access and generated-document formatting still need testing with your own authorized test accounts and templates.
+**About this guide:** This edition covers inline project setup, the Work in motion running log, multi-person project roles, company teams, multiple firms and Google chooser recovery controls. It is not a completed customer acceptance test. Real Google consent, file access and generated-document formatting still need testing with your own authorized test accounts and templates.
 
 ## Contents
 
@@ -22,7 +22,7 @@ Studio PM keeps your opportunities, proposals, active projects, billing, and doc
 - [Generate consultant contracts](#generate-consultant-contracts)
 - [Log time and expenses](#log-time-and-expenses)
 - [Create and manage invoices](#create-and-manage-invoices)
-- [Track tasks and notes](#track-tasks-and-notes)
+- [Use the Work in motion log](#use-the-work-in-motion-log)
 - [Use Doc Builder](#use-doc-builder)
 - [Save safely and avoid accidental changes](#save-safely-and-avoid-accidental-changes)
 - [Troubleshooting](#troubleshooting)
@@ -232,17 +232,17 @@ Change the status in **Project setup → Identity & status**, then **Save detail
 
 ### Use the project workspace
 
-The page starts with **Project setup**: identity, team and companies, then **Phases, fees & timeline**. **Work in motion** follows with the current task workspace and task summary. Phases are the project's stages of work as well as reusable proposal scope; there is no second set to enter for proposals.
+The page starts with **Project setup**: identity, team and companies, then **Phases, fees & timeline**. **Work in motion** follows with a running log of tasks, reminders, meetings and notes. Phases are the project's stages of work as well as reusable proposal scope; there is no second set to enter for proposals.
 
 - **Overview:** Expand each row under **Associated Companies** to see company and contact details.
 - **Proposals:** Create and review proposals.
 - **Time & Expenses:** Available when status is Active Project or Completed.
 - **Invoices:** Also available when status is Active Project or Completed.
-- Task details contain the team's dated discussion notes; there is no separate Notes tab.
+- Log entries and their discussions expand directly in the page; there is no task-detail popup or separate Notes tab.
 
 If the billing tabs disappear, check the project status before assuming data has been deleted.
 
-**Current release boundary:** This update streamlines setup. Work in motion still uses tasks and task discussions, and the financial/Overview tabs remain. The broader running log for meetings, reminders and general notes, and the fully tab-free layout, are separate planned changes—not available yet.
+**Current release boundary:** Inline setup and the Work in motion running log are available. The financial/Overview tabs still remain; their tab-free replacement is a separate planned change.
 
 ## Build a Standard proposal
 
@@ -380,11 +380,11 @@ An invoice starts as **Draft**. After actually sending it yourself, click **Mark
 
 Neither action sends email or processes payment. The detail view advances statuses forward; it does not offer a general-purpose invoice editor or a reverse-status control. Ask the studio owner before correcting a sent or paid invoice.
 
-## Track tasks and notes
+## Use the Work in motion log
 
 ### Create phases once
 
-1. Open the project and click **Phase** in the work area.
+1. In **Project setup**, find **Phases, fees & timeline** and click **Add phase**. Choose **Edit setup** first if setup is collapsed.
 2. Enter a custom phase name. Ad-hoc phases can be added at any point; you are not limited to a predefined list.
 3. Optionally enter **Estimated timeline**, such as **5 weeks** or **8–10 weeks**. Leave it blank if unknown. This is an estimate, not a required start/end date or an automatic task schedule.
 4. Optionally add a consultant fee line, choose Fixed or Hourly, and save. More fee rows can be added through the phase's Edit controls.
@@ -392,28 +392,74 @@ Neither action sends email or processes payment. The detail view advances status
 
 The same project phases and fees are reused when preparing proposals. Changing their timeline does not change task due dates. An Hourly line is not a guaranteed fixed fee; hours and rates are entered when billing.
 
-### Add and manage tasks
+### Choose the right kind of entry
 
-1. Click **New task** and enter a clear title, such as “Review the lighting layout.”
-2. Choose a phase or leave **General**, then choose an eligible teammate or leave **Unassigned**.
-3. Select priority (**Low, Normal, High, Urgent**) and an optional due date, then click **Add task**.
-4. Open the task to edit its description, phase, assignee, status, priority, and due date. Click **Save task**. Status choices are **To do, In progress, Blocked, Done**.
-5. Use the row's status/priority controls for quick changes. Filter by assignee, **Me**, Unassigned, status, or priority; search titles and sort by due date or priority. Tasks are grouped by phase.
-6. **Archive task** removes it from the active list without deleting it. Switch to the archive view and use **Restore task** to return it.
+Click **Add entry** in Work in motion. Everything is written and edited inline.
 
-The summary counts non-archived tasks. Open includes work not Done; Blocked is a subset of open work. A task is overdue when its due date is before today on your device and it is not Done. Due today is not overdue.
+| Kind | What to enter |
+| --- | --- |
+| Task | A title, optional description, phase and assignee, priority, status and optional due date. |
+| Reminder | A title and optional details/due date. Mark it complete when handled; no priority is required. This is a record, not a delivered notification. |
+| Meeting | A title or meeting notes, plus an optional manually entered meeting date/time. A time needs a date. No invitation is sent or calendar event created. |
+| Note | Write the note itself. No task title, priority, status or due date is required. |
 
-Assignees must be firm users who already have access to the project: Owners and assigned Members. Address-book contacts are not task assignees, and assigning a task does not grant access. If someone's project access is removed, their task stays visible to authorized users and shows that reassignment is needed.
+Any kind can optionally reference a phase and an eligible teammate. Leave them
+blank when they do not apply. Choosing a role with several people never chooses
+one person for you. Address-book contacts are not app teammates; referencing a
+person does not grant access to the project.
 
-### Add task notes
+Review the draft, then save it. Entries appear newest-created first with their
+kind and recorded time. A meeting's manually entered date/time is displayed as
+entered, not converted into a calendar appointment. Older tasks appear once in
+this same log, with their original IDs, due dates, assignments and discussions.
+Older records with no recorded author are not attributed to an invented author.
 
-1. Open the relevant task.
-2. In **Discussion**, enter an update and click **Add note**.
-3. Confirm that the note appears with its author's name and timestamp.
+### Use known project details without retyping
 
-Notes are internal project records, not messages sent to clients. Saved notes are append-only; post a correction if needed. Failed saves keep your text so you can retry. If another person changed the task, review/reload the latest version before saving again rather than overwriting it unknowingly.
+Choose **Use project details** above the log when useful. Review the draft
+text drawn from saved project information before saving. It may include the
+project name, description, status, companies and general timeline.
 
-**The previous standalone Project Notes feature has been replaced, and its old notes are removed during the approved upgrade. There is no old-notes archive.** New task discussions are stored separately.
+This does not post an entry automatically, choose an assignee, invent a meeting,
+or turn “8–10 weeks” into a due date. Select any phase/person and enter actual
+meeting or due dates yourself.
+
+### Edit, complete and archive
+
+Expand an entry's edit controls, make the appropriate changes and save. Tasks
+keep **To do, In progress, Blocked, Done** and **Low, Normal, High, Urgent**.
+Reminders use incomplete/complete; meetings and notes have no completion status.
+An entry's kind is fixed after saving to avoid losing type-specific information.
+
+Use completion controls for tasks/reminders. Archive hides an entry without
+deleting its history; switch to **Archived** and restore it when needed. Search
+the log, choose a kind or use **Actionable** to focus on tasks/reminders. **Mine**
+shows entries naming you as their teammate/assignee, not every note you authored.
+
+Counts include only non-archived tasks and reminders. Meetings and notes are
+never overdue or Done. A due date before today on your device is overdue unless
+the item is complete; due today is not overdue.
+
+### Discuss an entry and recover safely
+
+Open **Discussion** on the relevant entry and add your update there. Discussion
+is dated and attributed, not copied into another top-level log entry. It is
+internal recordkeeping, not a message sent to a client. Saved discussion is
+append-only; add a correction when needed.
+
+Save or cancel before opening another editor. If closing would discard text,
+the app asks inline. Active saves block conflicting actions and firm switching.
+Team-access changes wait for your drafts to be saved or cancelled.
+
+Failed saves preserve text. Retry the same entry/discussion rather than creating
+another copy. If the app is unsure whether a save arrived, check the saved log
+using its recovery action. If another user changed an entry, review **Reload
+latest** before replacing your draft. Do not refresh the whole page to recover
+unsaved text; drafts are not a cross-session autosave.
+
+The retired standalone Project Notes feature is not restored by this change.
+Its earlier approved cleanup did not authorize deleting newer task discussions.
+All task-era discussions remain attached to their original entries.
 
 ## Use Doc Builder
 

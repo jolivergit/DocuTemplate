@@ -11,8 +11,21 @@ Use this alongside the Studio PM User Guide. UAT means user acceptance testing: 
 This is separate from customer sign-off; the manual result cells below remain
 blank for your own acceptance testing.
 
-- TypeScript and the production build passed. The setup, workspace, project-work
-  and Google regression suites passed 63 checks in total.
+- TypeScript and the production build passed. The running-log, setup, workspace,
+  project-work and Google regression suites passed 75 checks in total.
+- The new log checks covered four-kind validation, unchanged task/discussion
+  IDs/content/authors/dates after repeat migration, local-date actionable counts,
+  concurrent create/discussion retry keys, immutable kinds, version conflicts,
+  archive/restore, assignment revocation and legacy task-route boundaries.
+- A separate signed-in log walkthrough in an isolated fictional firm passed:
+  existing task/discussion shown once, all four kinds, inline edit/reply,
+  completion/archive/restore, reviewable project-context drafts, discard
+  protection, stale-edit text retention, explicit reload and a subsequent save.
+  A 390px viewport had no horizontal overflow. Browser controls could not
+  simulate offline/aborted creates, so transport-error create/retry remains
+  unverified in the browser; automated API checks verified retry deduplication.
+  Filter disabling and pending-save/firm-switch guards were inspected in code,
+  not separately asserted by that walkthrough. No production/Google actions ran.
 - The setup/access checks covered multiple people and roles, legacy access
   without guessed roles, last-admin protection including firm removal,
   concurrent roster conflicts and foreign-firm denial. Signing a proposal also
@@ -90,7 +103,7 @@ Use Firm A for this sequence. Reuse one fictional project, for example **UAT Map
 | P3 | Add the 2-hour Hours entry and $20 Parking entry on the project. Check their Unattached badges. Correct a disposable entry with its pencil control and save. | Dates, descriptions and amounts persist. Entries are not billed twice merely because they appear in the project list. Review attached entries carefully before changing them. | Not run |
 | P4 | Create the first invoice at cumulative 25% complete. Attach the existing two entries; do not retype them as new entries. | With no other billing/charges, fixed earned and current fee are $2,500, Hours $200, Parking $20, total $2,720. Included entries gain an invoice badge and no longer appear as Unattached. | Not run |
 | P5 | On this practice invoice only, simulate sending and payment with Mark as Sent and Mark as Paid. Inspect Dashboard summaries. Start a later invoice at 50% complete and review before saving. | Statuses are recordkeeping, not email or payment processing. Totals follow access/statuses. With $2,500 previous fixed billing, 50% cumulative gives $2,500 new fixed billing, not $5,000; do not reattach the first invoice's entries. | Not run |
-| P6 | Add a fictional discussion note to a practice task and reload. Correct it by posting another note if needed. | Discussion retains author/dates/text. There is no standalone project Notes tab or broader general-note log yet. No client message is sent. | Not run |
+| P6 | Add a general Note in Work in motion, then a discussion update to a practice task and reload. Correct discussion by posting another update if needed. | The general Note needs no task title or due date. Discussion retains author/dates/text and stays under its original entry. No separate Notes tab or client message is created. | Not run |
 | P7 | Check project lists, company/contact lists, Dashboard totals and the practice project link while switching between Firms A and B. | Firm A's records do not appear in Firm B. Owning both firms does not merge their business records. Personal content library/contact values may remain available because they are personal, not firm-shared. | Not run |
 
 ## Inline project setup and project roles
@@ -110,19 +123,37 @@ Project roles do not replace the firm's Owner/Member roles.
 | S8 | Attempt to remove the last Project Admin from the roster and from firm membership. Transfer responsibility, then remove. | Both removal paths block a stranded project; transfer succeeds. Last firm Owner protection is separate. | Not run |
 | S9 | Edit setup in two authorized tabs and save competing values. Keep another setup/work draft while attempting a team change. | Stale saves fail with draft retained and explicit reload/review. Team refresh does not silently discard another draft. | Not run |
 
-The running-log expansion and fully tab-free project layout are downstream work;
-this release retains task discussions and the existing financial/Overview tabs.
+The running log is available. The fully tab-free project layout remains
+downstream; this release retains the existing financial/Overview tabs.
+
+## Work in motion running log
+
+Use only fictional authorized practice records. Existing task-era data must
+survive the upgrade. This does not restore the retired standalone Notes feature.
+Record customer outcomes below; developer checks are not customer sign-off.
+
+| ID | What to do | Expected outcome | Result / notes |
+| --- | --- | --- | --- |
+| L1 | Open an existing practice task with a discussion and an archived task. Inspect the running log on desktop and phone. | Each task appears once with original fields; archived work is in Archived. Discussion stays under its task, not another top-level entry. No task sheet/pop-up is needed. | Not run |
+| L2 | Choose Add entry → Note and write text only. Save and reload. Then add a Task with an optional assignee/phase, priority, status and due date. | Note needs no fake title/status/priority/date. Task retains all task fields. Both persist with kind and recorded time; new entries identify their author. | Not run |
+| L3 | Add a Reminder with no date or teammate. Complete, reopen, archive and restore it. Add a Meeting with notes and an optional real date/time. | Reminder works without dates; completion persists through restore. Meeting does not require priority/status/due date or send a calendar invitation. | Not run |
+| L4 | Create an ad-hoc phase with timeline `8–10 weeks`. Use project details in a new draft. Inspect before saving, then cancel. | Known text is reviewable; no entry is posted before Save. No meeting, selected person or calendar due date is invented from the duration. Cancelling creates nothing. | Not run |
+| L5 | Enter/edit content and try to close or open another entry. Keep the draft, then deliberately discard. Try filters and firm switching with unsaved text or an active save. | Inline discard protection preserves text when cancelled. Filters cannot hide an inaccessible editor. Firm/team changes do not silently discard drafts; active saves block conflicting actions. | Not run |
+| L6 | On disposable data use two tabs to edit one entry. Save in tab B, then tab A. Review Reload latest in A deliberately. | A shows a conflict with its text intact, not a silent overwrite. Reload is explicit and a failed reload also retains the draft. | Not run |
+| L7 | If a real save failure occurs, retry the same entry/discussion in the same editor. Use its recovery action before starting a different save. | Same-intent retries create one record, not duplicates. Uncertain/conflicting saves retain text and explain recovery. Do not disrupt another user's connection to manufacture a failure. | Not run |
+| L8 | Add past/due-today tasks/reminders and past meetings/notes; complete/archive some. Search and filter by kind, Actionable and Archived. | Counts/overdue include only active tasks/reminders. Due today is not overdue. Notes/meetings never inflate open/Done/overdue counts; archive/restore retains history. | Not run |
+| L9 | As assigned Member add/edit/discuss each kind. Remove access using an authorized admin after drafts are saved. Inspect as another authorized user. | Revoked user cannot continue reading/writing. Saved entries/discussions remain; revoked assignees are flagged and cannot be newly selected. Foreign-firm phases/users and unassigned coworkers are not valid references. | Not run |
 
 ## Project tasks and shared phases
 
-Use fictional project data in Firm A. Old standalone Project Notes are deliberately removed by the upgrade; do not expect a history archive.
+Use fictional project data in Firm A. The retired standalone Project Notes are not restored. The running-log upgrade preserves newer task-era entries and discussions.
 
 | ID | What to do | Expected outcome | Result / notes |
 | --- | --- | --- | --- |
 | T1 | Open the project on desktop and phone. Add an ad-hoc phase called UAT Lighting, with no fee. Set timeline to 5 weeks, then 8–10 weeks, then clear it; reload between changes. | Tasks are directly visible. Custom phase and optional timeline persist; blank is unspecified. No proposal, fee, calendar dates, or task due-date changes are required. | Not run |
-| T2 | Add an eligible-assignee task in that phase, a General task without assignee, and tasks with priorities/statuses. Change status/priority inline and open full details to edit description and due date. | Saved fields survive reload. General/Unassigned work is allowed. Only eligible current firm users appear, not address-book contacts or unassigned coworkers. | Not run |
-| T3 | Set practice due dates to yesterday, today, and tomorrow; mark one past-due task Done. Filter Me/Unassigned/status/priority, search a unique title, and change sort order. | Due today is not overdue. Done/archived tasks are excluded from overdue. Summary counts are independent of list filters and tasks group under their shared phases. | Not run |
-| T4 | Add a task discussion note, reload, then deliberately lose connectivity and attempt another note. Restore connectivity and retry without changing its text. | Notes have author/timestamp and render as text. Retry does not duplicate the same note; failure preserves entered text. No standalone Notes tab remains. | Not run |
+| T2 | Add an eligible-assignee Task in that phase and a General Task without assignee. Open inline Edit to change priority/status/description/due date. | Saved fields survive reload without a task sheet. General/unassigned work is allowed. Only eligible firm users appear, not address-book contacts or unassigned coworkers. | Not run |
+| T3 | Set practice due dates to yesterday, today and tomorrow; complete a past-due Task. Search a unique title and use type/Actionable/Archived filters. | Due today is not overdue. Complete/archived work is excluded from overdue. Counts are independent of filters and include only active tasks/reminders; entries show phase references in the chronological log. | Not run |
+| T4 | Add a Task discussion update and reload. If a real save failure occurs, restore connectivity and retry the same text in the same editor. | Updates have author/timestamp and render as text. Retry does not duplicate the update; failure preserves entered text. Discussion stays under its entry and no standalone Notes tab remains. | Not run |
 | T5 | Start editing task fields/notes, try to close or open another task, and cancel discard. In a second authorized tab save a conflicting edit, then attempt the first tab's save. | Draft text is not silently discarded. Stale saves are rejected with a reload/review path rather than silently overwriting another user's work. | Not run |
 | T6 | Archive/restore a task and phase; reorder phases. Add a task while the phase is archived. | Archive/restore does not delete history. Archived tasks are discoverable; archived phases remain referenced by existing tasks but cannot be selected for new tasks. Phase order persists. | Not run |
 | T7 | Add a Fixed fee to UAT Lighting, select it in a new draft proposal, and review timeline/fee without retyping. Rename the shared phase/change its fee and revisit draft preparation. | Task and draft-preparation views reuse the same phase. No duplicate entry is needed. No-fee phases are also selectable. | Not run |

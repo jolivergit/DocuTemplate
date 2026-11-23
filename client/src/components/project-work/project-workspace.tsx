@@ -1,238 +1,400 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, ChevronRight, MessageSquare, Plus, RotateCcw, Search, SlidersHorizontal, X } from "lucide-react";
+import { Archive, CalendarDays, Check, Circle, Clock3, FileText, MessageSquare, Plus, RotateCcw, Search, Users, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useWorkspace } from "@/lib/workspace";
-import { useToast } from "@/hooks/use-toast";
-import { TASK_PRIORITIES, TASK_STATUSES, isTaskOverdue, type ProjectWork, type WorkTask, type WorkPhase, type TaskNote, type TaskInput } from "@shared/project-work";
+import type { LeadWithCompanies } from "@shared/schema";
+import { ENTRY_TYPES, TASK_PRIORITIES, TASK_STATUSES, entrySummary, isEntryOverdue, type EntryInput, type EntryType, type ProjectWork, type TaskNote, type WorkEntry } from "@shared/project-work";
+import { Composer, emptyDraft, entryHasContent, PhaseAssigneeFields, type EntryDraft } from "@/components/project-work/work-entry-composer";
 
 const workKey = (id: number) => ["/api/leads", id, "work"];
-type Filters = { assignee: string; status: string; priority: string; search: string; archived: boolean; sort: "due" | "priority" };
-const blankFilters: Filters = { assignee: "all", status: "all", priority: "all", search: "", archived: false, sort: "due" };
-const fieldClass = "h-9 w-auto max-w-full rounded-md border border-input bg-background px-3 text-sm";
+const fieldClass = "h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm";
+const friendlyError = (error: unknown) => error instanceof Error ? error.message : "Something went wrong. Your changes remain here.";
+const isConflict = (error: unknown) => (error as { status?: number })?.status === 409;
 
-function dateLabel(value: string | null) {
-  if (!value) return "No due date";
-  return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+function toInput(draft: EntryDraft): EntryInput {
+  const common = { description: draft.description, phaseId: draft.phaseId || null, assigneeId: draft.assigneeId || null };
+  if (draft.entryType === "Task") return { ...common, entryType: "Task", title: draft.title, priority: draft.priority as "Low" | "Normal" | "High" | "Urgent", status: draft.status as "To do" | "In progress" | "Blocked" | "Done", dueDate: draft.dueDate || null, meetingDate: null, meetingTime: null };
+  if (draft.entryType === "Reminder") return { ...common, entryType: "Reminder", title: draft.title, priority: null, status: draft.status as "To do" | "Done", dueDate: draft.dueDate || null, meetingDate: null, meetingTime: null };
+  if (draft.entryType === "Meeting") return { ...common, entryType: "Meeting", title: draft.title, priority: null, status: null, dueDate: null, meetingDate: draft.meetingDate || null, meetingTime: draft.meetingTime || null };
+  return { ...common, entryType: "Note", title: "", priority: null, status: null, dueDate: null, meetingDate: null, meetingTime: null, description: draft.description };
 }
-function priorityRank(value: string) { return ["Urgent", "High", "Normal", "Low"].indexOf(value); }
-function friendlyError(error: unknown) { return error instanceof Error ? error.message : "Something went wrong. Your changes are still here."; }
+function draftFromInput(input: EntryInput): EntryDraft {
+  return {
+    entryType: input.entryType, title: input.title, description: input.description, phaseId: input.phaseId ?? "",
+    assigneeId: input.assigneeId ?? "", priority: input.priority ?? "Normal", status: input.status ?? "To do",
+    dueDate: input.dueDate ?? "", meetingDate: input.meetingDate ?? "", meetingTime: input.meetingTime ?? "",
+  };
+}
+function fromEntry(entry: WorkEntry): EntryDraft {
+  return {
+    entryType: entry.entryType, title: entry.title, description: entry.description,
+    phaseId: entry.phaseId ?? "", assigneeId: entry.assigneeId ?? "", priority: entry.priority ?? "Normal",
+    status: entry.status ?? "To do", dueDate: entry.dueDate ?? "", meetingDate: entry.meetingDate ?? "",
+    meetingTime: entry.meetingTime ?? "",
+  };
+}
+function fieldPatch(draft: EntryDraft) {
+  return {
+    title: draft.entryType === "Note" ? "" : draft.title,
+    description: draft.description,
+    phaseId: draft.phaseId || null,
+    assigneeId: draft.assigneeId || null,
+    priority: draft.entryType === "Task" ? draft.priority : null,
+    status: draft.entryType === "Task" || draft.entryType === "Reminder" ? draft.status : null,
+    dueDate: draft.entryType === "Task" || draft.entryType === "Reminder" ? draft.dueDate || null : null,
+    meetingDate: draft.entryType === "Meeting" ? draft.meetingDate || null : null,
+    meetingTime: draft.entryType === "Meeting" ? draft.meetingTime || null : null,
+  };
+}
+function dateLabel(value: string | null) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+function typeIcon(type: EntryType) {
+  if (type === "Task") return <Check className="h-3.5 w-3.5" />;
+  if (type === "Reminder") return <Clock3 className="h-3.5 w-3.5" />;
+  if (type === "Meeting") return <Users className="h-3.5 w-3.5" />;
+  return <FileText className="h-3.5 w-3.5" />;
+}
 
-export function ProjectWorkWorkspace({ leadId, onDirtyChange }: { leadId: number; onDirtyChange?: (dirty: boolean) => void }) {
+export function ProjectWorkWorkspace({ leadId, lead, onDirtyChange }: { leadId: number; lead?: LeadWithCompanies; onDirtyChange?: (dirty: boolean) => void }) {
   const { userId } = useWorkspace();
-  const { toast } = useToast();
-  const [filters, setFilters] = useState<Filters>(blankFilters);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [taskDirty, setTaskDirty] = useState(false);
-  const [addTask, setAddTask] = useState(false);
-  const [taskDraft, setTaskDraft] = useState<TaskInput>({ title: "", description: "", phaseId: null, assigneeId: null, priority: "Normal", status: "To do", dueDate: null });
-  const [notice, setNotice] = useState("");
+  const [entryTypeFilter, setEntryTypeFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [actionableOnly, setActionableOnly] = useState(false);
+  const [mineOnly, setMineOnly] = useState(false);
+  const [archived, setArchived] = useState(false);
+  const [composer, setComposer] = useState<EntryDraft | null>(null);
+  const [composerRequestId, setComposerRequestId] = useState(() => crypto.randomUUID());
+  const [createError, setCreateError] = useState("");
+  const [uncertainInput, setUncertainInput] = useState<EntryInput | null>(null);
+  const [originalResolved, setOriginalResolved] = useState(false);
+  const [recoveryPending, setRecoveryPending] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<EntryDraft | null>(null);
+  const [editVersion, setEditVersion] = useState<number | null>(null);
+  const [editError, setEditError] = useState("");
+  const [discussionId, setDiscussionId] = useState<string | null>(null);
+  const [discussion, setDiscussion] = useState("");
+  const [discussionRequestId, setDiscussionRequestId] = useState(() => crypto.randomUUID());
+  const [discussionError, setDiscussionError] = useState("");
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [reloadPending, setReloadPending] = useState(false);
   const dirtyCallback = useRef(onDirtyChange);
   dirtyCallback.current = onDirtyChange;
   const { data, isLoading, isError, refetch } = useQuery<ProjectWork>({ queryKey: workKey(leadId) });
-  const phases = data?.phases ?? [];
-  const tasks = data?.tasks ?? [];
-  const todayTasks = tasks.filter(task => !task.archived);
-  const summary = {
-    open: todayTasks.filter(task => task.status !== "Done").length,
-    blocked: todayTasks.filter(task => task.status === "Blocked").length,
-    overdue: todayTasks.filter(task => isTaskOverdue(task)).length,
-    done: todayTasks.filter(task => task.status === "Done").length,
-  };
-  const selectedTask = tasks.find(task => task.id === selectedId) ?? null;
-  const assigneeOptions = useMemo(() => data?.assignees ?? [], [data?.assignees]);
-  const phaseName = (id: string | null) => id ? phases.find(phase => phase.id === id)?.name ?? "Archived phase" : "General";
-  const visibleTasks = useMemo(() => {
-    const q = filters.search.trim().toLocaleLowerCase();
-    return tasks.filter(task => {
-      if (task.archived !== filters.archived) return false;
-      if (filters.assignee === "unassigned" && task.assigneeId) return false;
-      if (filters.assignee === "me" && task.assigneeId !== userId) return false;
-      if (filters.assignee !== "all" && filters.assignee !== "unassigned" && filters.assignee !== "me" && task.assigneeId !== filters.assignee) return false;
-      if (filters.status !== "all" && task.status !== filters.status) return false;
-      if (filters.priority !== "all" && task.priority !== filters.priority) return false;
-      return !q || task.title.toLocaleLowerCase().includes(q);
-    }).sort((a, b) => {
-      if (filters.sort === "priority") return priorityRank(a.priority) - priorityRank(b.priority);
-      if (!a.dueDate) return b.dueDate ? 1 : a.title.localeCompare(b.title);
-      if (!b.dueDate) return -1;
-      return a.dueDate.localeCompare(b.dueDate);
-    });
-  }, [tasks, filters, userId]);
-  const groups = useMemo(() => {
-    const sortedPhases = [...phases].sort((a, b) => a.sortOrder - b.sortOrder);
-    const groups = sortedPhases.map(phase => ({ id: phase.id, name: phase.name, items: visibleTasks.filter(task => task.phaseId === phase.id) }));
-    groups.push({ id: "general", name: "General", items: visibleTasks.filter(task => !task.phaseId) });
-    return groups.filter(group => group.items.length > 0 || !filters.search && !filters.archived);
-  }, [phases, visibleTasks, filters.search, filters.archived]);
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: workKey(leadId) });
-  const taskCreate = useMutation({
-    mutationFn: (body: TaskInput) => apiRequest<WorkTask>("POST", `/api/leads/${leadId}/work/tasks`, body),
-    onSuccess: task => { void invalidate(); setTaskDraft({ title: "", description: "", phaseId: null, assigneeId: null, priority: "Normal", status: "To do", dueDate: null }); setAddTask(false); setSelectedId(task.id); },
-    onError: error => setNotice(friendlyError(error)),
+  const invalidate = async () => { await queryClient.invalidateQueries({ queryKey: workKey(leadId) }); };
+  const createMutation = useMutation({
+    mutationKey: ["project-work-entry-create", leadId],
+    mutationFn: ({ input, requestId }: { input: EntryInput; requestId: string }) => apiRequest<WorkEntry>("POST", `/api/leads/${leadId}/work/entries`, { requestId, entry: input }),
+    onSuccess: async () => { await invalidate(); },
   });
-  const taskPatch = useMutation({
-    mutationFn: ({ task, body }: { task: WorkTask; body: Record<string, unknown> }) => apiRequest("PATCH", `/api/leads/${leadId}/work/tasks/${task.id}`, { ...body, version: task.version }),
-    onSuccess: () => { setNotice(""); return invalidate(); },
-    onError: error => {
-      if ((error as { status?: number })?.status === 409) setNotice("This task changed elsewhere. Your draft is preserved. Reload the latest version before retrying.");
-      else setNotice(friendlyError(error));
+  const patchMutation = useMutation({
+    mutationKey: ["project-work-entry-patch", leadId],
+    mutationFn: ({ id, patch, version }: { id: string; patch: Record<string, unknown>; version: number }) => apiRequest<WorkEntry>("PATCH", `/api/leads/${leadId}/work/entries/${id}`, { ...patch, version }),
+    onSuccess: async () => { await invalidate(); },
+  });
+  const discussionMutation = useMutation({
+    mutationKey: ["project-work-entry-discussion", leadId],
+    mutationFn: ({ entryId, content, requestId }: { entryId: string; content: string; requestId: string }) => apiRequest<TaskNote[]>("POST", `/api/leads/${leadId}/work/entries/${entryId}/notes`, { content, requestId }),
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "work", "entries", variables.entryId, "notes"] });
+      await invalidate();
     },
   });
-  const patchTask = async (task: WorkTask, body: Record<string, unknown>) => {
-    try {
-      await taskPatch.mutateAsync({ task, body });
-      return true;
-    } catch { return false; }
-  };
-  const openNewTask = () => {
-    if (addTask || taskCreate.isPending) return;
-    setTaskDraft({ title: "", description: "", phaseId: null, assigneeId: null, priority: "Normal", status: "To do", dueDate: null });
-    setAddTask(true);
-  };
-  const newTaskDirty = addTask && (!!taskDraft.title.trim() || !!taskDraft.description.trim() || !!taskDraft.phaseId ||
-    !!taskDraft.assigneeId || taskDraft.priority !== "Normal" || taskDraft.status !== "To do" || !!taskDraft.dueDate);
-  useEffect(() => { dirtyCallback.current?.(taskDirty || newTaskDirty); }, [taskDirty, newTaskDirty]);
-  if (isLoading) return <section className="space-y-4" aria-label="Project work loading"><Skeleton className="h-24 w-full" /><Skeleton className="h-16 w-full" /><Skeleton className="h-56 w-full" /></section>;
-  if (isError || !data) return <section className="rounded-lg border border-destructive/30 bg-card p-6" role="alert"><h2 className="font-semibold">Project work could not load</h2><p className="mt-1 text-sm text-muted-foreground">Your project is still available. Try loading tasks and phases again.</p><Button className="mt-4" variant="outline" onClick={() => void refetch()}>Retry</Button></section>;
-
-  return <div className="space-y-7">
-    {notice && notice !== "unsaved-task" && <div role="alert" className="flex items-start justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm"><span>{notice}</span><Button size="icon" variant="ghost" aria-label="Dismiss error" onClick={() => setNotice("")}><X className="h-4 w-4" /></Button></div>}
-    <section aria-label="Task summary" className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
-      {[["Open", summary.open, "work remains"], ["Blocked", summary.blocked, "needs attention"], ["Overdue", summary.overdue, "past due"], ["Done", summary.done, "completed"]].map(([label, value, detail]) => <div key={String(label)} className="bg-card px-4 py-3"><p className="text-[11px] font-medium uppercase tracking-[.12em] text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p><p className="text-xs text-muted-foreground">{detail}</p></div>)}
-    </section>
-    <section className="rounded-lg border bg-card">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-4 sm:px-5">
-        <div>
-          <div className="flex items-center gap-2"><h2 className="text-lg font-semibold normal-case tracking-normal">Work in motion</h2><Badge variant="secondary">{visibleTasks.length} shown</Badge></div>
-          <p className="mt-1 text-sm text-muted-foreground">A clear view of what needs doing next.</p>
-        </div>
-        <Button size="sm" disabled={taskCreate.isPending} onClick={openNewTask}><Plus className="mr-1.5 h-4 w-4" />New task</Button>
-      </div>
-      {addTask && <form className="grid gap-3 border-b bg-muted/20 p-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); taskCreate.mutate(taskDraft); }}><label className="space-y-1 text-xs font-medium sm:col-span-2">Task title<Input autoFocus required maxLength={240} value={taskDraft.title} onChange={e => setTaskDraft({ ...taskDraft, title: e.target.value })} placeholder="What needs to move forward?" /></label><label className="space-y-1 text-xs font-medium">Phase<select className={`${fieldClass} w-full`} value={taskDraft.phaseId ?? ""} onChange={e => setTaskDraft({ ...taskDraft, phaseId: e.target.value || null })}><option value="">General</option>{phases.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label className="space-y-1 text-xs font-medium">Assignee<select className={`${fieldClass} w-full`} value={taskDraft.assigneeId ?? ""} onChange={e => setTaskDraft({ ...taskDraft, assigneeId: e.target.value || null })}><option value="">Unassigned</option>{assigneeOptions.map(p => <option key={p.userId} value={p.userId}>{p.name}</option>)}</select></label><label className="space-y-1 text-xs font-medium">Priority<select className={`${fieldClass} w-full`} value={taskDraft.priority} onChange={e => setTaskDraft({ ...taskDraft, priority: e.target.value as TaskInput["priority"] })}>{TASK_PRIORITIES.map(p => <option key={p}>{p}</option>)}</select></label><label className="space-y-1 text-xs font-medium">Due date<input className={`${fieldClass} w-full`} type="date" value={taskDraft.dueDate ?? ""} onChange={e => setTaskDraft({ ...taskDraft, dueDate: e.target.value || null })} /></label><div className="flex justify-end gap-2 sm:col-span-2"><Button type="button" size="sm" variant="ghost" onClick={() => { const dirty = !!taskDraft.title.trim() || !!taskDraft.description.trim() || !!taskDraft.phaseId || !!taskDraft.assigneeId || taskDraft.priority !== "Normal" || taskDraft.status !== "To do" || !!taskDraft.dueDate; if (!dirty || window.confirm("Discard this new task?")) setAddTask(false); }}>Cancel</Button><Button size="sm" disabled={!taskDraft.title.trim() || taskCreate.isPending}>{taskCreate.isPending ? "Adding…" : "Add task"}</Button></div></form>}
-      <div className="flex flex-wrap items-center gap-2 border-b p-3"><div className="relative min-w-[180px] flex-1"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input aria-label="Search task titles" className="h-9 pl-8" value={filters.search} onChange={e => setFilters({ ...filters, search: e.target.value })} placeholder="Search tasks" /></div><select aria-label="Filter by assignee" className={fieldClass} value={filters.assignee} onChange={e => setFilters({ ...filters, assignee: e.target.value })}><option value="all">All assignees</option><option value="me">Me</option><option value="unassigned">Unassigned</option>{assigneeOptions.map(a => <option key={a.userId} value={a.userId}>{a.name}</option>)}</select><select aria-label="Filter by status" className={fieldClass} value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })}><option value="all">All statuses</option>{TASK_STATUSES.map(s => <option key={s}>{s}</option>)}</select><select aria-label="Filter by priority" className={fieldClass} value={filters.priority} onChange={e => setFilters({ ...filters, priority: e.target.value })}><option value="all">All priorities</option>{TASK_PRIORITIES.map(p => <option key={p}>{p}</option>)}</select><Button variant={filters.archived ? "default" : "outline"} size="sm" onClick={() => setFilters({ ...filters, archived: !filters.archived })}>{filters.archived ? "Archived" : "Active"}</Button><Button variant="ghost" size="sm" onClick={() => setFilters({ ...filters, sort: filters.sort === "due" ? "priority" : "due" })}><SlidersHorizontal className="mr-1.5 h-4 w-4" />Sort: {filters.sort === "due" ? "Due date" : "Priority"}</Button></div>
-      {groups.length === 0 || visibleTasks.length === 0 ? <div className="px-6 py-12 text-center"><div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-muted text-muted-foreground"><Check className="h-5 w-5" /></div><h3 className="mt-3 font-medium">{filters.archived ? "No archived tasks" : tasks.length ? "No tasks match these filters" : "A good place to begin"}</h3><p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{tasks.length ? "Adjust the filters or search a different title." : "Capture the next real piece of work. Leave it unassigned or connect it to a shared phase."}</p>{tasks.length === 0 && <Button className="mt-4" size="sm" onClick={openNewTask}>Add the first task</Button>}</div> : <div className="divide-y">{groups.map(group => <div key={group.id}><div className="flex items-center justify-between bg-muted/30 px-4 py-2.5 sm:px-5"><div className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-primary/60" /><h3 className="text-xs font-semibold uppercase tracking-[.12em]">{group.name}</h3><span className="text-xs tabular-nums text-muted-foreground">{group.items.length}</span></div>{group.id !== "general" && <span className="text-xs text-muted-foreground">{phases.find(p => p.id === group.id)?.timeline || ""}</span>}</div><div className="divide-y">{group.items.map(task => <TaskRow key={task.id} task={task} saving={taskPatch.isPending} onOpen={() => { if (taskPatch.isPending) return; if (taskDirty && !window.confirm("Discard unsaved task edits?")) return; setTaskDirty(false); setSelectedId(task.id); }} onQuickUpdate={async (field, value) => { const success = await patchTask(task, { [field]: value }); if (success) toast({ title: "Task updated" }); }} phase={phaseName(task.phaseId)} />)}</div></div>)}</div>}
-       <div className="flex items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground"><span>{phases.filter(phase => !phase.archived).length} active phases · {tasks.length} total tasks</span></div>
-    </section>
-    <TaskDetail task={selectedTask} leadId={leadId} phases={phases} assignees={assigneeOptions} isSaving={taskPatch.isPending} onDirtyChange={setTaskDirty} onClose={() => { setNotice(""); setSelectedId(null); }} onConflictResolved={() => setNotice("")} onSave={async (task, body) => patchTask(task, body)} onUpdated={invalidate} />
-  </div>;
-}
-
-function TaskRow({ task, phase, onOpen, onQuickUpdate, saving }: { task: WorkTask; phase: string; onOpen: () => void; onQuickUpdate: (field: string, value: unknown) => void; saving: boolean }) {
-  const overdue = isTaskOverdue(task);
-  return <div className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 xl:grid-cols-[minmax(150px,1.7fr)_minmax(80px,1fr)_minmax(100px,1fr)_90px_110px_130px] sm:px-5">
-    <button type="button" onClick={onOpen} className="min-w-0 text-left"><span className={`block truncate text-sm font-medium ${task.status === "Done" ? "text-muted-foreground line-through" : ""}`}>{task.title}</span><span className={`mt-1 block truncate text-xs xl:hidden ${overdue ? "font-medium text-destructive" : "text-muted-foreground"}`}>{phase} · {task.assigneeName || (task.assigneeId ? "Needs reassignment" : "Unassigned")} · {task.priority} · {dateLabel(task.dueDate)}</span></button>
-    <span className="hidden truncate text-xs text-muted-foreground xl:block">{phase}</span>
-    <span className={`hidden truncate text-xs xl:block ${task.assigneeId && !task.assigneeEligible ? "font-medium text-amber-700" : "text-muted-foreground"}`}>{task.assigneeId && !task.assigneeEligible ? "Needs reassignment" : task.assigneeName || "Unassigned"}</span>
-    <select aria-label={`Priority for ${task.title}`} disabled={saving} className="hidden h-8 rounded border border-input bg-background px-2 text-xs xl:block" value={task.priority} onChange={e => onQuickUpdate("priority", e.target.value)}>{TASK_PRIORITIES.map(p => <option key={p}>{p}</option>)}</select>
-    <select aria-label={`Status for ${task.title}`} disabled={saving} className="h-8 max-w-[130px] rounded border border-input bg-background px-2 text-xs" value={task.status} onChange={e => onQuickUpdate("status", e.target.value)}>{TASK_STATUSES.map(s => <option key={s}>{s}</option>)}</select>
-    <button type="button" onClick={onOpen} className={`hidden items-center justify-end gap-1.5 whitespace-nowrap text-xs tabular-nums xl:flex ${overdue ? "font-semibold text-destructive" : "text-muted-foreground"}`}><span>{dateLabel(task.dueDate)}</span>{task.noteCount > 0 && <span className="flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" />{task.noteCount}</span>}</button>
-  </div>;
-}
-
-function TaskDetail({ task, leadId, phases, assignees, onClose, onSave: persistTask, onUpdated, onDirtyChange, onConflictResolved, isSaving }: { task: WorkTask | null; leadId: number; phases: WorkPhase[]; assignees: { userId: string; name: string }[]; onClose: () => void; onSave: (task: WorkTask, body: Record<string, unknown>) => Promise<boolean>; onUpdated: () => void; onDirtyChange: (dirty: boolean) => void; onConflictResolved: () => void; isSaving: boolean }) {
-  const { toast } = useToast();
-  const [draft, setDraft] = useState<WorkTask | null>(null);
-  const [note, setNote] = useState("");
-  const [noteError, setNoteError] = useState("");
-  const [saveError, setSaveError] = useState("");
-  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const entries = data?.entries ?? [];
+  const phases = data?.phases ?? [];
+  const assignees = data?.assignees ?? [];
+  const hasDraft = !!composer && (entryHasContent(composer) || !!composer.description || !!composer.phaseId || !!composer.assigneeId || composer.priority !== "Normal" || composer.status !== "To do" || !!composer.dueDate || !!composer.meetingDate || !!composer.meetingTime);
+  const editDirty = !!editDraft && !!editingId && (() => {
+    const original = entries.find(entry => entry.id === editingId);
+    return !!original && JSON.stringify(fieldPatch(editDraft)) !== JSON.stringify(fieldPatch(fromEntry(original)));
+  })();
+  const [pendingCount, setPendingCount] = useState(0);
+  const [recoveryChecked, setRecoveryChecked] = useState(false);
+  const workDirty = hasDraft || editDirty || !!discussion.trim() || pendingCount > 0;
+  useEffect(() => { dirtyCallback.current?.(workDirty); }, [workDirty]);
   useEffect(() => {
-    setDraft(null);
-    setNote("");
-    setNoteError("");
-    setSaveError("");
-    setRequestId(crypto.randomUUID());
-  }, [task?.id]);
-  const notesQuery = useQuery<TaskNote[]>({ queryKey: ["/api/leads", leadId, "work", "tasks", task?.id, "notes"], enabled: !!task });
-  const appendNote = useMutation({
-    mutationFn: () => apiRequest<TaskNote>("POST", `/api/leads/${leadId}/work/tasks/${task?.id}/notes`, { content: note.trim(), requestId }),
-    onSuccess: () => { setNote(""); setNoteError(""); setRequestId(crypto.randomUUID()); void queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "work", "tasks", task?.id, "notes"] }); onUpdated(); },
-    onError: error => setNoteError(friendlyError(error)),
-  });
-  const current = draft?.id === task?.id ? draft : task;
-  const dirty = !!current && !!task && ["title","description","phaseId","assigneeId","priority","status","dueDate"].some(key => current[key as keyof WorkTask] !== task[key as keyof WorkTask]);
-  const unsaved = dirty || !!note.trim();
-  useEffect(() => { onDirtyChange(unsaved); }, [unsaved, onDirtyChange]);
-  const onSave = (taskToSave: WorkTask, body: Record<string, unknown>) => persistTask(current && task?.id === current.id ? current : taskToSave, body);
-  const update = (field: keyof WorkTask, value: unknown) => setDraft(current ? { ...current, [field]: value } : null);
-  const reloadLatest = async () => {
-    try {
-      await queryClient.invalidateQueries({ queryKey: workKey(leadId) });
-      const latest = await queryClient.fetchQuery<ProjectWork>({ queryKey: workKey(leadId) });
-      const loaded = latest.tasks.find(item => item.id === task?.id);
-      if (!loaded) throw new Error("Task is no longer available.");
-      setDraft(loaded);
-      setSaveError("");
-      onConflictResolved();
-    } catch (error) {
-      setSaveError(friendlyError(error));
-    }
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!workDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [workDirty]);
+  const summary = entrySummary(entries);
+  const phaseName = (id: string | null) => id ? phases.find(phase => phase.id === id)?.name ?? "Archived phase" : "";
+  const visibleEntries = useMemo(() => {
+    const q = search.trim().toLocaleLowerCase();
+    return entries.filter(entry => {
+      if (entry.id === editingId || entry.id === discussionId) return true;
+      if (entry.archived !== archived) return false;
+      if (entryTypeFilter !== "all" && entry.entryType !== entryTypeFilter) return false;
+      if (actionableOnly && entry.entryType !== "Task" && entry.entryType !== "Reminder") return false;
+      if (mineOnly && entry.assigneeId !== userId) return false;
+      if (q && !`${entry.title} ${entry.description} ${entry.authorName ?? ""} ${entry.assigneeName ?? ""}`.toLocaleLowerCase().includes(q)) return false;
+      return true;
+    }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [entries, archived, entryTypeFilter, actionableOnly, mineOnly, userId, search, editingId, discussionId]);
+  const activeEditor = !!composer || !!editingId || !!discussionId;
+  const requestClose = () => {
+    if (workDirty) setConfirmDiscard(true);
+    else discardCurrent();
   };
-  return (
-    <Sheet open={!!task} onOpenChange={open => {
-      if (!open) {
-        if (isSaving || appendNote.isPending) return;
-        if (unsaved && !window.confirm("Discard unsaved task edits?")) return;
-        setDraft(null);
-        if (note.trim()) setNote("");
-        onDirtyChange(false);
-        onClose();
+  const discardCurrent = () => {
+    setComposer(null); setCreateError(""); setUncertainInput(null);
+    setEditingId(null); setEditDraft(null); setEditError(""); setEditVersion(null);
+    setDiscussionId(null); setDiscussion(""); setDiscussionError("");
+    setConfirmDiscard(false);
+  };
+  const startPending = () => setPendingCount(count => count + 1);
+  const finishPending = () => setPendingCount(count => Math.max(0, count - 1));
+  const createEntry = async (input: EntryInput, requestId: string) => {
+    startPending();
+    try {
+      await createMutation.mutateAsync({ requestId, input });
+      setComposer(null); setCreateError(""); setSaveError(""); setUncertainInput(null);
+      setComposerRequestId(crypto.randomUUID());
+    } catch (error) {
+      setCreateError(isConflict(error) ? "The save may have reached the server. Check for your entry before retrying; your draft and request ID are preserved." : friendlyError(error));
+      setUncertainInput(input);
+      setRecoveryChecked(false);
+      setOriginalResolved(false);
+    } finally { finishPending(); }
+  };
+  const checkCreateRecovery = async () => {
+    setRecoveryPending(true);
+    setSaveError("");
+    try {
+      const latest = await queryClient.fetchQuery<ProjectWork>({ queryKey: workKey(leadId), queryFn: () => apiRequest("GET", `/api/leads/${leadId}/work`), staleTime: 0 });
+      const match = latest.entries.find(entry => entry.creationRequestId === composerRequestId && entry.authorId === userId);
+      const changedSinceRequest = !!composer && !!uncertainInput && JSON.stringify(toInput(composer)) !== JSON.stringify(uncertainInput);
+      if (match) {
+        if (changedSinceRequest) {
+          setRecoveryChecked(true);
+          setOriginalResolved(true);
+          setCreateError("The previous request was saved. Your changed draft is still here; choose a new request only if you intend to save it as another entry.");
+        } else {
+          setComposer(null); setCreateError(""); setUncertainInput(null); setComposerRequestId(crypto.randomUUID());
+        }
+        await invalidate();
+      } else {
+        setRecoveryChecked(true);
+        setOriginalResolved(false);
+        setSaveError(changedSinceRequest
+          ? "No entry was found for the original request. Your changed draft remains here; restore the original to retry it or explicitly start a new save for these changes."
+          : "No saved entry was found. Retry the same save, or explicitly start a new save if you change its contents.");
       }
-    }}>
-      <SheetContent side="right" className="flex h-[100dvh] w-full flex-col overflow-hidden p-0 sm:max-w-xl">
-        <SheetHeader className="border-b px-5 py-5 pr-14 text-left">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-[.12em] text-muted-foreground"><span>Task details</span><span>·</span><span>{task ? dateLabel(task.dueDate) : ""}</span></div>
-          <SheetTitle className="normal-case tracking-normal">{task?.title || "Task"}</SheetTitle>
-          <SheetDescription>Fields can be changed here; discussion entries are dated and attributed.</SheetDescription>
-        </SheetHeader>
-        {current && task && <div className="flex-1 overflow-y-auto px-5 py-5">
-          <fieldset disabled={isSaving} className="contents">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-1 text-xs font-medium sm:col-span-2">Title<Input value={current.title} maxLength={240} onChange={e => update("title", e.target.value)} /></label>
-              <label className="space-y-1 text-xs font-medium sm:col-span-2">Description<Textarea value={current.description} rows={4} maxLength={20000} onChange={e => update("description", e.target.value)} placeholder="Add the context someone needs to do the work." /></label>
-              <label className="space-y-1 text-xs font-medium">Phase<select className={`${fieldClass} w-full`} value={current.phaseId ?? ""} onChange={e => update("phaseId", e.target.value || null)}><option value="">General</option>{phases.map(phase => <option key={phase.id} value={phase.id} disabled={phase.archived && phase.id !== current.phaseId}>{phase.name}{phase.archived ? " (archived)" : ""}</option>)}</select></label>
-              <label className="space-y-1 text-xs font-medium">Assignee<select className={`${fieldClass} w-full`} value={current.assigneeId ?? ""} onChange={e => update("assigneeId", e.target.value || null)}><option value="">Unassigned</option>{current.assigneeId && !task.assigneeEligible && !assignees.some(a => a.userId === current.assigneeId) && <option value={current.assigneeId}>Needs reassignment</option>}{assignees.map(a => <option key={a.userId} value={a.userId}>{a.name}</option>)}</select>{current.assigneeId && !task.assigneeEligible && <span className="block text-amber-700">Current assignee no longer has access. Choose an eligible person to reassign.</span>}</label>
-              <label className="space-y-1 text-xs font-medium">Priority<select className={`${fieldClass} w-full`} value={current.priority} onChange={e => update("priority", e.target.value)}>{TASK_PRIORITIES.map(p => <option key={p}>{p}</option>)}</select></label>
-              <label className="space-y-1 text-xs font-medium">Status<select className={`${fieldClass} w-full`} value={current.status} onChange={e => update("status", e.target.value)}>{TASK_STATUSES.map(s => <option key={s}>{s}</option>)}</select></label>
-              <label className="space-y-1 text-xs font-medium">Due date<input className={`${fieldClass} w-full`} type="date" value={current.dueDate ?? ""} onChange={e => update("dueDate", e.target.value || null)} /></label>
+    } catch (error) { setSaveError(`Could not check saved entries: ${friendlyError(error)}`); }
+    finally { setRecoveryPending(false); }
+  };
+  const saveEdit = async (entry: WorkEntry, draft: EntryDraft, version: number) => {
+    startPending(); setEditError("");
+    try {
+      await patchMutation.mutateAsync({ id: entry.id, patch: fieldPatch(draft), version });
+      setEditingId(null); setEditDraft(null); setEditVersion(null);
+    } catch (error) {
+      setEditError(isConflict(error) ? "This entry changed elsewhere. Your draft is preserved. Reload the latest version before making another save." : friendlyError(error));
+    } finally { finishPending(); }
+  };
+  const patchStatusOrArchive = async (entry: WorkEntry, patch: Record<string, unknown>) => {
+    startPending(); setSaveError("");
+    try {
+      await patchMutation.mutateAsync({ id: entry.id, patch, version: entry.version });
+    } catch (error) { setSaveError(isConflict(error) ? "This entry changed elsewhere. Reload the latest entries before trying again." : friendlyError(error)); }
+    finally { finishPending(); }
+  };
+  const reloadEntry = async (id: string) => {
+    setReloadPending(true);
+    try {
+      const latest = await queryClient.fetchQuery<ProjectWork>({ queryKey: workKey(leadId), queryFn: () => apiRequest("GET", `/api/leads/${leadId}/work`), staleTime: 0 });
+      const found = latest.entries.find(entry => entry.id === id);
+      if (!found) throw new Error("This entry is no longer available.");
+      setEditDraft(fromEntry(found)); setEditVersion(found.version); setEditError("");
+    } catch (error) { setEditError(`Reload failed: ${friendlyError(error)} Your draft remains available.`); }
+    finally { setReloadPending(false); }
+  };
+  const postDiscussion = async (entryId: string) => {
+    startPending(); setDiscussionError("");
+    try {
+      await discussionMutation.mutateAsync({ entryId, content: discussion.trim(), requestId: discussionRequestId });
+      setDiscussion(""); setDiscussionError(""); setDiscussionRequestId(crypto.randomUUID());
+    } catch (error) { setDiscussionError(friendlyError(error)); }
+    finally { finishPending(); }
+  };
+  const startComposer = (type: EntryType) => {
+    if (activeEditor || pendingCount) return;
+    setComposer(emptyDraft(type)); setComposerRequestId(crypto.randomUUID()); setCreateError(""); setSaveError(""); setUncertainInput(null); setRecoveryChecked(false); setOriginalResolved(false);
+  };
+  const startEdit = (entry: WorkEntry) => {
+    if (activeEditor || pendingCount) return;
+    setEditingId(entry.id); setEditDraft(fromEntry(entry)); setEditVersion(entry.version); setEditError("");
+  };
+  const startDiscussion = (entry: WorkEntry) => {
+    if (activeEditor || pendingCount) return;
+    setDiscussionId(entry.id); setDiscussion(""); setDiscussionRequestId(crypto.randomUUID()); setDiscussionError("");
+  };
+  const useProjectDetails = () => {
+    if (!lead || activeEditor || pendingCount) return;
+    const companies = lead.companies.map(company => company.companyName || company.linkedCompany?.name || "").filter(Boolean);
+    const details = [
+      lead.projectName && `Project: ${lead.projectName}`,
+      lead.description && `Description: ${lead.description}`,
+      lead.status && `Status: ${lead.status}`,
+      lead.generalTimeline && `General timeline: ${lead.generalTimeline}`,
+      companies.length && `Companies: ${companies.join(", ")}`,
+    ].filter(Boolean).join("\n");
+    setComposer({ ...emptyDraft("Note"), description: details, phaseId: "" });
+    setComposerRequestId(crypto.randomUUID()); setCreateError(""); setSaveError("");
+    setUncertainInput(null); setRecoveryChecked(false); setOriginalResolved(false);
+  };
+
+  if (isLoading) return <section className="space-y-3" aria-label="Work in motion loading"><Skeleton className="h-20 w-full" /><Skeleton className="h-14 w-full" /><Skeleton className="h-48 w-full" /></section>;
+  if (isError || !data) return <section className="rounded-lg border border-destructive/30 bg-card p-5" role="alert"><h2 className="text-sm font-semibold">Work log could not load</h2><p className="mt-1 text-sm text-muted-foreground">Your project setup is safe. Try loading the log again.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => void refetch()}>Retry</Button></section>;
+
+  return <div className="space-y-5">
+    {saveError && !composer && <div role="alert" className="flex items-start justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm"><span>{saveError}</span><Button size="icon" variant="ghost" aria-label="Dismiss message" onClick={() => setSaveError("")}><X className="h-4 w-4" /></Button></div>}
+    <section aria-label="Active work summary" className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
+      {[["Open", summary.open], ["Blocked", summary.blocked], ["Overdue", summary.overdue], ["Done", summary.done]].map(([name, count]) => <div key={String(name)} className="bg-card px-3 py-2.5 sm:px-4"><p className="text-[10px] font-medium uppercase tracking-[.12em] text-muted-foreground">{name}</p><p className="mt-0.5 text-xl font-semibold tabular-nums">{count}</p></div>)}
+    </section>
+    <section className="overflow-hidden rounded-lg border bg-card" aria-label="Work in motion">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4 sm:px-5">
+        <div><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold normal-case tracking-normal">Work in motion</h2><Badge variant="secondary">{visibleEntries.length} shown</Badge></div><p className="mt-1 text-sm text-muted-foreground">The day, as it moves. Newest first.</p></div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={!lead || !!pendingCount || activeEditor} onClick={useProjectDetails}>Use project details</Button>
+          <Button size="sm" disabled={!!pendingCount || activeEditor} onClick={() => startComposer("Task")}><Plus className="mr-1.5 h-4 w-4" />Add entry</Button>
+        </div>
+      </header>
+      {composer && <Composer draft={composer} setDraft={setComposer} phases={phases} assignees={assignees} pending={!!pendingCount || recoveryPending}
+        error={createError} saveError={saveError} onDismiss={requestClose}
+        onSubmit={() => {
+          try { void createEntry(toInput(composer), composerRequestId); }
+          catch { setCreateError("Check the required fields and try again."); }
+        }}
+        onCheck={checkCreateRecovery}
+        onNewRequest={() => { setComposerRequestId(crypto.randomUUID()); setCreateError(""); setUncertainInput(null); setRecoveryChecked(false); setOriginalResolved(false); setSaveError(""); }}
+        onRestoreOriginal={() => { if (uncertainInput) setComposer(draftFromInput(uncertainInput)); setSaveError(""); }}
+        canNewRequest={!!uncertainInput && recoveryChecked && JSON.stringify(toInput(composer)) !== JSON.stringify(uncertainInput)}
+        canRestoreOriginal={!!uncertainInput && recoveryChecked && !originalResolved && JSON.stringify(toInput(composer)) !== JSON.stringify(uncertainInput)}
+        blockedChangedRequest={!!uncertainInput && JSON.stringify(toInput(composer)) !== JSON.stringify(uncertainInput)}
+        originalResolved={originalResolved}
+        confirmDiscard={confirmDiscard} onKeepEditing={() => setConfirmDiscard(false)} onDiscard={discardCurrent}
+      />}
+      <fieldset aria-label="Work log filters" disabled={!!pendingCount || activeEditor} className="m-0 min-w-0 flex flex-col gap-2 rounded-none border-0 border-b border-border p-3 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input aria-label="Search work entries" className="h-9 pl-8" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search the log" /></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select aria-label="Filter by entry type" className={`${fieldClass} w-auto max-w-full`} value={entryTypeFilter} onChange={e => setEntryTypeFilter(e.target.value)}><option value="all">All types</option>{ENTRY_TYPES.map(type => <option key={type}>{type}</option>)}</select>
+          <Button size="sm" variant={actionableOnly ? "default" : "outline"} onClick={() => setActionableOnly(!actionableOnly)}>Actionable</Button>
+          <Button size="sm" variant={mineOnly ? "default" : "outline"} onClick={() => setMineOnly(!mineOnly)}>Mine</Button>
+          <Button size="sm" variant={archived ? "default" : "outline"} onClick={() => setArchived(!archived)}>{archived ? "Archived" : "Active"}</Button>
+        </div>
+      </fieldset>
+      {visibleEntries.length === 0 ? <div className="px-5 py-10 text-center">
+        <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-muted text-muted-foreground"><Circle className="h-4 w-4" /></div>
+        <h3 className="mt-3 text-sm font-semibold">{entries.length ? "Nothing in this view" : "Start with what happened today"}</h3>
+        <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{entries.length ? "Try another type, filter, or search." : "Add a task, reminder, meeting, or plain note. No workflow ceremony required."}</p>
+        {!entries.length && <Button className="mt-4" size="sm" onClick={() => startComposer("Note")}>Write a note</Button>}
+      </div> : <div className="divide-y">
+        {visibleEntries.map(entry => <EntryRow key={entry.id} entry={entry} phase={phaseName(entry.phaseId)} editing={editingId === entry.id} editDraft={editingId === entry.id ? editDraft : null}
+          setEditDraft={setEditDraft} editError={editingId === entry.id ? editError : ""} editPending={!!pendingCount || reloadPending} interactionDisabled={!!pendingCount || reloadPending || activeEditor} phases={phases} assignees={assignees}
+          notesOpen={discussionId === entry.id} discussion={discussionId === entry.id ? discussion : ""} setDiscussion={setDiscussion}
+          discussionError={discussionError} onEdit={() => startEdit(entry)} onSave={() => editDraft && editVersion !== null && void saveEdit(entry, editDraft, editVersion)}
+          onReload={() => void reloadEntry(entry.id)} onCancelEdit={requestClose}
+          onToggleStatus={() => void patchStatusOrArchive(entry, { status: entry.status === "Done" ? "To do" : "Done" })}
+          onArchive={() => void patchStatusOrArchive(entry, { archived: !entry.archived })}
+          onDiscussion={() => startDiscussion(entry)} onPostDiscussion={() => postDiscussion(entry.id)} onCloseDiscussion={requestClose}
+          onLoadNotes={() => queryClient.fetchQuery<TaskNote[]>({ queryKey: ["/api/leads", leadId, "work", "entries", entry.id, "notes"], queryFn: () => apiRequest("GET", `/api/leads/${leadId}/work/entries/${entry.id}/notes`), staleTime: 0 })}
+          onDiscard={discardCurrent} confirmDiscard={confirmDiscard} setConfirmDiscard={setConfirmDiscard} />
+        )}
+      </div>}
+      <footer className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-xs text-muted-foreground"><span>{entries.length} log {entries.length === 1 ? "entry" : "entries"} · {phases.filter(phase => !phase.archived).length} active phases</span></footer>
+    </section>
+  </div>;
+}
+
+function EntryRow({ entry, phase, editing, editDraft, setEditDraft, editError, editPending, interactionDisabled, phases, assignees, notesOpen, discussion, setDiscussion, discussionError, onEdit, onSave, onReload, onCancelEdit, onToggleStatus, onArchive, onDiscussion, onPostDiscussion, onCloseDiscussion, onLoadNotes, onDiscard, confirmDiscard, setConfirmDiscard }: {
+  entry: WorkEntry; phase: string; editing: boolean; editDraft: EntryDraft | null; setEditDraft: (draft: EntryDraft | null) => void; editError: string; editPending: boolean; interactionDisabled: boolean;
+  phases: ProjectWork["phases"]; assignees: ProjectWork["assignees"]; notesOpen: boolean; discussion: string; setDiscussion: (value: string) => void; discussionError: string;
+  onEdit: () => void; onSave: () => void; onReload: () => void; onCancelEdit: () => void; onToggleStatus: () => void; onArchive: () => void; onDiscussion: () => void; onPostDiscussion: () => Promise<void>; onCloseDiscussion: () => void;
+  onLoadNotes: () => Promise<TaskNote[]>; onDiscard: () => void; confirmDiscard: boolean; setConfirmDiscard: (value: boolean) => void;
+}) {
+  const [notes, setNotes] = useState<TaskNote[] | null>(null);
+  const [notesError, setNotesError] = useState("");
+  const [notesLoading, setNotesLoading] = useState(false);
+  const due = entry.dueDate;
+  const meetingDate = entry.meetingDate;
+  const overdue = isEntryOverdue(entry);
+  const actionable = entry.entryType === "Task" || entry.entryType === "Reminder";
+  const editDirty = !!editDraft && JSON.stringify(fieldPatch(editDraft)) !== JSON.stringify(fieldPatch(fromEntry(entry)));
+  const getNotes = async () => {
+    setNotesLoading(true); setNotesError("");
+    try { setNotes(await onLoadNotes()); } catch (error) { setNotesError(friendlyError(error)); }
+    finally { setNotesLoading(false); }
+  };
+  useEffect(() => {
+    if (notesOpen && notes === null && !notesLoading) void getNotes();
+  }, [notesOpen]);
+  return <article className={`px-4 py-4 sm:px-5 ${entry.archived ? "bg-muted/20" : ""}`}>
+    <div className="flex gap-3">
+      <div className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full ${entry.entryType === "Task" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>{typeIcon(entry.entryType)}</div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className="text-[10px]">{entry.entryType}</Badge>
+              {entry.status && <Badge variant={entry.status === "Done" ? "secondary" : "outline"} className="text-[10px]">{entry.status}</Badge>}
+              {entry.priority && <span className="text-[11px] text-muted-foreground">{entry.priority} priority</span>}
+              {entry.archived && <Badge variant="secondary" className="text-[10px]">Archived</Badge>}
             </div>
-          </fieldset>
-          {saveError && <div role="alert" className="mt-4 rounded border border-destructive/30 p-3 text-sm">
-            {saveError}
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" disabled={isSaving} onClick={() => void reloadLatest()}>Reload latest</Button>
-              <Button size="sm" disabled={isSaving} onClick={() => void onSave(task, { title: current.title, description: current.description, phaseId: current.phaseId, assigneeId: current.assigneeId, priority: current.priority, status: current.status, dueDate: current.dueDate }).then(ok => { if (ok) { setSaveError(""); setDraft(null); } })}>Retry my save</Button>
-            </div>
-          </div>}
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t pt-4">
-            <Button variant="ghost" size="sm" disabled={isSaving || dirty} onClick={() => void onSave(task, { archived: !task.archived }).then(ok => { if (ok) toast({ title: task.archived ? "Task restored" : "Task archived" }); })}>{task.archived ? <><RotateCcw className="mr-1.5 h-4 w-4" />Restore task</> : "Archive task"}</Button>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={!dirty || isSaving} onClick={() => setDraft(task)}>Discard edits</Button>
-              <Button size="sm" disabled={!dirty || !current.title.trim() || isSaving} onClick={() => void onSave(task, { title: current.title.trim(), description: current.description || "", phaseId: current.phaseId, assigneeId: current.assigneeId, priority: current.priority, status: current.status, dueDate: current.dueDate }).then(ok => { if (ok) { setDraft(null); setSaveError(""); toast({ title: "Task saved" }); } else setSaveError("The latest version could not be saved. Your text remains here."); })}>{isSaving ? "Saving…" : "Save task"}</Button>
-            </div>
+            {entry.entryType !== "Note" && <h3 className={`mt-1 text-sm font-semibold normal-case tracking-normal ${entry.status === "Done" ? "text-muted-foreground line-through" : ""}`}>{entry.title || "Untitled meeting"}</h3>}
+            {!!entry.description && <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-foreground/85">{entry.description}</p>}
           </div>
-          <section className="mt-8 border-t pt-5">
-            <div className="flex items-center justify-between"><h3 className="font-semibold">Discussion</h3><span className="text-xs text-muted-foreground">{notesQuery.data?.length ?? task.noteCount} notes</span></div>
-            {notesQuery.isError ? <div className="mt-3 text-sm text-muted-foreground">Discussion could not load. <Button size="sm" variant="outline" onClick={() => void notesQuery.refetch()}>Retry</Button></div> : <div className="mt-4 space-y-3">
-              {(notesQuery.data ?? []).map(item => <article key={item.id} className="rounded-md bg-muted/45 p-3"><div className="flex justify-between gap-3 text-xs"><span className="font-medium">{item.authorName}</span><time className="text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</time></div><p className="mt-2 whitespace-pre-wrap text-sm">{item.content}</p></article>)}
-              {notesQuery.isLoading && <><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></>}
-              {!notesQuery.isLoading && !notesQuery.data?.length && <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">No discussion yet. Add the first useful detail.</p>}
-            </div>}
-            <form className="mt-4 space-y-2" onSubmit={event => { event.preventDefault(); appendNote.mutate(); }}>
-              <Textarea value={note} disabled={appendNote.isPending} onChange={e => setNote(e.target.value)} rows={3} maxLength={20000} placeholder="Add a dated note for the project team…" aria-label="New task note" />
-              {noteError && <p role="alert" className="text-xs text-destructive">{noteError} Your note is still here; retry to submit the same entry.</p>}
-              <div className="flex justify-end"><Button size="sm" disabled={!note.trim() || appendNote.isPending}>{appendNote.isPending ? "Posting…" : "Add note"}</Button></div>
-            </form>
-          </section>
-        </div>}
-      </SheetContent>
-    </Sheet>
-  );
+          <time className="shrink-0 text-[11px] tabular-nums text-muted-foreground" dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>{entry.authorName || "Project teammate"}</span>
+          {phase && <span>{phase}</span>}
+          {entry.assigneeName && <span>For {entry.assigneeName}</span>}
+          {entry.assigneeId && !entry.assigneeName && <span className="text-amber-700">Teammate needs reassignment</span>}
+          {entry.entryType === "Meeting" && (meetingDate || entry.meetingTime) && <span className="inline-flex items-center gap-1"><CalendarDays className="h-3 w-3" />{meetingDate ? dateLabel(meetingDate) : ""}{meetingDate && entry.meetingTime ? " · " : ""}{entry.meetingTime || ""}</span>}
+          {actionable && <span className={overdue ? "font-semibold text-destructive" : ""}>{due ? `${overdue ? "Overdue · " : "Due "}${dateLabel(due)}` : "No due date"}</span>}
+          {entry.noteCount > 0 && <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{entry.noteCount} {entry.noteCount === 1 ? "reply" : "replies"}</span>}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          {actionable && !entry.archived && <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" disabled={interactionDisabled} onClick={onToggleStatus}>{entry.status === "Done" ? "Reopen" : "Mark done"}</Button>}
+          <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs" disabled={interactionDisabled} onClick={onEdit}>Edit</Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs" disabled={interactionDisabled} onClick={onDiscussion}><MessageSquare className="mr-1 h-3.5 w-3.5" />Discussion</Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs" disabled={interactionDisabled} onClick={onArchive}>{entry.archived ? <><RotateCcw className="mr-1 h-3.5 w-3.5" />Restore</> : <><Archive className="mr-1 h-3.5 w-3.5" />Archive</>}</Button>
+        </div>
+      </div>
+    </div>
+    {editing && editDraft && <form className="ml-10 mt-4 space-y-3 rounded-md border bg-muted/20 p-3 sm:p-4" onSubmit={e => { e.preventDefault(); onSave(); }}>
+      <fieldset disabled={editPending} className="contents">
+      {entry.entryType !== "Note" && <label className="block space-y-1 text-xs font-medium">{entry.entryType === "Meeting" ? "Meeting title (optional)" : `${entry.entryType} title`}<Input required={entry.entryType !== "Meeting"} value={editDraft.title} onChange={e => setEditDraft({ ...editDraft, title: e.target.value })} maxLength={240} /></label>}
+      <label className="block space-y-1 text-xs font-medium">{entry.entryType === "Note" ? "Note" : "Description"}<Textarea required={entry.entryType === "Note"} rows={3} value={editDraft.description} onChange={e => setEditDraft({ ...editDraft, description: e.target.value })} maxLength={20000} /></label>
+      <PhaseAssigneeFields draft={editDraft} setDraft={setEditDraft} phases={phases} assignees={assignees} />
+      {entry.entryType === "Task" && <div className="grid gap-3 sm:grid-cols-3"><label className="space-y-1 text-xs font-medium">Priority<select className={fieldClass} value={editDraft.priority} onChange={e => setEditDraft({ ...editDraft, priority: e.target.value })}>{TASK_PRIORITIES.map(p => <option key={p}>{p}</option>)}</select></label><label className="space-y-1 text-xs font-medium">Status<select className={fieldClass} value={editDraft.status} onChange={e => setEditDraft({ ...editDraft, status: e.target.value })}>{TASK_STATUSES.map(s => <option key={s}>{s}</option>)}</select></label><label className="space-y-1 text-xs font-medium">Due date<input aria-label="Due date" className={fieldClass} type="date" value={editDraft.dueDate} onChange={e => setEditDraft({ ...editDraft, dueDate: e.target.value })} /></label></div>}
+      {entry.entryType === "Reminder" && <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-xs font-medium">Status<select className={fieldClass} value={editDraft.status} onChange={e => setEditDraft({ ...editDraft, status: e.target.value })}><option>To do</option><option>Done</option></select></label><label className="space-y-1 text-xs font-medium">Due date<input aria-label="Due date" className={fieldClass} type="date" value={editDraft.dueDate} onChange={e => setEditDraft({ ...editDraft, dueDate: e.target.value })} /></label></div>}
+      {entry.entryType === "Meeting" && <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-xs font-medium">Meeting date<input aria-label="Meeting date" className={fieldClass} type="date" value={editDraft.meetingDate} onChange={e => setEditDraft({ ...editDraft, meetingDate: e.target.value, meetingTime: e.target.value ? editDraft.meetingTime : "" })} /></label><label className="space-y-1 text-xs font-medium">Meeting time<input aria-label="Meeting time" className={fieldClass} type="time" value={editDraft.meetingTime} onChange={e => setEditDraft({ ...editDraft, meetingTime: e.target.value })} /></label></div>}
+      {editError && <div role="alert" className="rounded border border-destructive/30 p-3 text-sm">{editError}<p className="mt-1">Reloading replaces this draft. Copy any text you want to keep first.</p><div className="mt-2"><Button type="button" size="sm" variant="outline" disabled={editPending} onClick={onReload}>Reload latest</Button></div></div>}
+      {confirmDiscard && <div className="rounded border border-amber-600/30 bg-amber-500/5 p-3 text-sm"><p>Discard your unsaved work?</p><div className="mt-2 flex justify-end gap-2"><Button type="button" size="sm" variant="outline" onClick={() => setConfirmDiscard(false)}>Keep editing</Button><Button type="button" size="sm" variant="destructive" onClick={onDiscard}>Discard</Button></div></div>}
+      <div className="flex flex-wrap justify-end gap-2"><Button type="button" size="sm" variant="ghost" disabled={editPending} onClick={onCancelEdit}>Cancel</Button><Button size="sm" disabled={!editDirty || !entryHasContent(editDraft) || editPending}>{editPending ? "Saving…" : "Save changes"}</Button></div>
+      </fieldset>
+    </form>}
+    {notesOpen && <section className="ml-10 mt-4 space-y-3 border-l-2 border-primary/15 pl-3 sm:pl-4" aria-label="Entry discussion">
+      <div className="flex items-center justify-between"><h4 className="text-xs font-semibold">Discussion</h4><Button size="sm" variant="ghost" className="h-7 text-xs" disabled={editPending} onClick={onCloseDiscussion}>Close</Button></div>
+      {notesError && <p role="alert" className="text-xs text-destructive">{notesError} <Button size="sm" variant="outline" onClick={() => void getNotes()}>Retry</Button></p>}
+      {notesLoading ? <><Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" /></> : notes?.length ? <div className="space-y-2">{notes.map(note => <article key={note.id} className="rounded-md bg-muted/45 p-3"><div className="flex flex-wrap justify-between gap-2 text-[11px]"><span className="font-medium">{note.authorName}</span><time>{new Date(note.createdAt).toLocaleString()}</time></div><p className="mt-1 whitespace-pre-wrap text-sm">{note.content}</p></article>)}</div> : !notesError && <p className="text-xs text-muted-foreground">No discussion yet.</p>}
+      <form onSubmit={e => { e.preventDefault(); void onPostDiscussion().then(getNotes); }} className="space-y-2"><Textarea aria-label="Write discussion reply" disabled={editPending} value={discussion} onChange={e => setDiscussion(e.target.value)} rows={2} maxLength={20000} placeholder="Add a dated, attributed reply…" /><div className="flex items-center justify-between"><p role="alert" className="text-xs text-destructive">{discussionError}</p><Button size="sm" disabled={!discussion.trim() || editPending}>Post reply</Button></div></form>
+    </section>}
+    {confirmDiscard && !editing && notesOpen && <div className="ml-10 mt-3 rounded border border-amber-600/30 bg-amber-500/5 p-3 text-sm"><p>Discard your unsaved work?</p><div className="mt-2 flex justify-end gap-2"><Button size="sm" variant="outline" onClick={() => setConfirmDiscard(false)}>Keep writing</Button><Button size="sm" variant="destructive" onClick={onDiscard}>Discard</Button></div></div>}
+  </article>;
 }

@@ -1,18 +1,18 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { createHash, randomUUID } from "node:crypto";
 import { db } from "../db";
 import { context, projectPredicate, AccessError } from "../workspace-context";
 import {
   leads, users, workspaceMembers, projectAssignments, projectPhases, projectPhaseFees,
   projectTasks, projectTaskNotes, projectWorkSetup, proposals, proposalPhases, proposalFeeLines,
 } from "@shared/schema";
-import { phaseInput, phasePatch, taskInput, taskPatch, type ProjectWork, type WorkPhase } from "@shared/project-work";
+import { phaseInput, phasePatch, taskInput, taskPatch, entryInput, entryCreate, entryPatch, type EntryInput, type WorkEntry, type ProjectWork, type WorkPhase } from "@shared/project-work";
+import { accessProject } from "../project-team";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export async function lockProject(tx: Tx, leadId: number) {
-  const c = context();
-  const [project] = await tx.select().from(leads).where(and(eq(leads.id, leadId), projectPredicate(c.userId))).for("update");
-  if (!project) throw new AccessError("Project not found or access denied.", 404);
-  return project;
+  // Same lock order as team/offboarding writes; never trust an older request's role.
+  return (await accessProject(tx, leadId)).lead;
 }
 export async function eligibleAssignees(tx: Tx, leadId: number) {
   return tx.select({ userId: users.id, name: users.name }).from(workspaceMembers)
@@ -61,12 +61,11 @@ export async function getProjectWork(leadId: number) {
       .where(eq(projectTasks.leadId, leadId)).orderBy(projectTasks.createdAt, projectTasks.id);
     const setup = await tx.select().from(projectWorkSetup).where(eq(projectWorkSetup.leadId, leadId));
     const sources = setup.length ? [] : await legacySources(tx, leadId);
+    const entries = tasks.map(({ task, assigneeName, noteCount }) => entryView(task, assigneeName, assignees, noteCount));
     return {
       phases, assignees, needsReconciliation: sources.length > 0, legacySources: sources,
-      tasks: tasks.map(({ task, assigneeName, noteCount }) => ({
-        ...task, assigneeName, noteCount,
-        assigneeEligible: !task.assigneeId || assignees.some(a => a.userId === task.assigneeId),
-      })),
+      entries: entries.slice().reverse(),
+      tasks: entries.filter(entry => entry.entryType === "Task"),
     };
   });
 }
@@ -139,13 +138,55 @@ export async function reorderPhases(leadId: number, ordered: { id: string; versi
   });
 }
 export async function saveTask(leadId: number, id: string | undefined, input: unknown) {
-  const data = id ? taskPatch.parse(input) : taskInput.parse(input);
+  // Old task clients remain task-only. They cannot mutate or read another kind.
+  if (id) return saveEntry(leadId, id, taskPatch.parse(input), true);
+  const { requestId, ...data } = taskInput.extend({ requestId: entryCreate.shape.requestId.optional() }).parse(input);
+  return saveEntry(leadId, undefined, { requestId: requestId ?? randomUUID(), entry: { entryType: "Task", ...data } }, true);
+}
+
+function entryFields(row: typeof projectTasks.$inferSelect): EntryInput {
+  return {
+    entryType: row.entryType, title: row.title, description: row.description,
+    phaseId: row.phaseId, assigneeId: row.assigneeId, priority: row.priority,
+    status: row.status, dueDate: row.dueDate, meetingDate: row.meetingDate, meetingTime: row.meetingTime,
+  } as EntryInput;
+}
+function entryView(row: typeof projectTasks.$inferSelect, assigneeName: string | null, assignees: { userId: string }[], noteCount: number): WorkEntry {
+  const { leadId: _lead, creationFingerprint: _fingerprint, ...entry } = row;
+  return {
+    ...entry, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), assigneeName, noteCount,
+    assigneeEligible: !row.assigneeId || assignees.some(person => person.userId === row.assigneeId),
+  } as WorkEntry;
+}
+async function savedEntryView(tx: Tx, row: typeof projectTasks.$inferSelect) {
+  const assignees = await eligibleAssignees(tx, row.leadId);
+  const [person] = row.assigneeId ? await tx.select({ name: users.name }).from(users).where(eq(users.id, row.assigneeId)) : [];
+  const [notes] = await tx.select({ count: sql<number>`count(*)::int` }).from(projectTaskNotes).where(eq(projectTaskNotes.taskId, row.id));
+  return entryView(row, person?.name ?? null, assignees, notes.count);
+}
+export async function saveEntry(leadId: number, id: string | undefined, input: unknown, taskOnly = false) {
+  const creation = id ? undefined : entryCreate.parse(input);
+  const patch = id ? entryPatch.parse(input) : undefined;
   return db.transaction(async tx => {
     await lockProject(tx, leadId);
     let existing: typeof projectTasks.$inferSelect | undefined;
     if (id) {
       [existing] = await tx.select().from(projectTasks).where(and(eq(projectTasks.id, id), eq(projectTasks.leadId, leadId)));
-      if (!existing) throw new AccessError("Task not found.", 404);
+      if (!existing || taskOnly && existing.entryType !== "Task") throw new AccessError("Entry not found.", 404);
+      if (existing.version !== patch!.version) throw new AccessError("This entry changed. Your draft is preserved; reload the latest version before saving.", 409);
+    }
+    const { version: _version, archived: _archived, ...updates } = patch ?? {};
+    const data = creation?.entry ?? entryInput.parse({ ...entryFields(existing!), ...updates });
+    if (creation) {
+      const [previous] = await tx.select().from(projectTasks).where(and(
+        eq(projectTasks.leadId, leadId), eq(projectTasks.creationRequestId, creation.requestId),
+      ));
+      if (previous) {
+        const fingerprint = createHash("sha256").update(JSON.stringify(data)).digest("hex");
+        if (previous.authorId !== context().userId || previous.creationFingerprint !== fingerprint)
+          throw new AccessError("This save request already created an entry. Reload the log and review it before starting another.", 409);
+        return savedEntryView(tx, previous);
+      }
     }
     if (data.phaseId && data.phaseId !== existing?.phaseId) {
       const [phase] = await tx.select().from(projectPhases).where(and(eq(projectPhases.id, data.phaseId), eq(projectPhases.leadId, leadId), eq(projectPhases.archived, false)));
@@ -157,21 +198,27 @@ export async function saveTask(leadId: number, id: string | undefined, input: un
       }
     }
     if (id) {
-      const { version, ...updates } = data as ReturnType<typeof taskPatch.parse>;
-      const [row] = await tx.update(projectTasks).set({ ...updates, version: sql`${projectTasks.version}+1`, updatedAt: new Date() })
-        .where(and(eq(projectTasks.id, id), eq(projectTasks.leadId, leadId), eq(projectTasks.version, version))).returning();
-      if (!row) throw new AccessError("This task changed. Reload before saving again; your draft has not been saved.", 409);
-      return row;
+      const [row] = await tx.update(projectTasks).set({ ...data, ...(patch!.archived !== undefined ? { archived: patch!.archived } : {}), version: sql`${projectTasks.version}+1`, updatedAt: new Date() })
+        .where(and(eq(projectTasks.id, id), eq(projectTasks.leadId, leadId), eq(projectTasks.version, patch!.version))).returning();
+      if (!row) throw new AccessError("This entry changed. Your draft is preserved; reload the latest version before saving.", 409);
+      return savedEntryView(tx, row);
     }
-    const [row] = await tx.insert(projectTasks).values({ ...data as ReturnType<typeof taskInput.parse>, leadId }).returning();
-    return row;
+    const [author] = await tx.select({ name: users.name }).from(users).where(eq(users.id, context().userId));
+    const [row] = await tx.insert(projectTasks).values({
+      ...data, leadId, authorId: context().userId, authorName: author.name,
+      creationRequestId: creation!.requestId, creationFingerprint: createHash("sha256").update(JSON.stringify(data)).digest("hex"),
+    }).returning();
+    return savedEntryView(tx, row);
   });
 }
 export async function taskNotes(leadId: number, taskId: string, note?: { content: string; requestId: string }) {
+  return entryNotes(leadId, taskId, note, true);
+}
+export async function entryNotes(leadId: number, taskId: string, note?: { content: string; requestId: string }, taskOnly = false) {
   return db.transaction(async tx => {
     await lockProject(tx, leadId);
     const [task] = await tx.select().from(projectTasks).where(and(eq(projectTasks.id, taskId), eq(projectTasks.leadId, leadId)));
-    if (!task) throw new AccessError("Task not found.", 404);
+    if (!task || taskOnly && task.entryType !== "Task") throw new AccessError("Entry not found.", 404);
     if (note) {
       const [author] = await tx.select({ name: users.name }).from(users).where(eq(users.id, context().userId));
       const [previous] = await tx.select().from(projectTaskNotes)

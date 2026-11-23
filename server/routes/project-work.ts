@@ -38,4 +38,11 @@ export function registerProjectWorkRoutes(app: Express) {
     const note = z.object({ content: z.string().trim().min(1).max(20000), requestId: z.string().uuid() }).strict().parse(req.body);
     res.status(201).json(await work.taskNotes(leadId, req.params.id, note));
   }));
+  app.post(`${base}/entries`, requireAuth, run(async (req, res, leadId) => res.status(201).json(await work.saveEntry(leadId, undefined, req.body))));
+  app.patch(`${base}/entries/:id`, requireAuth, run(async (req, res, leadId) => res.json(await work.saveEntry(leadId, req.params.id, req.body))));
+  app.get(`${base}/entries/:id/notes`, requireAuth, run(async (req, res, leadId) => res.json(await work.entryNotes(leadId, req.params.id))));
+  app.post(`${base}/entries/:id/notes`, requireAuth, run(async (req, res, leadId) => {
+    const note = z.object({ content: z.string().trim().min(1).max(20000), requestId: z.string().uuid() }).strict().parse(req.body);
+    res.status(201).json(await work.entryNotes(leadId, req.params.id, note));
+  }));
 }

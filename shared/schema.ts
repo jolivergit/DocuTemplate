@@ -571,14 +571,24 @@ export const projectTasks = pgTable("project_tasks", {
   assigneeId: varchar("assignee_id").references(() => users.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
-  priority: text("priority").notNull().default("Normal"),
-  status: text("status").notNull().default("To do"),
+  priority: text("priority").default("Normal"),
+  status: text("status").default("To do"),
+  entryType: text("entry_type").$type<"Task" | "Reminder" | "Meeting" | "Note">().notNull().default("Task"),
+  meetingDate: text("meeting_date"),
+  meetingTime: text("meeting_time"),
+  authorId: varchar("author_id").references(() => users.id, { onDelete: "set null" }),
+  authorName: text("author_name"),
+  creationRequestId: varchar("creation_request_id"),
+  creationFingerprint: text("creation_fingerprint"),
   dueDate: text("due_date"),
   archived: boolean("archived").notNull().default(false),
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, t => ({ leadIdx: index("project_tasks_lead_idx").on(t.leadId) }));
+}, t => ({
+  leadIdx: index("project_tasks_lead_idx").on(t.leadId),
+  uniqueCreation: uniqueIndex("project_entry_creation_unique").on(t.leadId, t.creationRequestId),
+}));
 export const projectTaskNotes = pgTable("project_task_notes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   taskId: varchar("task_id").notNull().references(() => projectTasks.id, { onDelete: "cascade" }),

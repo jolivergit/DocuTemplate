@@ -1,4 +1,4 @@
-# Shared project work rollout
+# Project work and running-log rollout
 
 ## Scope and destructive effect
 
@@ -7,6 +7,35 @@ The project is the source of shared phases and fee inputs. Tasks use stable proj
 The user approved replacing standalone Project Notes without keeping its data. The project-work migration **deletes all old project_comments rows once in the target database**. It does not convert or archive them, and never deletes project_task_notes. The old note routes return 410.
 
 Development migration was applied during implementation. This is not production rollout authorization, a production data inspection, or UAT sign-off.
+
+## Typed running log
+
+Work in motion now uses the existing task table in place for **Task**, **Reminder**,
+**Meeting** and **Note**. It does not create task/log copies. Task-era IDs, dates,
+assignments, archive/version state and discussion relationships remain intact.
+Legacy author attribution stays unknown; new entries record their actual author.
+The running-log migration never deletes/restores standalone notes or discussions.
+
+Apply `npm run db:migrate:project-log` after the existing workspace, project-work
+and project-setup prerequisites, before starting compatible code. The migration
+adds kind, meeting date/time, author and retry metadata and allows non-actionable
+entries to have null task fields. It is transactional and repeatable. Production
+mode additionally requires `CONFIRM_PROJECT_LOG_MIGRATION=yes`, not a substitute
+for explicit rollout authorization and a recoverable backup. Development only
+was migrated here; no production migration/publish was performed.
+
+New entry creation requires a persistent per-intent request ID. Repeating the
+same request returns the existing entry, even if later edited. Reusing it with
+different content/author is a conflict, not an overwrite. Discussions retain
+their own retry keys and author snapshots. The old task endpoints remain
+task-only; they cannot expose/mutate meetings, notes or reminders. Legacy create
+clients can supply `requestId`; older clients omitting it cannot safely assume
+that independently repeated POSTs are the same intent.
+
+Kind is immutable after saving. Task/reminder metrics exclude meetings/notes;
+meeting date/time and project duration estimates never become task due dates.
+Project-context prefilling is explicit, reviewable draft text, never an automatic
+event, assignee selection, notification or calendar invitation.
 
 ## Apply
 
@@ -30,6 +59,6 @@ Development migration was applied during implementation. This is not production 
 
 ## Verify and recover
 
-Run `npm run check`, `npm run test:project-work`, `npm run test:workspaces`, `npm run test:google`, and `npm run build`. Follow the task/phase UAT section using fictional authorized practice data. Record actual outcomes, not assumed passes.
+Run `npm run check`, `npm run test:project-log`, `npm run test:project-work`, `npm run test:project-setup`, `npm run test:workspaces`, `npm run test:google`, and `npm run build`. Follow the log/phase UAT sections using fictional authorized practice data. Record actual outcomes, not assumed passes.
 
 If application rollback is required, prefer rolling back code while retaining the additive work tables and snapshot links. Do not drop shared phases while tasks reference them. Original legacy proposal financial rows remain available; restore deleted standalone notes only from an authorized pre-migration backup if the business reverses its decision. Re-running the migration does not undo note deletion or delete new task notes.

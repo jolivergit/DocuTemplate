@@ -51,6 +51,7 @@ export interface TaskNote {
 }
 export interface ProjectWork {
   phases: WorkPhase[]; tasks: WorkTask[];
+  entries: WorkEntry[];
   assignees: { userId: string; name: string }[];
   legacySources: { id: string; name: string; status: string; phases: { name: string; total: string }[] }[];
   needsReconciliation: boolean;
@@ -60,4 +61,77 @@ export function localCalendarDate(now = new Date()) {
 }
 export function isTaskOverdue(task: Pick<WorkTask, "archived" | "dueDate" | "status">, today = localCalendarDate()) {
   return !task.archived && !!task.dueDate && task.dueDate < today && task.status !== "Done";
+}
+
+export const ENTRY_TYPES = ["Task", "Reminder", "Meeting", "Note"] as const;
+const commonEntry = {
+  description: z.string().max(20000).default(""),
+  phaseId: id.nullable().default(null),
+  assigneeId: z.string().min(1).nullable().default(null),
+};
+const noDate = z.null().default(null);
+const meetingTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Enter a valid time");
+export const entryInput = z.discriminatedUnion("entryType", [
+  z.object({
+    ...commonEntry, entryType: z.literal("Task"), title: taskInput.shape.title,
+    priority: taskInput.shape.priority, status: taskInput.shape.status,
+    dueDate: dateOnly.nullable().default(null), meetingDate: noDate, meetingTime: noDate,
+  }).strict(),
+  z.object({
+    ...commonEntry, entryType: z.literal("Reminder"), title: taskInput.shape.title,
+    priority: noDate, status: z.enum(["To do", "Done"]).default("To do"),
+    dueDate: dateOnly.nullable().default(null), meetingDate: noDate, meetingTime: noDate,
+  }).strict(),
+  z.object({
+    ...commonEntry, entryType: z.literal("Meeting"), title: z.string().trim().max(240).default(""),
+    priority: noDate, status: noDate, dueDate: noDate,
+    meetingDate: dateOnly.nullable().default(null), meetingTime: meetingTime.nullable().default(null),
+  }).strict(),
+  z.object({
+    ...commonEntry, entryType: z.literal("Note"), title: z.literal("").default(""),
+    description: z.string().max(20000).refine(s => !!s.trim(), "Write a note"),
+    priority: noDate, status: noDate, dueDate: noDate, meetingDate: noDate, meetingTime: noDate,
+  }).strict(),
+]).superRefine((entry, ctx) => {
+  if (entry.entryType === "Meeting") {
+    if (!entry.title && !entry.description.trim()) ctx.addIssue({ code: "custom", path: ["description"], message: "Enter a meeting title or notes" });
+    if (entry.meetingTime && !entry.meetingDate) ctx.addIssue({ code: "custom", path: ["meetingDate"], message: "Choose a meeting date before entering its time" });
+  }
+});
+export const entryCreate = z.object({ requestId: id, entry: entryInput }).strict();
+export const entryPatch = z.object({
+  version: z.number().int().positive(),
+  title: z.string().trim().max(240).optional(),
+  description: z.string().max(20000).optional(),
+  phaseId: id.nullable().optional(),
+  assigneeId: z.string().min(1).nullable().optional(),
+  priority: z.enum(TASK_PRIORITIES).nullable().optional(),
+  status: z.enum(TASK_STATUSES).nullable().optional(),
+  dueDate: dateOnly.nullable().optional(),
+  meetingDate: dateOnly.nullable().optional(),
+  meetingTime: meetingTime.nullable().optional(),
+  archived: z.boolean().optional(),
+}).strict();
+export type EntryInput = z.infer<typeof entryInput>;
+export type EntryType = EntryInput["entryType"];
+export type WorkEntry = EntryInput & {
+  id: string; archived: boolean; version: number; createdAt: string; updatedAt: string;
+  authorId: string | null; authorName: string | null;
+  creationRequestId: string | null;
+  assigneeName: string | null; assigneeEligible: boolean; noteCount: number;
+};
+export function isActionable(entry: Pick<WorkEntry, "entryType">) {
+  return entry.entryType === "Task" || entry.entryType === "Reminder";
+}
+export function isEntryOverdue(entry: Pick<WorkEntry, "entryType" | "archived" | "dueDate" | "status">, today = localCalendarDate()) {
+  return isActionable(entry) && !entry.archived && !!entry.dueDate && entry.dueDate < today && entry.status !== "Done";
+}
+export function entrySummary(entries: WorkEntry[], today = localCalendarDate()) {
+  const actions = entries.filter(e => isActionable(e) && !e.archived);
+  return {
+    open: actions.filter(e => e.status !== "Done").length,
+    blocked: actions.filter(e => e.status === "Blocked").length,
+    overdue: actions.filter(e => isEntryOverdue(e, today)).length,
+    done: actions.filter(e => e.status === "Done").length,
+  };
 }
