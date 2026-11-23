@@ -38,3 +38,9 @@ The desired flow is: start a project; pick the team and collaborating companies;
 **Why:** The customer liked the name but rejected the task-only interface.
 
 **How to apply:** Preserve the name and broaden the work model. Do not force every entry to have task fields or attach general notes to a task.
+
+Avoid redundant indicators on the project page, such as setup “Ready” or log count/sort badges; keep the actual project status.
+
+**Why:** The user found these indicators confusing rather than useful.
+
+**How to apply:** Keep the project context and Work in motion focused on useful information and actions, not extra readiness or display-mode labels.

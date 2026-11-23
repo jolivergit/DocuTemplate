@@ -1,16 +1,12 @@
 import { CalendarDays, Plus } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { WorkEntry } from "@shared/project-work";
 
 type Summary = { open: number; blocked: number; overdue: number; done: number; nextMeeting: WorkEntry | null };
 type Props = {
   summary: Summary;
-  shownCount: number;
   addDisabled: boolean;
-  detailsDisabled: boolean;
   onAddUpdate: () => void;
-  onUseProjectDetails: () => void;
 };
 
 function dateLabel(value: string | null) {
@@ -19,7 +15,7 @@ function dateLabel(value: string | null) {
   return new Date(year, month - 1, day).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-export function WorkMotionHeader({ summary, shownCount, addDisabled, detailsDisabled, onAddUpdate, onUseProjectDetails }: Props) {
+export function WorkMotionHeader({ summary, addDisabled, onAddUpdate }: Props) {
   const meeting = summary.nextMeeting;
   const meetingWhen = meeting
     ? `${dateLabel(meeting.meetingDate)}${meeting.meetingTime ? ` · ${meeting.meetingTime}` : " · Time not set"}`
@@ -28,11 +24,10 @@ export function WorkMotionHeader({ summary, shownCount, addDisabled, detailsDisa
   return <header className="border-b bg-muted/15 px-4 py-5 sm:px-6">
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h2 className="text-2xl font-semibold normal-case tracking-normal">Work in motion</h2><Badge variant="secondary" className="font-normal">{shownCount} shown · Newest first</Badge></div>
+        <h2 className="text-2xl font-semibold normal-case tracking-normal">Work in motion</h2>
         <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Active work: <span className="font-medium text-foreground">{summary.open} open</span> <span className="mx-1.5" aria-hidden="true">·</span><span className={summary.overdue ? "font-semibold text-foreground" : ""}>{summary.overdue} overdue</span> <span className="mx-1.5" aria-hidden="true">·</span>{summary.blocked} blocked <span className="mx-1.5" aria-hidden="true">·</span>{summary.done} done</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="ghost" disabled={detailsDisabled} onClick={onUseProjectDetails}>Use project details</Button>
         <Button className="h-10 px-4" disabled={addDisabled} onClick={onAddUpdate}><Plus className="mr-1.5 h-4 w-4" />Add update</Button>
       </div>
     </div>

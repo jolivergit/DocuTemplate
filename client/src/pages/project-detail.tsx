@@ -79,7 +79,7 @@ export default function ProjectDetailPage({ params }: Props) {
         </fieldset>
         {exitNotice && <p role="status" className="rounded-md border bg-muted/60 px-4 py-3 text-sm">{exitNotice}</p>}
         <fieldset disabled={teamSaving} aria-busy={teamSaving} className="m-0 min-w-0 border-0 p-0">
-          <ProjectWorkWorkspace leadId={leadId} lead={lead} onDirtyChange={setWorkDirty} />
+          <ProjectWorkWorkspace leadId={leadId} onDirtyChange={setWorkDirty} />
         </fieldset>
 
         <section id="project-supporting-records" className="scroll-mt-5 overflow-hidden rounded-xl border bg-card">

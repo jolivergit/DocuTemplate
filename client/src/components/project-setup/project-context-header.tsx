@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -27,7 +27,6 @@ export function ProjectContextHeader({
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
         <h2 className="line-clamp-2 max-w-full break-words text-base font-semibold">{projectName}</h2>
         <Badge variant="outline" className="text-[10px]">{status}</Badge>
-        {setupComplete && <Badge variant="secondary" className="gap-1 text-[10px]"><Check className="h-3 w-3" />Ready</Badge>}
       </div>
       {setupComplete ? (
         <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">

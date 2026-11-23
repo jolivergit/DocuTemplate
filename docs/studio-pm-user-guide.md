@@ -466,7 +466,7 @@ The same project phases and fees are reused when preparing proposals. Changing t
 
 Click **Add update** in Work in motion, then choose Task, Reminder, Meeting or
 Note in the inline composer. Everything is written and edited on the project
-page. **Use project details** remains a separate, secondary action.
+page.
 
 | Kind | What to enter |
 | --- | --- |
@@ -486,16 +486,6 @@ entered, not converted into a calendar appointment. Older tasks appear once in
 this same log, with their original IDs, due dates, assignments and discussions.
 Older records with no recorded author are not attributed to an invented author.
 
-### Use known project details without retyping
-
-Choose **Use project details** above the log when useful. Review the draft
-text drawn from saved project information before saving. It may include the
-project name, description, status, companies and general timeline.
-
-This does not post an entry automatically, choose an assignee, invent a meeting,
-or turn “8–10 weeks” into a due date. Select any phase/person and enter actual
-meeting or due dates yourself.
-
 ### Edit, complete and archive
 
 Expand an entry's edit controls, make the appropriate changes and save. Tasks
@@ -513,8 +503,7 @@ never overdue or Done. A due date before today on your device is overdue unless
 the item is complete; due today is not overdue.
 
 The compact **Active work** summary shows open, overdue, blocked and done counts
-for the whole active project log. The separate **shown** count describes your
-current filters; searching or switching to Archived does not change the active
+for the whole active project log. Searching or switching to Archived does not change the active
 summary. Entries remain newest-created first, not grouped or reordered by status.
 Blocked and overdue work have visible text labels; notes emphasize the note text
 rather than requiring a title.

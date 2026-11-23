@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkspace } from "@/lib/workspace";
-import type { LeadWithCompanies } from "@shared/schema";
 import { TASK_PRIORITIES, TASK_STATUSES, type EntryInput, type EntryType, type ProjectWork, type TaskNote, type WorkEntry } from "@shared/project-work";
 import { Composer, emptyDraft, entryHasContent, PhaseAssigneeFields, type EntryDraft } from "@/components/project-work/work-entry-composer";
 import { WorkLogFilters } from "@/components/project-work/work-log-filters";
@@ -55,7 +54,7 @@ function fieldPatch(draft: EntryDraft) {
     meetingTime: draft.entryType === "Meeting" ? draft.meetingTime || null : null,
   };
 }
-export function ProjectWorkWorkspace({ leadId, lead, onDirtyChange }: { leadId: number; lead?: LeadWithCompanies; onDirtyChange?: (dirty: boolean) => void }) {
+export function ProjectWorkWorkspace({ leadId, onDirtyChange }: { leadId: number; onDirtyChange?: (dirty: boolean) => void }) {
   const { userId } = useWorkspace();
   const [entryTypeFilter, setEntryTypeFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -244,20 +243,6 @@ export function ProjectWorkWorkspace({ leadId, lead, onDirtyChange }: { leadId: 
     if (activeEditor || pendingCount) return;
     setDiscussionId(entry.id); setDiscussion(""); setDiscussionRequestId(crypto.randomUUID()); setDiscussionError("");
   };
-  const useProjectDetails = () => {
-    if (!lead || activeEditor || pendingCount) return;
-    const companies = lead.companies.map(company => company.companyName || company.linkedCompany?.name || "").filter(Boolean);
-    const details = [
-      lead.projectName && `Project: ${lead.projectName}`,
-      lead.description && `Description: ${lead.description}`,
-      lead.status && `Status: ${lead.status}`,
-      lead.generalTimeline && `General timeline: ${lead.generalTimeline}`,
-      companies.length && `Companies: ${companies.join(", ")}`,
-    ].filter(Boolean).join("\n");
-    setComposer({ ...emptyDraft("Note"), description: details, phaseId: "" });
-    setComposerRequestId(crypto.randomUUID()); setCreateError(""); setSaveError("");
-    setUncertainInput(null); setRecoveryChecked(false); setOriginalResolved(false);
-  };
 
   if (isLoading) return <section className="space-y-3" aria-label="Work in motion loading"><Skeleton className="h-20 w-full" /><Skeleton className="h-14 w-full" /><Skeleton className="h-48 w-full" /></section>;
   const errorStatus = (error as { status?: number } | null)?.status;
@@ -270,10 +255,7 @@ export function ProjectWorkWorkspace({ leadId, lead, onDirtyChange }: { leadId: 
     <section className="overflow-hidden rounded-lg border bg-card" aria-label="Work in motion">
       <WorkMotionHeader
         summary={summary}
-        shownCount={visibleEntries.length}
         addDisabled={!!pendingCount || activeEditor}
-        detailsDisabled={!lead || !!pendingCount || activeEditor}
-        onUseProjectDetails={useProjectDetails}
         onAddUpdate={() => startComposer("Task")}
       />
       {composer && <Composer draft={composer} setDraft={setComposer} phases={phases} assignees={assignees} pending={!!pendingCount || recoveryPending}
