@@ -493,7 +493,7 @@ Reminders use incomplete/complete; meetings and notes have no completion status.
 An entry's kind is fixed after saving to avoid losing type-specific information.
 
 Use completion controls for tasks/reminders. Archive hides an entry without
-deleting its history; switch to **Archived** and restore it when needed. Search
+deleting its history; use the **Active / Archived** selector to switch views and restore it when needed. Search
 the log, choose a kind or use **Actionable** to focus on tasks/reminders. **Mine**
 shows entries naming you as their teammate/assignee, not every note you authored.
 

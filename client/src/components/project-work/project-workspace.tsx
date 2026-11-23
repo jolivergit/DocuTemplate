@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Archive, CalendarDays, Check, Circle, Clock3, FileText, MessageSquare, Plus, RotateCcw, Search, Users, X } from "lucide-react";
+import { Archive, CalendarDays, Check, Circle, Clock3, FileText, MessageSquare, Plus, RotateCcw, Users, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkspace } from "@/lib/workspace";
 import type { LeadWithCompanies } from "@shared/schema";
-import { ENTRY_TYPES, TASK_PRIORITIES, TASK_STATUSES, entrySummary, isEntryOverdue, type EntryInput, type EntryType, type ProjectWork, type TaskNote, type WorkEntry } from "@shared/project-work";
+import { TASK_PRIORITIES, TASK_STATUSES, entrySummary, isEntryOverdue, type EntryInput, type EntryType, type ProjectWork, type TaskNote, type WorkEntry } from "@shared/project-work";
 import { Composer, emptyDraft, entryHasContent, PhaseAssigneeFields, type EntryDraft } from "@/components/project-work/work-entry-composer";
+import { WorkLogFilters } from "@/components/project-work/work-log-filters";
 
 const workKey = (id: number) => ["/api/leads", id, "work"];
 const fieldClass = "h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm";
@@ -289,14 +290,19 @@ export function ProjectWorkWorkspace({ leadId, lead, onDirtyChange }: { leadId: 
         originalResolved={originalResolved}
         confirmDiscard={confirmDiscard} onKeepEditing={() => setConfirmDiscard(false)} onDiscard={discardCurrent}
       />}
-      <fieldset aria-label="Work log filters" disabled={!!pendingCount || activeEditor} className="m-0 min-w-0 flex flex-col gap-2 rounded-none border-0 border-b border-border p-3 sm:flex-row sm:items-center">
-        <div className="relative min-w-0 flex-1"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input aria-label="Search work entries" className="h-9 pl-8" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search the log" /></div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select aria-label="Filter by entry type" className={`${fieldClass} w-auto max-w-full`} value={entryTypeFilter} onChange={e => setEntryTypeFilter(e.target.value)}><option value="all">All types</option>{ENTRY_TYPES.map(type => <option key={type}>{type}</option>)}</select>
-          <Button size="sm" variant={actionableOnly ? "default" : "outline"} onClick={() => setActionableOnly(!actionableOnly)}>Actionable</Button>
-          <Button size="sm" variant={mineOnly ? "default" : "outline"} onClick={() => setMineOnly(!mineOnly)}>Mine</Button>
-          <Button size="sm" variant={archived ? "default" : "outline"} onClick={() => setArchived(!archived)}>{archived ? "Archived" : "Active"}</Button>
-        </div>
+      <fieldset aria-label="Work log filters" disabled={!!pendingCount || activeEditor} className="m-0 min-w-0 border-0 border-b border-border p-3 sm:p-4">
+        <WorkLogFilters
+          search={search}
+          onSearchChange={setSearch}
+          entryTypeFilter={entryTypeFilter}
+          onEntryTypeFilterChange={setEntryTypeFilter}
+          actionableOnly={actionableOnly}
+          onActionableOnlyChange={setActionableOnly}
+          mineOnly={mineOnly}
+          onMineOnlyChange={setMineOnly}
+          archived={archived}
+          onArchivedChange={setArchived}
+        />
       </fieldset>
       {visibleEntries.length === 0 ? <div className="px-5 py-10 text-center">
         <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-muted text-muted-foreground"><Circle className="h-4 w-4" /></div>
