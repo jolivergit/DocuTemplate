@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrencyOrDash } from "@/lib/utils";
 import type { LeadWithCompanies } from "@shared/schema";
+import { PHASE_TYPES, CONSULTANTS } from "@shared/schema";
+import { ScopeChoice } from "./scope-choice";
 import type { FeeInput, WorkPhase, ProjectWork } from "@shared/project-work";
 
 const workKey = (id: number) => ["/api/leads", id, "work"];
@@ -188,7 +190,7 @@ export function PhaseTimelineEditor({
       <h3 className="text-sm font-semibold">New phase</h3>
       <fieldset disabled={locked || phaseCreate.isPending} className="m-0 min-w-0 border-0 p-0">
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <label className="space-y-1 text-xs font-medium">Phase name<Input autoFocus maxLength={200} value={newPhase.name} onChange={event => setNewPhase({ ...newPhase, name: event.target.value })} placeholder="Concept design" /></label>
+          <div className="space-y-1 text-xs font-medium"><span>Phase name</span><ScopeChoice autoFocus label="Phase name" options={PHASE_TYPES} value={newPhase.name} onChange={name => setNewPhase({ ...newPhase, name })} placeholder="Select a phase" /></div>
           <label className="space-y-1 text-xs font-medium">Estimated timeline<Input maxLength={200} value={newPhase.timeline} onChange={event => setNewPhase({ ...newPhase, timeline: event.target.value })} placeholder="5 weeks or 8–10 weeks" /></label>
           <div className="sm:col-span-2">
             <div className="mb-2 flex items-center justify-between"><span className="text-xs font-medium">Fee lines <span className="font-normal text-muted-foreground">optional</span></span><Button variant="outline" size="sm" disabled={locked || phaseCreate.isPending} onClick={() => addFee(newPhase, setNewPhase)}><Plus className="mr-1 h-3.5 w-3.5" />Fee line</Button></div>
@@ -204,7 +206,7 @@ export function PhaseTimelineEditor({
         return <article key={phase.id} className={`rounded-lg border bg-background p-3 sm:p-4 ${phase.archived ? "opacity-70" : ""}`}>
           {draft ? <div>
             <fieldset disabled={locked || phasePatch.isPending} className="m-0 min-w-0 border-0 p-0">
-              <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-xs font-medium">Phase name<Input maxLength={200} value={draft.name} onChange={event => setEditing(current => ({ ...current, [phase.id]: { ...draft, name: event.target.value } }))} /></label><label className="space-y-1 text-xs font-medium">Timeline<Input maxLength={200} value={draft.timeline} onChange={event => setEditing(current => ({ ...current, [phase.id]: { ...draft, timeline: event.target.value } }))} /></label>
+              <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1 text-xs font-medium"><span>Phase name</span><ScopeChoice label="Phase name" options={PHASE_TYPES} value={draft.name} onChange={name => setEditing(current => ({ ...current, [phase.id]: { ...draft, name } }))} placeholder="Select a phase" /></div><label className="space-y-1 text-xs font-medium">Timeline<Input maxLength={200} value={draft.timeline} onChange={event => setEditing(current => ({ ...current, [phase.id]: { ...draft, timeline: event.target.value } }))} /></label>
                 <div className="sm:col-span-2"><div className="mb-2 flex justify-between"><span className="text-xs font-medium">Fee lines</span><Button variant="outline" size="sm" disabled={locked || phasePatch.isPending} onClick={() => setEditing(current => ({ ...current, [phase.id]: { ...draft, feeLines: [...draft.feeLines, { consultant: "", feeType: "Fixed", amount: null }] } }))}><Plus className="mr-1 h-3.5 w-3.5" />Fee line</Button></div><FeeRows lines={draft.feeLines} onChange={feeLines => setEditing(current => ({ ...current, [phase.id]: { ...draft, feeLines } }))} disabled={locked || phasePatch.isPending} /></div>
               </div>
             </fieldset>
@@ -228,7 +230,7 @@ export function PhaseTimelineEditor({
 function FeeRows({ lines, onChange, disabled = false }: { lines: FeeInput[]; onChange: (lines: FeeInput[]) => void; disabled?: boolean }) {
   if (!lines.length) return <p className="rounded-md border border-dashed px-3 py-3 text-xs text-muted-foreground">No fee lines. Fees are optional.</p>;
   return <div className="space-y-2">{lines.map((line, index) => <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px_130px_36px]">
-    <Input disabled={disabled} aria-label={`Consultant fee line ${index + 1}`} value={line.consultant} maxLength={200} onChange={event => onChange(lines.map((item, i) => i === index ? { ...item, consultant: event.target.value } : item))} placeholder="Consultant or service" />
+    <ScopeChoice disabled={disabled} label={`Consultant or service ${index + 1}`} options={CONSULTANTS} value={line.consultant} onChange={consultant => onChange(lines.map((item, i) => i === index ? { ...item, consultant } : item))} placeholder="Select consultant or service" />
     <select disabled={disabled} aria-label={`Fee type ${index + 1}`} className={field} value={line.feeType} onChange={event => onChange(lines.map((item, i) => i === index ? { ...item, feeType: event.target.value as FeeInput["feeType"] } : item))}><option>Fixed</option><option>Hourly</option></select>
     <Input disabled={disabled} aria-label={`${line.feeType === "Hourly" ? "Reference amount" : "Fee amount"} ${index + 1}`} type="number" min="0" step="0.01" value={line.amount ?? ""} onChange={event => onChange(lines.map((item, i) => i === index ? { ...item, amount: event.target.value || null } : item))} placeholder={line.feeType === "Hourly" ? "Reference amount" : "Amount"} />
     <Button disabled={disabled} variant="ghost" size="icon" aria-label={`Remove fee line ${index + 1}`} onClick={() => onChange(lines.filter((_, i) => i !== index))}><Trash2 className="h-4 w-4" /></Button>

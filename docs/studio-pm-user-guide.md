@@ -446,9 +446,9 @@ Neither action sends email or processes payment. The detail view advances status
 ### Create phases once
 
 1. In **Project setup**, find **Phases, fees & timeline** and click **Add phase**. Choose **Edit setup** first if setup is collapsed.
-2. Enter a custom phase name. Ad-hoc phases can be added at any point; you are not limited to a predefined list.
+2. Choose **Phase name** from the dropdown, or select **Other / custom** and enter an ad-hoc name. Ad-hoc phases can be added at any point; you are not limited to the suggested list. The same choices are available when editing a phase.
 3. Optionally enter **Estimated timeline**, such as **5 weeks** or **8–10 weeks**. Leave it blank if unknown. This is an estimate, not a required start/end date or an automatic task schedule.
-4. Optionally add a consultant fee line, choose Fixed or Hourly, and save. More fee rows can be added through the phase's Edit controls.
+4. Optionally add a fee line, choose **Consultant or service** from its dropdown (or **Other / custom** for your own name), choose Fixed or Hourly, and save. More fee rows can be added through the phase's Edit controls.
 5. Use phase controls to edit, reorder, archive, or restore phases. Archiving preserves existing task references; archived phases cannot be assigned to new tasks.
 
 The same project phases and fees are reused when preparing proposals. Changing their timeline does not change task due dates. An Hourly line is not a guaranteed fixed fee; hours and rates are entered when billing.
