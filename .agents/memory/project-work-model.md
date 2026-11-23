@@ -21,8 +21,20 @@ Phases may or may not have a timeline, such as “5 weeks” or “8–10 weeks.
 
 **How to apply:** Support optional phase durations and ranges without requiring fixed calendar dates.
 
-The user does not need the current standalone project notes saved; replace them with task notes.
+The user did not need the retired standalone project notes saved.
 
 **Why:** The user explicitly rejected retaining the existing notes as history.
 
-**How to apply:** Do not add a legacy-notes archive or automatic task conversion. Treat actual legacy-note removal as a destructive rollout step, not permission to delete data during planning or modify production without authorization.
+**How to apply:** Do not add a legacy-notes archive or restore retired notes. This does not prohibit new general notes in the running project log.
+
+The desired flow is: start a project; pick the team and collaborating companies; pick phases, fees and an optional general timeline; then maintain Work in motion. The team has Owner, Project Manager and Designer roles.
+
+**Why:** The user showed the customer the task-first implementation and reported that it was still clunky, with too many pop-ups.
+
+**How to apply:** Plan around this setup-to-daily-work sequence, inline interaction and a streamlined project page without tabs. Keep existing project statuses. Do not present a separate “shared project phases” section: phase reuse is inherent, not something users should have to manage.
+
+“Work in motion” is a running project log filled in by users and potentially partially filled from known project information. It includes tasks, reminders, meetings and general notes, not only tasks with attached discussion.
+
+**Why:** The customer liked the name but rejected the task-only interface.
+
+**How to apply:** Preserve the name and broaden the work model. Do not force every entry to have task fields or attach general notes to a task.
