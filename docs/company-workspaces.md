@@ -39,16 +39,27 @@ bound to the signed-in account; it contains no Google credentials.
 | --- | --- | --- |
 | List/search projects, Dashboard totals | All in selected workspace | Assigned projects only |
 | Read/edit proposals, invoices, notes, time and expenses | Yes | Assigned projects only, including financial information |
-| Create project | Yes | Yes, automatically assigned to creator |
+| Create project | Yes; creator is Project Admin | Yes; creator is Project Admin, not firm Owner |
 | Create a separate firm | Yes; creator owns the new firm | Yes; no role change in the current firm |
 | Delete project, proposal or invoice | Yes | No |
 | Read company/contact address book | All in workspace | Only directly linked to assigned projects; nested links filtered |
 | Create/edit/delete address-book records | Yes | No |
-| Change project company associations | Accessible workspace records | Only already-visible records |
+| Change project company associations | Accessible workspace records | Already-visible records; Project Admins can select all same-firm records through that project's setup |
 | Read firm details | Yes | Yes |
 | Change firm details | Yes | No |
 | Primary contact, content library, working field values | Personal | Personal |
-| Invite, assign projects, manage team/roles | Yes | No |
+| Invite and manage firm members/roles | Yes | No |
+| Manage a project's team and project roles | Yes | Only when Project Admin on that assigned project |
+
+Project roles are **Project Admin**, **Project Manager**, and **Designer**.
+Each role supports multiple people and each person can hold multiple roles.
+They never imply firm Owner powers. Legacy assignments retain access with an
+empty role list until explicitly configured. New creators are Project Admins.
+Once configured, a project must retain at least one Project Admin; team updates,
+the older assignment endpoint and firm-member removal enforce this together.
+An Owner can configure an older no-admin project. Project team writes lock the
+workspace before the project, recheck current membership, and use a project team
+version to reject stale rosters. Assignment rows are retained on role changes.
 
 There must always be at least one Owner. Invitations only add Member access;
 an Owner may explicitly promote another member. Secure links are single-use,

@@ -260,6 +260,10 @@ export const leads = pgTable("leads", {
   probability: text("probability").notNull().default("LOW"),
   potentialFee: numeric("potential_fee", { precision: 12, scale: 2 }),
   status: text("status").notNull().default("Lead"),
+  generalTimeline: text("general_timeline"),
+  setupComplete: boolean("setup_complete").notNull().default(false),
+  setupVersion: integer("setup_version").notNull().default(1),
+  teamVersion: integer("team_version").notNull().default(1),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   workspaceId: varchar("workspace_id").references(() => workspaces.id).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -274,9 +278,14 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
   workspaceId: true,
   createdAt: true,
   updatedAt: true,
+  setupComplete: true,
+  setupVersion: true,
+  teamVersion: true,
 }).extend({
-  probability: z.enum(LEAD_PROBABILITIES),
-  status: z.enum(LEAD_STATUSES),
+  projectName: z.string().trim().min(1).max(240),
+  probability: z.enum(LEAD_PROBABILITIES).default("LOW"),
+  status: z.enum(LEAD_STATUSES).default("Lead"),
+  generalTimeline: z.string().trim().max(500).nullable().optional(),
   squareFootage: z.string().optional().nullable(),
   potentialFee: z.string().optional().nullable(),
 });
@@ -288,6 +297,7 @@ export const projectAssignments = pgTable("project_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   leadId: integer("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
   memberId: varchar("member_id").notNull().references(() => workspaceMembers.id, { onDelete: "cascade" }),
+  roles: jsonb("roles").$type<Array<"Project Admin" | "Project Manager" | "Designer">>().notNull().default([]),
 }, t => ({ uniqueAssignment: uniqueIndex("project_assignment_unique").on(t.leadId, t.memberId) }));
 
 // lead_companies: free-form role, no unique constraint on role, optional FK to companies/contacts

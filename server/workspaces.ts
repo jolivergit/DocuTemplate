@@ -3,6 +3,7 @@ import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "./db";
 import { workspaces, workspaceMembers, workspaceInvitations, projectAssignments, users, leads, type User } from "@shared/schema";
 import { context, ownerOnly, AccessError, type WorkspaceContext } from "./workspace-context";
+import { getProjectTeam, saveProjectTeam } from "./project-team";
 
 export function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -132,6 +133,15 @@ export async function changeMember(userId: string, role?: "Owner" | "Member") {
     }
     if (role) await tx.update(workspaceMembers).set({ role }).where(eq(workspaceMembers.id, target.id));
     else {
+      const stranded = await tx.select({ name: leads.projectName }).from(projectAssignments)
+        .innerJoin(leads, eq(leads.id, projectAssignments.leadId))
+        .where(and(eq(projectAssignments.memberId, target.id), eq(leads.workspaceId, c.workspaceId),
+          sql`${projectAssignments.roles} @> '["Project Admin"]'::jsonb`,
+          sql`not exists(select 1 from project_assignments other
+            inner join workspace_members wm on wm.id=other.member_id
+            where other.lead_id=${leads.id} and other.member_id<>${target.id}
+            and wm.workspace_id=${c.workspaceId} and other.roles @> '["Project Admin"]'::jsonb)`));
+      if (stranded.length) throw new AccessError("Assign another Project Admin on their projects before removing this teammate.", 409);
       await tx.delete(workspaceMembers).where(eq(workspaceMembers.id, target.id));
       // Old unused invitations must not restore removed access.
       const [targetUser] = await tx.select({ email: users.email }).from(users).where(eq(users.id, userId));
@@ -146,23 +156,12 @@ export async function changeMember(userId: string, role?: "Owner" | "Member") {
 
 export async function assignments(leadId: number, userIds?: string[]) {
   ownerOnly();
-  const c = context();
-  return db.transaction(async tx => {
-    await tx.select().from(workspaces).where(eq(workspaces.id, c.workspaceId)).for("update");
-    const [lead] = await tx.select().from(leads).where(and(eq(leads.id, leadId), eq(leads.workspaceId, c.workspaceId)));
-    if (!lead) throw new AccessError("Project not found.", 404);
-    const members = await tx.select({ memberId: workspaceMembers.id, userId: users.id, name: users.name, email: users.email, role: workspaceMembers.role })
-      .from(workspaceMembers).innerJoin(users, eq(users.id, workspaceMembers.userId))
-      .where(eq(workspaceMembers.workspaceId, c.workspaceId));
-    if (!members.some(m => m.userId === c.userId && m.role === "Owner")) throw new AccessError();
-    if (userIds) {
-      if (userIds.some(id => !members.some(m => m.userId === id))) throw new AccessError("Choose active members of this company.", 400);
-      await tx.delete(projectAssignments).where(eq(projectAssignments.leadId, leadId));
-      const selected = members.filter(m => userIds.includes(m.userId));
-      if (selected.length) await tx.insert(projectAssignments).values(selected.map(m => ({ leadId, memberId: m.memberId })));
-      await tx.update(workspaces).set({ revision: sql`${workspaces.revision} + 1` }).where(eq(workspaces.id, c.workspaceId));
-    }
-    const selected = await tx.select().from(projectAssignments).where(eq(projectAssignments.leadId, leadId));
-    return { members: members.map(({ memberId, ...m }) => ({ ...m, assigned: selected.some(a => a.memberId === memberId) })) };
-  });
+  let team = await getProjectTeam(leadId);
+  if (team.members.find(m => m.userId === context().userId)?.firmRole !== "Owner") throw new AccessError();
+  if (userIds) {
+    if (userIds.some(id => !team.members.some(m => m.userId === id))) throw new AccessError("Choose active members of this company.", 400);
+    team = await saveProjectTeam(leadId, { version: team.version, members: team.members.filter(m => userIds.includes(m.userId))
+      .map(m => ({ userId: m.userId, assigned: true, roles: m.roles })) });
+  }
+  return { members: team.members.map(({ firmRole, ...member }) => ({ ...member, role: firmRole })) };
 }

@@ -1,457 +1,115 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import {
-  ChevronLeft,
-  Building2,
-  User,
-  Phone,
-  Mail,
-  MapPin,
-  Edit,
-  Trash2,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
+import { Building2, ChevronLeft, Mail, MapPin, Phone, Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Separator } from "@/components/ui/separator";
-import { formatCurrencyOrDash } from "@/lib/utils";
-import { LeadFormDialog } from "@/components/lead-form-dialog";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { useWorkspace } from "@/lib/workspace";
-import type {
-  LeadWithCompanies,
-  LeadStatus,
-  LeadProbability,
-  CompanyRole,
-  Contact,
-} from "@shared/schema";
-import { COMPANY_ROLE_LABELS, LEAD_STATUSES } from "@shared/schema";
+import { ProjectSetup } from "@/components/project-setup/project-setup";
+import { ProjectWorkWorkspace } from "@/components/project-work/project-workspace";
 import { ProposalsTab } from "@/components/tabs/proposals-tab";
 import { TimeExpensesTab } from "@/components/tabs/time-expenses-tab";
 import { InvoicesTab } from "@/components/tabs/invoices-tab";
-import { ProjectWorkWorkspace } from "@/components/project-work/project-workspace";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/lib/workspace";
+import type { LeadWithCompanies } from "@shared/schema";
 
-const STATUS_COLORS: Record<LeadStatus, string> = {
-  Lead: "bg-secondary text-secondary-foreground",
-  Proposal: "bg-secondary text-secondary-foreground",
-  "Active Project": "bg-secondary text-secondary-foreground",
-  Completed: "bg-secondary text-secondary-foreground",
-  Lost: "bg-secondary text-secondary-foreground",
-};
-
-const PROBABILITY_COLORS: Record<LeadProbability, string> = {
-  LOW: "bg-secondary text-secondary-foreground",
-  MEDIUM: "bg-secondary text-secondary-foreground",
-  HIGH: "bg-secondary text-secondary-foreground",
-};
-
-function DetailField({ label, value }: { label: string; value?: string | null }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
-      <p className="text-sm" data-testid={`text-detail-${label.toLowerCase().replace(/\s+/g, "-")}`}>
-        {value || <span className="text-muted-foreground">—</span>}
-      </p>
-    </div>
-  );
-}
-
-function CompanySection({ role, company }: {
-  role: CompanyRole;
-  company?: {
-    companyName?: string | null;
-    addressLine1?: string | null;
-    addressLine2?: string | null;
-    city?: string | null;
-    state?: string | null;
-    zip?: string | null;
-    linkedContact?: Contact | null;
-  } | null;
-}) {
-  const [open, setOpen] = useState(false);
-  const label = COMPANY_ROLE_LABELS[role];
-  const contact = company?.linkedContact;
-  const hasData = company && (company.companyName || contact);
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger asChild>
-        <button
-          className="w-full flex items-center justify-between py-3 px-4 rounded-md hover-elevate text-left"
-          data-testid={`button-company-${role}`}
-        >
-          <div className="flex items-center gap-3">
-            <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <div>
-              <span className="text-sm font-medium">{label}</span>
-              {hasData && (
-                <p className="text-xs text-muted-foreground">{company?.companyName || contact?.fullName}</p>
-              )}
-            </div>
-          </div>
-          {open ? (
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          )}
-        </button>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        {!hasData ? (
-          <p className="text-xs text-muted-foreground px-4 pb-3">No information provided</p>
-        ) : (
-          <div className="px-4 pb-4 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <DetailField label="Company Name" value={company?.companyName} />
-              <div />
-              {(company?.addressLine1 || company?.city) && (
-                <>
-                  <div className="col-span-2">
-                    <p className="text-xs text-muted-foreground mb-0.5">Address</p>
-                    <div className="flex items-start gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                      <div className="text-sm">
-                        {company?.addressLine1 && <p>{company.addressLine1}</p>}
-                        {company?.addressLine2 && <p>{company.addressLine2}</p>}
-                        {(company?.city || company?.state || company?.zip) && (
-                          <p>
-                            {[company?.city, company?.state, company?.zip].filter(Boolean).join(", ")}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {contact && (
-              <>
-                <Separator />
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Primary Contact</p>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <User className="w-3.5 h-3.5 text-muted-foreground" />
-                      <div>
-                        <span className="text-sm">{contact.fullName}</span>
-                        {contact.title && (
-                          <span className="text-xs text-muted-foreground ml-1">· {contact.title}</span>
-                        )}
-                      </div>
-                    </div>
-                    {contact.phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-                        <a href={`tel:${contact.phone}`} className="text-sm" data-testid={`link-phone-${role}`}>
-                          {contact.phone}
-                        </a>
-                      </div>
-                    )}
-                    {contact.email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="w-3.5 h-3.5 text-muted-foreground" />
-                        <a href={`mailto:${contact.email}`} className="text-sm" data-testid={`link-email-${role}`}>
-                          {contact.email}
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-// ─── Main Page ─────────────────────────────────────────────────────────────────
-
-interface Props {
-  params: { id: string };
-}
+interface Props { params: { id: string } }
 
 export default function ProjectDetailPage({ params }: Props) {
   const workspace = useWorkspace();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [workDirty, setWorkDirty] = useState(false);
   const leadId = parseInt(params.id, 10);
-
-  const { data: lead, isLoading } = useQuery<LeadWithCompanies>({
+  const teamSaving = useIsMutating({ mutationKey: ["project-team-save", leadId] }) > 0;
+  const { data: lead, isLoading, isError, refetch } = useQuery<LeadWithCompanies>({
     queryKey: ["/api/leads", leadId],
-    enabled: !isNaN(leadId),
+    enabled: !Number.isNaN(leadId),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async () => apiRequest("DELETE", `/api/leads/${leadId}`),
+    mutationFn: () => apiRequest("DELETE", `/api/leads/${leadId}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       toast({ title: "Project deleted" });
       navigate("/projects");
     },
-    onError: (err: Error) => {
-      toast({ title: "Failed to delete project", description: err.message, variant: "destructive" });
-    },
+    onError: (error: Error) => toast({ title: "Failed to delete project", description: error.message, variant: "destructive" }),
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async (status: string) =>
-      apiRequest("PATCH", `/api/leads/${leadId}`, { status }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId] });
-      toast({ title: "Status updated" });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Failed to update status", description: err.message, variant: "destructive" });
-    },
-  });
-  const { data: assignments, isError: assignmentsError, refetch: refetchAssignments } = useQuery<{ members: { userId: string; name: string; email: string; role: string; assigned: boolean }[] }>({
-    queryKey: ["/api/leads", leadId, "assignments"],
-    enabled: workspace.isOwner && !isNaN(leadId),
-  });
-  const assignmentMutation = useMutation({
-    mutationFn: (userIds: string[]) => apiRequest("PUT", `/api/leads/${leadId}/assignments`, { userIds }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "assignments"] }),
-    onError: (err: Error) => toast({ title: "Could not update project access", description: err.message, variant: "destructive" }),
-  });
+  if (Number.isNaN(leadId)) return <div className="grid h-full place-items-center p-6"><p className="text-sm text-muted-foreground">Invalid project ID</p></div>;
+  if (isLoading) return <div className="mx-auto max-w-5xl space-y-4 p-4 sm:p-6"><Skeleton className="h-8 w-36" /><Skeleton className="h-64 w-full rounded-xl" /><Skeleton className="h-48 w-full rounded-xl" /></div>;
+  if (isError || !lead) return <div className="grid h-full place-items-center p-6"><div className="max-w-sm text-center"><h1 className="font-semibold">Project unavailable</h1><p className="mt-2 text-sm text-muted-foreground">This project could not be loaded.</p><Button className="mt-4" variant="outline" onClick={() => void refetch()}>Try again</Button></div></div>;
 
-  if (isNaN(leadId)) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Invalid project ID</p>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="p-6 space-y-4 max-w-3xl mx-auto">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-32 w-full rounded-md" />
-        <Skeleton className="h-48 w-full rounded-md" />
-      </div>
-    );
-  }
-
-  if (!lead) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Project not found</p>
-      </div>
-    );
-  }
-
-  const companyMap = new Map(lead.companies.map((c) => [c.companyRole, c]));
   const isProject = lead.status === "Active Project" || lead.status === "Completed";
-
-  const tabColsClass = isProject ? "grid grid-cols-4" : "grid grid-cols-2";
+  const tabColsClass = isProject ? "grid grid-cols-2 sm:grid-cols-4" : "grid grid-cols-2";
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto">
       <div className="mx-auto w-full max-w-7xl space-y-5 px-4 py-4 sm:px-6 sm:py-6">
-        {/* Back + actions header */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <Link href="/projects">
-            <Button variant="ghost" size="sm" data-testid="button-back">
-              <ChevronLeft className="w-4 h-4" />
-              Projects
-            </Button>
+        <div className="flex items-center justify-between gap-3">
+          <Link href="/projects" className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <ChevronLeft className="h-4 w-4" />Projects
           </Link>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowEdit(true)}
-              data-testid="button-edit-project"
-            >
-              <Edit className="w-4 h-4" />
-              Edit
-            </Button>
-            {workspace.isOwner && <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDelete(true)}
-              data-testid="button-delete-project"
-            >
-              <Trash2 className="w-4 h-4 text-destructive" />
+          <div className="flex items-center gap-3">
+            <span className="hidden text-xs text-muted-foreground sm:inline">Project #{lead.id}</span>
+            {workspace.isOwner && <Button variant="outline" size="sm" onClick={() => setShowDelete(true)} aria-label="Delete project">
+              <Trash2 className="mr-1.5 h-4 w-4 text-destructive" />Delete
             </Button>}
           </div>
         </div>
 
-        {/* Compact identity keeps the daily task view above the fold. */}
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-4">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-mono text-muted-foreground" data-testid="text-project-id">
-                  #{lead.id}
-                </span>
-                <Badge
-                  variant="secondary"
-                  className={STATUS_COLORS[lead.status as LeadStatus] || ""}
-                  data-testid="badge-status"
-                >
-                  {lead.status}
-                </Badge>
-                <Badge
-                  variant="secondary"
-                  className={PROBABILITY_COLORS[lead.probability as LeadProbability] || ""}
-                  data-testid="badge-probability"
-                >
-                  {lead.probability}
-                </Badge>
-              </div>
-              <h1 className="text-xl font-semibold normal-case tracking-normal sm:text-2xl" data-testid="text-project-name">{lead.projectName}</h1>
-              {lead.description && <p className="mt-1 max-w-3xl text-sm text-muted-foreground line-clamp-1" data-testid="text-description">{lead.description}</p>}
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
-            {lead.squareFootage && <span>{Number(lead.squareFootage).toLocaleString()} sq ft</span>}
-            <span>Potential fee {formatCurrencyOrDash(lead.potentialFee)}</span>
-            <span>Created {new Date(lead.createdAt).toLocaleDateString()}</span>
-          </div>
-        </div>
+        <ProjectSetup lead={lead} workDirty={workDirty} />
+        <fieldset disabled={teamSaving} aria-busy={teamSaving} className="m-0 min-w-0 border-0 p-0">
+          <ProjectWorkWorkspace leadId={leadId} onDirtyChange={setWorkDirty} />
+        </fieldset>
 
-        <ProjectWorkWorkspace leadId={leadId} />
-
-        {workspace.isOwner && (assignments || assignmentsError) && (
-          <Collapsible>
-            <section className="rounded-md border bg-card">
-              <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
-                <span><span className="block text-sm font-medium">Project access</span><span className="mt-0.5 block text-xs text-muted-foreground">Choose which Members can see this project.</span></span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="border-t">
-                  {assignmentMutation.isPending && <p className="border-b px-4 py-2 text-xs text-muted-foreground">Saving access changes…</p>}
-                  {assignmentsError ? <div className="px-4 py-3 text-xs text-muted-foreground">Could not load assignments. <Button size="sm" variant="outline" className="ml-2 h-7" onClick={() => void refetchAssignments()}>Retry</Button></div> : !assignments?.members.some(member => member.role === "Member") ? <p className="px-4 py-3 text-xs text-muted-foreground">Invite a coworker in Settings → Team to assign projects. Owners already have access to every project.</p> :
-                    <div className="divide-y">{assignments?.members.filter(member => member.role !== "Owner").map(member => <label key={member.userId} className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm">
-                      <input type="checkbox" checked={member.assigned} disabled={assignmentMutation.isPending} onChange={event => {
-                        const next = (assignments?.members || []).filter(person => person.role !== "Owner" && person.assigned && person.userId !== member.userId).map(person => person.userId);
-                        if (event.target.checked) next.push(member.userId);
-                        assignmentMutation.mutate(next);
-                      }} className="h-4 w-4 accent-current" aria-label={`Assign ${member.name} to project`} />
-                      <span className="flex-1">{member.name}</span><span className="text-xs text-muted-foreground">{member.email}</span>
-                    </label>)}</div>}
-                </div>
-              </CollapsibleContent>
-            </section>
-          </Collapsible>
-        )}
-
-        <Collapsible>
-          <section className="rounded-md border bg-card">
-            <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
-              <span><span className="block text-sm font-medium">Project status and details</span><span className="mt-0.5 block text-xs text-muted-foreground">Change lifecycle status or review the full project details.</span></span>
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="space-y-4 border-t p-4">
-                <div className="flex flex-wrap gap-2">
-                  {LEAD_STATUSES.map(s => <Button key={s} variant={lead.status === s ? "default" : "outline"} size="sm" onClick={() => lead.status !== s && updateStatusMutation.mutate(s)} disabled={updateStatusMutation.isPending} data-testid={`button-status-${s.replace(/\s+/g, "-").toLowerCase()}`}>{s}</Button>)}
-                </div>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                  <DetailField label="Square Footage" value={lead.squareFootage ? Number(lead.squareFootage).toLocaleString() + " sq ft" : null} />
-                  <DetailField label="Potential Fee" value={formatCurrencyOrDash(lead.potentialFee)} />
-                  <DetailField label="Created" value={new Date(lead.createdAt).toLocaleDateString()} />
-                </div>
-              </div>
-            </CollapsibleContent>
-          </section>
-        </Collapsible>
-
-        {/* Project records remain available alongside the everyday work view. */}
         <Tabs defaultValue="overview">
           <TabsList className={`w-full ${tabColsClass}`}>
             <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
             <TabsTrigger value="proposals" data-testid="tab-proposals">Proposals</TabsTrigger>
-            {isProject && (
-              <TabsTrigger value="time-expenses" data-testid="tab-time-expenses">Time & Expenses</TabsTrigger>
-            )}
-            {isProject && (
-              <TabsTrigger value="invoices" data-testid="tab-invoices">Invoices</TabsTrigger>
-            )}
+            {isProject && <TabsTrigger value="time-expenses" data-testid="tab-time-expenses">Time & Expenses</TabsTrigger>}
+            {isProject && <TabsTrigger value="invoices" data-testid="tab-invoices">Invoices</TabsTrigger>}
           </TabsList>
-
-          <TabsContent value="overview" className="mt-6">
-            <div className="rounded-md border bg-card">
-              <div className="px-4 py-3 border-b">
-                <h2 className="text-sm font-semibold">Associated Companies</h2>
-              </div>
-              <div className="divide-y">
-                {(["ContractHolder", "Client", "MEP", "Structural", "EquipmentVendor", "FurnitureVendor"] as CompanyRole[]).map((role) => (
-                  <CompanySection key={role} role={role} company={companyMap.get(role)} />
-                ))}
-              </div>
-            </div>
+          <TabsContent value="overview" className="mt-5">
+            <section className="overflow-hidden rounded-lg border bg-card">
+              <div className="border-b px-4 py-3"><h2 className="text-sm font-semibold">Project companies</h2><p className="mt-0.5 text-xs text-muted-foreground">Every project association, including repeated roles.</p></div>
+              {lead.companies.length === 0 ? <div className="px-5 py-8 text-center"><Building2 className="mx-auto h-5 w-5 text-muted-foreground" /><p className="mt-2 text-sm font-medium">No company associations</p><p className="mt-1 text-xs text-muted-foreground">Add participants in Project setup.</p></div> :
+                <div className="divide-y">{lead.companies.map(company => {
+                  const contact = company.linkedContact;
+                  const location = [company.city, company.state, company.zip].filter(Boolean).join(", ");
+                  return <article key={company.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:px-5">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2"><Building2 className="h-4 w-4 shrink-0 text-primary" /><h3 className="truncate text-sm font-semibold">{company.companyName || company.linkedCompany?.name || company.companyRole}</h3></div>
+                      <p className="mt-1 pl-6 text-xs font-medium text-muted-foreground">{company.companyRole}</p>
+                      {(company.addressLine1 || company.addressLine2 || location) && <div className="mt-2 flex gap-2 pl-6 text-xs text-muted-foreground"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{[company.addressLine1, company.addressLine2, location].filter(Boolean).join(", ")}</span></div>}
+                    </div>
+                    <div className="min-w-0 sm:border-l sm:pl-4">
+                      {contact ? <><div className="flex items-center gap-2 text-sm"><UserRound className="h-4 w-4 text-muted-foreground" /><span className="font-medium">{contact.fullName}</span>{contact.title && <span className="truncate text-xs text-muted-foreground">{contact.title}</span>}</div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 pl-6 text-xs text-muted-foreground">{contact.phone && <a className="inline-flex items-center gap-1.5 hover:text-foreground" href={`tel:${contact.phone}`}><Phone className="h-3.5 w-3.5" />{contact.phone}</a>}{contact.email && <a className="inline-flex items-center gap-1.5 hover:text-foreground" href={`mailto:${contact.email}`}><Mail className="h-3.5 w-3.5" />{contact.email}</a>}</div></> : <p className="text-xs text-muted-foreground sm:pt-1">No linked contact</p>}
+                    </div>
+                  </article>;
+                })}</div>}
+            </section>
           </TabsContent>
-
-          <TabsContent value="proposals" className="mt-6">
-            <ProposalsTab leadId={leadId} projectName={lead.projectName} />
-          </TabsContent>
-
-          {isProject && (
-            <TabsContent value="time-expenses" className="mt-6">
-              <TimeExpensesTab leadId={leadId} />
-            </TabsContent>
-          )}
-
-          {isProject && (
-            <TabsContent value="invoices" className="mt-6">
-              <InvoicesTab leadId={leadId} lead={lead} />
-            </TabsContent>
-          )}
-
+          <TabsContent value="proposals" className="mt-5"><ProposalsTab leadId={leadId} projectName={lead.projectName} /></TabsContent>
+          {isProject && <TabsContent value="time-expenses" className="mt-5"><TimeExpensesTab leadId={leadId} /></TabsContent>}
+          {isProject && <TabsContent value="invoices" className="mt-5"><InvoicesTab leadId={leadId} lead={lead} /></TabsContent>}
         </Tabs>
       </div>
 
-      {/* Edit dialog */}
-      <LeadFormDialog
-        open={showEdit}
-        onOpenChange={setShowEdit}
-        lead={lead}
-      />
-
-      {/* Delete confirm */}
       <AlertDialog open={showDelete} onOpenChange={setShowDelete}>
         <AlertDialogContent data-testid="dialog-delete-project">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Project</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{lead.projectName}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteMutation.mutate()}
-              className="bg-destructive text-destructive-foreground"
-              data-testid="button-confirm-delete"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>Delete project?</AlertDialogTitle><AlertDialogDescription>Delete “{lead.projectName}”? This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel><AlertDialogAction onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending} className="bg-destructive text-destructive-foreground" data-testid="button-confirm-delete">{deleteMutation.isPending ? "Deleting…" : "Delete project"}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>

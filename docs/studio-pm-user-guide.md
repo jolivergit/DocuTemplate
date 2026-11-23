@@ -6,7 +6,7 @@ Reviewed November 22, 2026 · No technical experience required
 
 Studio PM keeps your opportunities, proposals, active projects, billing, and document templates in one place. Start with the quick start, then use the contents to find a specific task.
 
-**About this guide:** This edition was reviewed against the implemented screens and their underlying behavior, including company teams, multiple firms and the Google chooser recovery controls. It is a documentation review, not a completed acceptance test. Real Google consent, file access and generated-document formatting still need testing with your own authorized test accounts and templates.
+**About this guide:** This edition covers inline project setup, multi-person project roles, company teams, multiple firms and Google chooser recovery controls. It is not a completed customer acceptance test. Real Google consent, file access and generated-document formatting still need testing with your own authorized test accounts and templates.
 
 ## Contents
 
@@ -39,8 +39,8 @@ Use this fictional example throughout the guide: **Maple Street Studio Renovatio
 1. Click **Sign in with Google** and choose your work account.
 2. In the sidebar, open **Settings → Firm**. Enter your studio's details and click **Save**. Open **Settings → Contact**, enter your own primary contact name and title, and click **Save**.
 3. Open **Companies → New Company** and save Maple Street Design. Open **Contacts → New Contact** and save a fictional client contact, such as Jordan Sample. Link the contact to the company if desired.
-4. Open **Projects → New Project**. Name it Maple Street Studio Renovation, leave its status as **Lead**, fill in the known details, and select the client company/contact under the appropriate company role. Click **Create Project**.
-5. On the project, add a phase named **Schematic Design**, optionally enter a timeline such as **5 weeks**, and add an **Interior Design / Fixed / 10000** fee line. Then choose **Proposals → New Proposal → Standard Proposal**, name it Maple Street Design Proposal, select that shared phase, and click **Create proposal**. You do not enter its fee again.
+4. Open **Projects → New Project**. Enter Maple Street Studio Renovation and click **Create and continue**. The saved project opens with setup directly on the page. You are its first **Project Admin**. Select teammates and their project roles, then **Save team**. In **Companies**, use **Add company entry** to link Maple Street Design and its contact, enter its project role, then **Save companies**.
+5. Under **Phases, fees & timeline**, optionally save a general timeline, add a phase named **Schematic Design**, enter a phase timeline such as **5 weeks**, and add an **Interior Design / Fixed / 10000** fee line. Save the phase, then **Finish setup**. Next choose **Proposals → New Proposal → Standard Proposal**, name it Maple Street Design Proposal, select that phase, and click **Create proposal**. You do not enter its fee again.
 6. Open the saved proposal and click **Load to Doc Builder**. This loads its name, total, project name, and available firm details into the field library.
 7. Have a Google Doc template ready with `{{project_name}}`, `{{proposal_name}}`, `{{proposal_total}}`, and `{{firm_name}}` typed into its body. See **Use Doc Builder** for a sample.
 8. In Doc Builder click **Load Template**. If asked, click **Connect Google**, complete the separate document permission screen using the same account, then click **Pick a Google Docs template** and select your template.
@@ -140,23 +140,29 @@ Links expire after seven days and can be used once. Use **Revoke** under Pending
 
 New invitees join as Members. An Owner can change a person's role using the role selector in **Settings → Team**. Promote someone only if they should manage every project and the team in this firm. A workspace's label under **Workspace name** and its business name under **Settings → Firm** are separate; check both if you rename the studio.
 
-### Assign a project — Owners only
+### Choose the project team — firm Owner or Project Admin
 
 1. Open the project in the correct workspace.
-2. Find **Project access** and select the Members who should work on it.
-3. Changes save as you change the assignments. Check the saved selection.
+2. In **Project setup**, click **Edit setup** if it is collapsed.
+3. Under **Team**, enable **Access** for each coworker who should work on this project.
+4. Choose **Project Admin**, **Project Manager**, **Designer**, or more than one role for that person. Each role can have several people.
+5. Click **Save team**. Save or cancel other project drafts first; changing access refreshes the project screen.
 
-A coworker who has just joined but has no assignments will see an empty project list. This is expected; joining alone does not grant access to every project. Owners can see all projects without assignment checkboxes. If the firm has no Members yet, the Project access area asks you to invite a coworker first.
+A coworker who has just joined but has no assignments will see an empty project list. This is expected; joining alone does not grant access to every project. Firm Owners can see all projects without being assigned. Invite coworkers through **Settings → Team** before selecting them here.
+
+**Project roles and firm roles are different.** A Project Admin can manage this project's team and setup, but cannot invite/remove firm members or access unrelated projects just because they are a Project Admin. Project Managers and Designers can work on their assigned projects, including phases, tasks and financial records, but cannot change the project team. Firm Owners retain their existing firm-wide management powers.
+
+Old assignments are retained and may say **Roles not configured**. This does not remove access or guess a role. A firm Owner can configure them. Each new project's creator becomes its first Project Admin automatically.
 
 ### Company details and personal details
 
 Firm information belongs to the active workspace. The primary Contact under Settings remains your own document contact. Content snippets, categories, working field values and Google connections remain personal, including when you own several firms.
 
-Members see address-book companies and contacts only when directly linked to their assigned projects. Owners manage these records; ask an Owner to add or correct a company/contact. This is different from the workspace's team list.
+Members normally see address-book companies and contacts only when directly linked to their assigned projects. A Project Admin can also select the firm's existing companies/contacts from that project's setup; this does not grant permission to change the firm's address book. Firm Owners manage those records. This is different from the workspace's team list.
 
-### Remove access — Owners only
+### Remove access
 
-Unselect a project assignment to remove a Member's access to that project, or open **Settings → Team** and remove the person to end their workspace membership. Read the confirmation. At least one Owner must remain; the app blocks removal or demotion of the last Owner.
+A Project Admin or firm Owner can turn off a person's project **Access**, then **Save team**. Only a firm Owner can remove firm membership through **Settings → Team**. At least one firm Owner must remain. Once a project has a Project Admin, it must keep at least one: transfer responsibility before removing its last admin, including before removing that person from the firm. An Owner can recover an older, unconfigured project by assigning a Project Admin.
 
 The server blocks further requests immediately; another person's open screen may take up to 15 seconds or a browser focus change to refresh. Already downloaded data cannot be recalled.
 
@@ -202,12 +208,13 @@ Studio PM uses one project record throughout the relationship, even when the wor
 ### Create a record
 
 1. Open **Projects → New Project**.
-2. Enter the **Project Name** and a useful description.
-3. Set status, probability, square footage, and potential fee as known. Probability expresses confidence in winning the work; it is not the same as proposal approval.
-4. Fill in the relevant company roles. These include the contract holder, client, engineers, and vendors. Choose existing address-book entries where possible and select the appropriate contact.
-5. Click **Create Project**.
+2. Enter only the **Project name**, then **Create and continue**. This creates a real saved Lead, even if you stop before finishing setup.
+3. In **Identity & status**, enter a description, status, probability, square footage and potential fee as known, then **Save details**. Probability expresses confidence in winning the work; it is not proposal approval.
+4. Pick the **Team** and collaborating **Companies** directly on the page. These appear side by side on a wide screen and stack on a phone. Save each section. A company entry can link an existing company/contact or hold project-specific names and addresses; it does not create a new address-book record. Custom roles and several companies with the same role are supported.
+5. Under **Phases, fees & timeline**, add named stages of work, optional fee lines and optional timelines. You can add ad-hoc phases later. **5 weeks** and **8–10 weeks** are examples, not required dates; project and phase timelines do not calculate task due dates.
+6. Save any edits, then **Finish setup**. At least one Project Admin is required. You can leave companies, fees and timelines empty while information is unknown. Setup collapses to a short summary; **Edit setup** opens it inline again.
 
-Search the Projects list by name and use the status filter to narrow results. Click a project card to open its full record. Use **Edit → Save Changes** to update its details.
+Search the Projects list by name and use the status filter to narrow results. Click a project card to open its full record. Incomplete setup remains expanded when you return. Completed setup stays compact. You can update the saved information without opening the old project-edit popup.
 
 ### Understand the stages
 
@@ -219,13 +226,13 @@ Search the Projects list by name and use the status filter to narrow results. Cl
 | Completed | Work you have finished. |
 | Lost | An opportunity that did not proceed. |
 
-The **Update Status** buttons change the project status immediately; there is no separate Save button for that change.
+Change the status in **Project setup → Identity & status**, then **Save details**.
 
 **Important:** Manually changing a project to Active Project is not the same as signing its proposal. Invoices still need a signed Standard proposal.
 
 ### Use the project workspace
 
-Tasks and their summary appear directly below the project heading. Shared phases and fee inputs are managed on this page, before or after you prepare a proposal. Expand the project details/access controls when needed.
+The page starts with **Project setup**: identity, team and companies, then **Phases, fees & timeline**. **Work in motion** follows with the current task workspace and task summary. Phases are the project's stages of work as well as reusable proposal scope; there is no second set to enter for proposals.
 
 - **Overview:** Expand each row under **Associated Companies** to see company and contact details.
 - **Proposals:** Create and review proposals.
@@ -234,6 +241,8 @@ Tasks and their summary appear directly below the project heading. Shared phases
 - Task details contain the team's dated discussion notes; there is no separate Notes tab.
 
 If the billing tabs disappear, check the project status before assuming data has been deleted.
+
+**Current release boundary:** This update streamlines setup. Work in motion still uses tasks and task discussions, and the financial/Overview tabs remain. The broader running log for meetings, reminders and general notes, and the fully tab-free layout, are separate planned changes—not available yet.
 
 ## Build a Standard proposal
 
@@ -526,7 +535,7 @@ Check the selected firm and Google account first. Then open **Projects**, clear 
 
 ### I cannot find Team settings or assignment controls
 
-Check your role in the selected firm. **Settings → Team** and assignment management are Owner controls. Owners already have all-project access, so they do not appear as assignment checkboxes. Invite a coworker as a Member before expecting Member assignment controls.
+Check both your firm role and your project roles. **Settings → Team** is for firm Owners. The project's inline **Team** is editable by a firm Owner or that project's Project Admin. Owners can hold project roles too, but keep firm-wide access even if not assigned. Invite coworkers into the firm before selecting them for a project.
 
 ### I created a firm but cannot open it
 
@@ -534,7 +543,7 @@ If the creation dialog says the firm exists, use **Open firm** to retry switchin
 
 ### Time & Expenses or Invoices is missing
 
-These tabs appear only for Active Project and Completed records. Check **Update Status**. Do not change a status merely to make a tab appear unless it accurately describes the work.
+These tabs appear only for Active Project and Completed records. Check **Project setup → Identity & status**. Do not change a status merely to make a tab appear unless it accurately describes the work.
 
 ### There is no New Invoice button
 

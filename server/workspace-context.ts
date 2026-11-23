@@ -21,18 +21,18 @@ export function context(userId?: string): WorkspaceContext {
 export function ownerOnly() {
   if (context().role !== "Owner") throw new AccessError("Only a company owner can perform this action.");
 }
-export function projectPredicate(userId: string): SQL {
+export function projectPredicate(userId: string, freshMember?: { id: string; role: string }): SQL {
   const c = context(userId);
-  return and(eq(leads.workspaceId, c.workspaceId), c.role === "Owner" ? sql`true` :
-    sql`exists (select 1 from ${projectAssignments} where ${projectAssignments.leadId} = ${leads.id} and ${projectAssignments.memberId} = ${c.memberId})`
+  return and(eq(leads.workspaceId, c.workspaceId), (freshMember?.role ?? c.role) === "Owner" ? sql`true` :
+    sql`exists (select 1 from ${projectAssignments} where ${projectAssignments.leadId} = ${leads.id} and ${projectAssignments.memberId} = ${freshMember?.id ?? c.memberId})`
   )!;
 }
-export function addressPredicate(userId: string, kind: "company" | "contact"): SQL {
+export function addressPredicate(userId: string, kind: "company" | "contact", freshMember?: { id: string; role: string }): SQL {
   const c = context(userId);
   const table = kind === "company" ? companies : contacts;
   const foreignKey = kind === "company" ? leadCompanies.companyId : leadCompanies.contactId;
-  return and(eq(table.workspaceId, c.workspaceId), c.role === "Owner" ? sql`true` :
+  return and(eq(table.workspaceId, c.workspaceId), (freshMember?.role ?? c.role) === "Owner" ? sql`true` :
     sql`exists (select 1 from ${leadCompanies} inner join ${leads} on ${leads.id} = ${leadCompanies.leadId}
-        where ${foreignKey} = ${table.id} and ${projectPredicate(userId)})`
+        where ${foreignKey} = ${table.id} and ${projectPredicate(userId, freshMember)})`
   )!;
 }

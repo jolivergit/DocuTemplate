@@ -108,7 +108,7 @@ test("shared phase, task, proposal and access lifecycle", async t => {
     const hidden = (await A("POST", "/api/leads", { projectName: `Hidden ${tag}`, probability: "LOW", status: "Lead" })).body;
     const foreign = (await api("outsider", "POST", "/api/leads", { projectName: `Foreign ${tag}`, probability: "LOW", status: "Lead" }, foreignFirm)).body;
     const base = `/api/leads/${project.id}/work`;
-    await A("PUT", `/api/leads/${project.id}/assignments`, { userIds: [actors.get("member")!.id] });
+    await A("PUT", `/api/leads/${project.id}/assignments`, { userIds: [actors.get("owner")!.id, actors.get("member")!.id] });
     let phase: any, task: any, proposal: any;
     await t.test("assignee list is project eligible only and foreign scopes are denied", async () => {
       const work = await M("GET", base);
@@ -183,7 +183,10 @@ test("shared phase, task, proposal and access lifecycle", async t => {
       assert.equal(draft.phases[0].name, "Updated shared phase");
       assert.equal(draft.phases[0].timeline, "5 weeks");
       assert.equal(draft.phases[0].feeLines[0].amount, "1200.00");
+      const setupBeforeSigning = (await A("GET", `/api/leads/${project.id}`)).body;
       proposal = (await A("POST", `/api/proposals/${proposal.id}/sign`, {})).body;
+      assert.equal((await A("PATCH", `/api/leads/${project.id}/setup`, { version: setupBeforeSigning.setupVersion, status: "Lost" })).status, 409);
+      assert.equal((await A("GET", `/api/leads/${project.id}`)).body.status, "Active Project");
       const feeId = proposal.phases[0].feeLines[0].id;
       assert.equal(proposal.phases[0].feeLines[0].amount, "1200.00");
       phase = (await M("PATCH", `${base}/phases/${phase.id}`, { version: phase.version, feeLines: [{ consultant: "Architecture", feeType: "Fixed", amount: "2000" }] })).body;
@@ -232,7 +235,7 @@ test("shared phase, task, proposal and access lifecycle", async t => {
       assert.equal(task.archived, true);
       task = (await M("PATCH", `${base}/tasks/${task.id}`, { version: task.version, archived: false })).body;
       assert.equal(task.phaseId, phase.id);
-      await A("PUT", `/api/leads/${project.id}/assignments`, { userIds: [] });
+      await A("PUT", `/api/leads/${project.id}/assignments`, { userIds: [actors.get("owner")!.id] });
       assert.equal((await M("GET", base)).status, 404);
       const work = (await A("GET", base)).body;
       assert.equal(work.tasks.find((r: any) => r.id === task.id).assigneeEligible, false);

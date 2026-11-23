@@ -11,6 +11,7 @@ import GoogleTemplatePickerPage from "@/pages/google-template-picker";
 import DashboardPage from "@/pages/dashboard";
 import ProjectsPage from "@/pages/projects";
 import ProjectDetailPage from "@/pages/project-detail";
+import NewProjectPage from "@/components/project-setup/new-project-page";
 import ContactsPage from "@/pages/contacts";
 import CompaniesPage from "@/pages/companies";
 import FirmProfilePage from "@/pages/profile-firm";
@@ -33,6 +34,7 @@ import InvitePage from "@/pages/invite";
 
 function getPageTitle(location: string): string {
   if (location === "/" || location === "") return "Dashboard";
+  if (location === "/projects/new") return "New Project";
   if (location.startsWith("/projects/")) return "Project";
   if (location === "/projects") return "Projects";
   if (location === "/companies") return "Companies";
@@ -166,6 +168,7 @@ function AppLayout() {
             <Switch>
               <Route path="/" component={DashboardPage} />
               <Route path="/projects" component={ProjectsPage} />
+              <Route path="/projects/new" component={NewProjectPage} />
               <Route path="/projects/:id" component={ProjectDetailPage} />
               <Route path="/companies" component={CompaniesPage} />
               <Route path="/contacts" component={ContactsPage} />

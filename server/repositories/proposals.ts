@@ -319,7 +319,7 @@ export async function signProposal(userId: string, proposalId: string): Promise<
     if (existing.proposalType !== 'Additional Services') {
       await tx
         .update(leads)
-        .set({ status: 'Active Project', updatedAt: sql`CURRENT_TIMESTAMP` })
+        .set({ status: 'Active Project', updatedAt: sql`CURRENT_TIMESTAMP`, setupVersion: sql`${leads.setupVersion}+1` })
         .where(and(eq(leads.id, existing.leadId), projectPredicate(userId)));
     }
 

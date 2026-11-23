@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Search,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { LeadFormDialog } from "@/components/lead-form-dialog";
 import { formatCurrencyOrDash } from "@/lib/utils";
 import type { LeadWithCompanies, LeadStatus, LeadProbability } from "@shared/schema";
 import { LEAD_STATUSES, LEAD_PROBABILITIES } from "@shared/schema";
@@ -42,8 +40,6 @@ export default function ProjectsPage() {
   const { isOwner } = useWorkspace();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [showCreate, setShowCreate] = useState(false);
-
   const { data: leads = [], isLoading } = useQuery<LeadWithCompanies[]>({
     queryKey: ["/api/leads"],
   });
@@ -82,10 +78,10 @@ export default function ProjectsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Button onClick={() => setShowCreate(true)} data-testid="button-create-project">
-          <Plus className="w-4 h-4" />
+        <Link href="/projects/new" className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90" data-testid="button-create-project">
+          <Plus className="h-4 w-4" />
           New Project
-        </Button>
+        </Link>
       </div>
 
       {/* List */}
@@ -109,10 +105,10 @@ export default function ProjectsPage() {
                 : "Ask a workspace Owner to assign a project, or create a new project to work on yourself."}
             </p>
             {!search && statusFilter === "all" && (
-              <Button size="sm" onClick={() => setShowCreate(true)} data-testid="button-create-project-empty">
-                <Plus className="w-4 h-4" />
+              <Link href="/projects/new" className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90" data-testid="button-create-project-empty">
+                <Plus className="h-4 w-4" />
                 New Project
-              </Button>
+              </Link>
             )}
           </div>
         ) : (
@@ -192,8 +188,6 @@ export default function ProjectsPage() {
           </p>
         </div>
       )}
-
-      <LeadFormDialog open={showCreate} onOpenChange={setShowCreate} />
     </div>
   );
 }

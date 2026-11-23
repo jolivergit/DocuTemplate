@@ -185,7 +185,7 @@ test("workspace APIs enforce company isolation, assignments and invitations", as
       assert.equal((await invitedOwner("GET", "/api/workspace/team")).status, 403);
       const assigned = await project(newFirm, "Assigned in additional firm");
       const hidden = await project(newFirm, "Hidden in additional firm");
-      assert.equal((await newFirm("PUT", `/api/leads/${assigned.id}/assignments`, { userIds: [a.user.id] })).status, 200);
+      assert.equal((await newFirm("PUT", `/api/leads/${assigned.id}/assignments`, { userIds: [member.user.id, a.user.id] })).status, 200);
       assert.deepEqual((await invitedOwner("GET", "/api/leads")).body.map((p: any) => p.id), [assigned.id]);
       assert.equal((await invitedOwner("GET", `/api/leads/${hidden.id}`)).status, 404);
       assert.equal((await invitedOwner("PATCH", "/api/workspace", { name: "Forbidden" })).status, 403);
@@ -225,7 +225,7 @@ test("workspace APIs enforce company isolation, assignments and invitations", as
       assert.equal(stats.sentInvoicesTotal, 0);
       assert.equal((await M("GET", `/api/leads/${assigned.id}`)).status, 404);
     });
-    await A("PUT", `/api/leads/${assigned.id}/assignments`, { userIds: [member.user.id] });
+    await A("PUT", `/api/leads/${assigned.id}/assignments`, { userIds: [a.user.id, member.user.id] });
     await t.test("assigned projects only; cross-company memberships are rejected", async () => {
       assert.deepEqual((await M("GET", "/api/leads")).body.map((p: any) => p.id), [assigned.id]);
       assert.deepEqual((await M("GET", "/api/dashboard")).body.recentLeads.map((p: any) => p.id), [assigned.id]);
@@ -354,9 +354,17 @@ test("workspace APIs enforce company isolation, assignments and invitations", as
       assert.equal((await A("PATCH", `/api/workspace/members/${a.user.id}`, { role: "Member" })).status, 403);
     });
     await t.test("unassignment and removal take effect on the next request", async () => {
-      await A("PUT", `/api/leads/${assigned.id}/assignments`, { userIds: [] });
+      await A("PUT", `/api/leads/${assigned.id}/assignments`, { userIds: [a.user.id] });
       assert.equal((await M("GET", `/api/leads/${assigned.id}`)).status, 404);
       assert.equal((await M("GET", `/api/proposals/${publicProposal.id}`)).status, 404);
+      assert.equal((await A("DELETE", `/api/workspace/members/${member.user.id}`)).status, 409);
+      // A creator is now Project Admin; transfer their project responsibilities
+      // before removing firm membership rather than stranding that project.
+      const memberProjects = await db.select().from(leads).where(and(eq(leads.workspaceId, a.workspace.id), eq(leads.userId, member.user.id)));
+      for (const p of memberProjects) {
+        const team = (await A("GET", `/api/leads/${p.id}/team`)).body;
+        assert.equal((await A("PUT", `/api/leads/${p.id}/team`, { version: team.version, members: [{ userId: a.user.id, assigned: true, roles: ["Project Admin"] }] })).status, 200);
+      }
       assert.equal((await A("DELETE", `/api/workspace/members/${member.user.id}`)).status, 200);
       assert.equal((await M("GET", "/api/leads")).status, 403);
       assert.equal((await api("member", member.workspace.id, "GET", "/api/leads")).status, 200);

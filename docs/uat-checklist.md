@@ -6,11 +6,39 @@ Reviewed November 22, 2026 · Results have not been filled in
 
 Use this alongside the Studio PM User Guide. UAT means user acceptance testing: you try real workflows and decide whether the app meets your needs. These are instructions and expected outcomes, not a report that the scenarios passed.
 
+### Development verification — November 22, 2026
+
+This is separate from customer sign-off; the manual result cells below remain
+blank for your own acceptance testing.
+
+- TypeScript and the production build passed. The setup, workspace, project-work
+  and Google regression suites passed 63 checks in total.
+- The setup/access checks covered multiple people and roles, legacy access
+  without guessed roles, last-admin protection including firm removal,
+  concurrent roster conflicts and foreign-firm denial. Signing a proposal also
+  advances setup's version, preventing an older form from undoing its automatic
+  Active Project status. Existing task/financial snapshot checks passed.
+- A signed-in browser walkthrough used an isolated fictional firm and project:
+  name-only creation, two people with all three roles, company/contact links,
+  an unpriced custom phase followed by a fixed fee, distinct project/phase
+  timelines, completion, reload and inline reopening all passed.
+- The browser confirmed the team-save guard with a separate company draft,
+  retained local text after a conflicting setup save, explicit reload recovery,
+  and a usable 390px phone layout without horizontal page overflow. A Member
+  holding Project Admin could reopen that project's setup. Firm-setting write
+  restrictions and the HTTP conflict status were covered by API tests, not
+  separately asserted in that browser walkthrough.
+- The initial browser attempt found a project-page rendering error; it was
+  fixed before resuming the remaining checks on the same practice project.
+  Real Google consent/document generation and customer acceptance were not
+  repeated for this setup-only release.
+
 ## Contents
 
 - [Before you start](#before-you-start)
 - [Sign-in, firms and safe switching](#sign-in-firms-and-safe-switching)
 - [Project through proposal and invoice](#project-through-proposal-and-invoice)
+- [Inline project setup and project roles](#inline-project-setup-and-project-roles)
 - [Project tasks and shared phases](#project-tasks-and-shared-phases)
 - [Documents and Google recovery](#documents-and-google-recovery)
 - [Additional services and consultant contracts](#additional-services-and-consultant-contracts)
@@ -57,13 +85,33 @@ Use Firm A for this sequence. Reuse one fictional project, for example **UAT Map
 
 | ID | What to do | Expected outcome | Result / notes |
 | --- | --- | --- | --- |
-| P1 | As Owner create a fictional company and contact, link them, and create the practice Lead using those address-book entries. Edit and save a harmless project detail; search/filter for it and inspect Overview. | Records persist and linked details are visible. Suggested company roles do not require entering duplicate address-book companies. | Not run |
+| P1 | As Owner create a fictional company/contact. Open Projects → New Project, enter a name and Create and continue. Under inline setup, link the company/contact, enter its project role and Save companies. Edit Identity & status and Save details; search/filter and inspect Overview. | Saved Lead and linked details persist. No project creation/edit dialog is needed and company records are reused. | Not run |
 | P2 | Add a shared Schematic Design phase with Interior Design / Fixed / $10,000 on the project. Create a Standard proposal by selecting that phase without retyping the fee. Reopen it, then record fictional approval with Mark as Signed. | Shared inputs are reused. The signed proposal retains its financial snapshot. Signing makes the project Active Project and shows Time & Expenses and Invoices. No email or electronic signature is sent. | Not run |
 | P3 | Add the 2-hour Hours entry and $20 Parking entry on the project. Check their Unattached badges. Correct a disposable entry with its pencil control and save. | Dates, descriptions and amounts persist. Entries are not billed twice merely because they appear in the project list. Review attached entries carefully before changing them. | Not run |
 | P4 | Create the first invoice at cumulative 25% complete. Attach the existing two entries; do not retype them as new entries. | With no other billing/charges, fixed earned and current fee are $2,500, Hours $200, Parking $20, total $2,720. Included entries gain an invoice badge and no longer appear as Unattached. | Not run |
 | P5 | On this practice invoice only, simulate sending and payment with Mark as Sent and Mark as Paid. Inspect Dashboard summaries. Start a later invoice at 50% complete and review before saving. | Statuses are recordkeeping, not email or payment processing. Totals follow access/statuses. With $2,500 previous fixed billing, 50% cumulative gives $2,500 new fixed billing, not $5,000; do not reattach the first invoice's entries. | Not run |
-| P6 | Add a fictional project note. Correct it by posting a new note if needed. | Notes retain dates/text. There is no general note edit form; trash controls are destructive. No client message is sent. | Not run |
+| P6 | Add a fictional discussion note to a practice task and reload. Correct it by posting another note if needed. | Discussion retains author/dates/text. There is no standalone project Notes tab or broader general-note log yet. No client message is sent. | Not run |
 | P7 | Check project lists, company/contact lists, Dashboard totals and the practice project link while switching between Firms A and B. | Firm A's records do not appear in Firm B. Owning both firms does not merge their business records. Personal content library/contact values may remain available because they are personal, not firm-shared. | Not run |
+
+## Inline project setup and project roles
+
+Use at least two consenting practice coworkers for multi-person role checks.
+Project roles do not replace the firm's Owner/Member roles.
+
+| ID | What to do | Expected outcome | Result / notes |
+| --- | --- | --- | --- |
+| S1 | Create a named project only. Leave and reopen it before completing setup. | The Lead is saved, setup is expanded and the creator is Project Admin. Optional company/fee/timeline details do not prevent starting. | Not run |
+| S2 | Under Team give two users each project role, and one user several roles; Save team and reload. | All assignments/roles persist. Team and Companies are adjacent on desktop, stacked on phone. | Not run |
+| S3 | Add two company entries with the same custom role and link one company/contact. Save, then change only project description. | No company is dropped or duplicated; names, addresses and links survive metadata-only saves. | Not run |
+| S4 | Save a general timeline `8–10 weeks`. Add an ad-hoc unpriced phase with no timeline; later set its timeline to `5 weeks`. | Both project/phase timelines persist independently. Optional fees/timelines do not produce task due dates. Phases appear once before Work in motion. | Not run |
+| S5 | Save drafts and Finish setup, reload, then Edit setup. Also try with no companies on a separate disposable project. | At least one Project Admin is required; optional companies/phases/fees/timelines do not block. Completion stays compact; editing is inline. | Not run |
+| S6 | Use an older unconfigured practice project; then explicitly assign a Project Admin as firm Owner. | Old assignments still work and show Roles not configured; no roles are guessed. After assignment, admin can manage this project only. | Not run |
+| S7 | Make a Member Project Admin. Test their project team/setup and company choices; try an unassigned project and firm team/address-book edits. Then test Manager/Designer. | Project Admin works only within assigned project and can choose same-firm address records; no firm admin powers. Manager/Designer can edit ordinary work, not team/complete setup. | Not run |
+| S8 | Attempt to remove the last Project Admin from the roster and from firm membership. Transfer responsibility, then remove. | Both removal paths block a stranded project; transfer succeeds. Last firm Owner protection is separate. | Not run |
+| S9 | Edit setup in two authorized tabs and save competing values. Keep another setup/work draft while attempting a team change. | Stale saves fail with draft retained and explicit reload/review. Team refresh does not silently discard another draft. | Not run |
+
+The running-log expansion and fully tab-free project layout are downstream work;
+this release retains task discussions and the existing financial/Overview tabs.
 
 ## Project tasks and shared phases
 
@@ -114,10 +162,10 @@ Use a consenting coworker's actual test Google account in a separate browser/pro
 | --- | --- | --- | --- |
 | R1 | Owner opens Firm A → Settings → Team, creates an email-bound link, and manually shares it. Coworker opens it with that verified Google account and accepts. Reuse the consumed link; test revoking another unused practice link. | No automatic email. Accepted membership is Member. Used/revoked links fail. A link for another email cannot be accepted with the wrong Google account. Seven-day expiry should be recorded Blocked/Not run unless a safely prepared expired link is available. | Not run |
 | R2 | Before assignments, coworker selects Firm A and checks projects, Dashboard/search and the unassigned practice project's direct link. | No project access is granted merely by membership. Unassigned records/details/totals remain hidden or denied, including when opening a known test URL. | Not run |
-| R3 | Owner selects the coworker in the assigned project's Project access area. Coworker returns to that project and works on its proposal/time/notes as appropriate. | Only assigned work and its financial information become accessible. Owners need no assignment checkbox; Members cannot manage the team, change firm business details or delete projects/proposals/invoices. | Not run |
+| R3 | Owner enables the coworker's Access under Project setup → Team, selects Designer, and saves. Coworker returns and works on its proposal/time/task discussion. | Only assigned work/financials become accessible. Designer cannot manage project/firm team, change firm details or delete project/financial records. Project Admin is tested separately above. | Not run |
 | R4 | Coworker checks Owner access in their own separate workspace, then returns to Firm A as Member. Try the unassigned Firm A link again. | Roles remain firm-specific. Ownership elsewhere does not reveal unassigned Firm A records or grant Owner controls there. | Not run |
-| R5 | Coworker creates a disposable project as a Member in Firm A. | The project is automatically assigned to its creator and remains in Firm A, not the creator's personally owned workspace. | Not run |
-| R6 | At the end, Owner unassigns the practice project and tests removing the consenting coworker from Firm A. Separately try demoting/removing the last Owner without confirming any unrelated change. | Next protected requests are denied after revocation; screens may refresh on focus or within 15 seconds. The last Owner is protected. Existing independent Google sharing is unchanged and downloaded copies cannot be recalled. | Not run |
+| R5 | Coworker creates a disposable project as a Member in Firm A. | They become that project's Project Admin, not firm Owner. It stays in Firm A, not their personal workspace. | Not run |
+| R6 | Transfer any sole Project Admin responsibilities first. Owner removes practice project Access and the consenting coworker's firm membership. Separately try demoting/removing the last Owner without confirming an unrelated change. | Next protected requests are denied after revocation; screens may refresh on focus or within 15 seconds. Last firm Owner and last project Admin are protected. Independent Google sharing is unchanged; downloaded copies cannot be recalled. | Not run |
 
 ## Save, reload and privacy checks
 

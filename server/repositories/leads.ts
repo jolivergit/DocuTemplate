@@ -7,6 +7,8 @@ import {
   companies,
   contacts,
   projectAssignments,
+  workspaceMembers,
+  workspaces,
   type Lead,
   type InsertLead,
   type LeadCompany,
@@ -16,6 +18,7 @@ import {
   type Company,
   type Contact,
 } from "@shared/schema";
+import { accessProject } from "../project-team";
 
 // ─── Shared helper (exported for use by proposals + invoices repos) ───────────
 
@@ -60,17 +63,20 @@ async function attachCompanies(leadRows: Lead[]): Promise<LeadWithCompanies[]> {
 
 async function sanitizeLeadCompanyFKs(
   userId: string,
-  companiesData: Omit<InsertLeadCompany, 'leadId'>[]
+  companiesData: Omit<InsertLeadCompany, 'leadId'>[],
+  tx: Pick<typeof db, "select"> = db,
+  allowFirmChoices = false,
+  freshMember?: { id: string; role: string },
 ): Promise<Omit<InsertLeadCompany, 'leadId'>[]> {
   const companyIds = Array.from(new Set(companiesData.map(c => c.companyId).filter(Boolean) as string[]));
   const contactIds = Array.from(new Set(companiesData.map(c => c.contactId).filter(Boolean) as string[]));
 
   const [ownedCompanies, ownedContacts] = await Promise.all([
     companyIds.length > 0
-      ? db.select({ id: companies.id }).from(companies).where(and(inArray(companies.id, companyIds), addressPredicate(userId, "company")))
+      ? tx.select({ id: companies.id }).from(companies).where(and(inArray(companies.id, companyIds), allowFirmChoices ? eq(companies.workspaceId, context().workspaceId) : addressPredicate(userId, "company", freshMember)))
       : Promise.resolve([] as { id: string }[]),
     contactIds.length > 0
-      ? db.select({ id: contacts.id }).from(contacts).where(and(inArray(contacts.id, contactIds), addressPredicate(userId, "contact")))
+      ? tx.select({ id: contacts.id }).from(contacts).where(and(inArray(contacts.id, contactIds), allowFirmChoices ? eq(contacts.workspaceId, context().workspaceId) : addressPredicate(userId, "contact", freshMember)))
       : Promise.resolve([] as { id: string }[]),
   ]);
 
@@ -106,12 +112,15 @@ export async function createLead(
   leadData: InsertLead,
   companiesData: Omit<InsertLeadCompany, 'leadId'>[]
 ): Promise<LeadWithCompanies> {
-  const sanitized = await sanitizeLeadCompanyFKs(userId, companiesData);
   const c = context(userId);
   const lead = await db.transaction(async tx => {
-    const [created] = await tx.insert(leads).values({ ...leadData, userId, workspaceId: c.workspaceId }).returning();
+    await tx.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, c.workspaceId)).for("update");
+    const [member] = await tx.select().from(workspaceMembers).where(and(eq(workspaceMembers.workspaceId, c.workspaceId), eq(workspaceMembers.userId, userId)));
+    if (!member) throw new AccessError("Your firm access changed.");
+    const sanitized = await sanitizeLeadCompanyFKs(userId, companiesData, tx, member.role === "Owner", member);
+    const [created] = await tx.insert(leads).values({ ...leadData, userId, workspaceId: c.workspaceId, setupComplete: false, setupVersion: 1, teamVersion: 1 }).returning();
     if (sanitized.length > 0) await tx.insert(leadCompanies).values(sanitized.map(v => ({ ...v, leadId: created.id })));
-    await tx.insert(projectAssignments).values({ leadId: created.id, memberId: c.memberId });
+    await tx.insert(projectAssignments).values({ leadId: created.id, memberId: member.id, roles: ["Project Admin"] });
     return created;
   });
   const [enriched] = await attachCompanies([lead]);
@@ -120,15 +129,18 @@ export async function createLead(
 
 export async function updateLead(
   userId: string, id: number, data: Partial<InsertLead>,
-  companiesData?: Omit<InsertLeadCompany, 'leadId'>[]
+  companiesData?: Omit<InsertLeadCompany, 'leadId'>[],
+  setup?: { version: number; setupComplete?: boolean },
 ): Promise<Lead | undefined> {
-  if (!await verifyLeadOwnership(userId, id)) return undefined;
-  // Validate all requested associations before writing any project field.
-  const sanitized = companiesData === undefined ? undefined : await sanitizeLeadCompanyFKs(userId, companiesData);
   return db.transaction(async tx => {
+    const access = await accessProject(tx, id);
+    if (setup && setup.version !== access.lead.setupVersion) throw new AccessError("Project setup changed elsewhere. Your edits are preserved; reload before saving.", 409);
+    if (setup?.setupComplete !== undefined && !access.canManage) throw new AccessError("A Project Admin or firm Owner must finish or reopen setup.");
+    if (setup?.setupComplete && !access.assignments.some(a => a.roles.includes("Project Admin"))) throw new AccessError("Assign at least one Project Admin before finishing setup.", 409);
+    const sanitized = companiesData === undefined ? undefined : await sanitizeLeadCompanyFKs(userId, companiesData, tx, access.canManage, access.actor);
     const [lead] = await tx.update(leads)
-      .set({ ...data, updatedAt: sql`CURRENT_TIMESTAMP` })
-      .where(and(eq(leads.id, id), projectPredicate(userId))).returning();
+      .set({ ...data, ...(setup?.setupComplete !== undefined ? { setupComplete: setup.setupComplete } : {}), updatedAt: sql`CURRENT_TIMESTAMP`, setupVersion: sql`${leads.setupVersion}+1` })
+      .where(and(eq(leads.id, id), projectPredicate(userId, access.actor))).returning();
     if (!lead) return undefined;
     if (sanitized !== undefined) {
       await tx.delete(leadCompanies).where(eq(leadCompanies.leadId, id));

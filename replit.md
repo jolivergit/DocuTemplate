@@ -90,7 +90,7 @@ When "Load to Doc Builder" is triggered from a specific record, a `returnTo` con
 ### Key Routes
 - `/` → Dashboard (pipeline strip + billing summary + recent projects — no in-page title)
 - `/projects` → Projects list (pipeline)
-- `/projects/:id` → task-first shared project workspace with phases/fees; secondary Overview | Proposals, plus Time & Expenses | Invoices for Active Project/Completed. Project access/status details are collapsible; standalone Notes is retired.
+- `/projects/new` → normal create page requiring a name only. `/projects/:id` → inline setup (identity, multi-person team roles/companies, phases/fees/optional timelines), followed by Work in motion tasks. Secondary Overview | Proposals, plus Time & Expenses | Invoices for Active Project/Completed, remain until the later layout task. Standalone Notes is retired.
 - `/companies` → Companies address book
 - `/contacts` → Contacts page (address book + project-derived contacts)
 - `/doc-builder` → Google Docs template builder (accepts `?returnTo=proposal&returnToId=<id>` for auto save-back)
@@ -273,7 +273,9 @@ Combines active-workspace firm information with the user's personal document con
 
 ## Project Detail Page — Tab Structure
 
-Every project opens with its task workspace and shared phases/fees. Secondary tabs are **Overview | Proposals**, plus **Time & Expenses | Invoices** when `status ∈ { "Active Project", "Completed" }`. Standalone Notes has been replaced by task discussions; the approved migration removes its old data once.
+Every project opens with inline setup, then Work in motion. Setup is resumable and collapses when complete. **Project Admin**, **Project Manager**, and **Designer** are multi-person, multi-role project assignments, separate from firm Owner/Member. The creator is Project Admin; old assignments retain unknown roles. Project Admins manage their own project's roster/setup and select same-firm address records without firm-wide admin rights; keep a Project Admin once configured. Existing assigned-member work permissions remain. Optional general and phase timelines are text, not task scheduling. Secondary tabs are **Overview | Proposals**, plus **Time & Expenses | Invoices** when `status ∈ { "Active Project", "Completed" }`; the running-log and tab-free redesign remain downstream. Standalone Notes has been replaced by task discussions.
+
+Inline setup rollout and role UAT: `docs/project-setup-rollout.md`. Run `npm run db:migrate:project-setup` before compatible app code on an unmigrated database; this additive migration preserves legacy assignments without inferring roles. Development only was migrated in this task. No production migration or publish was performed. Run `npm run test:project-setup` with the work/workspace/Google suites for regression checks.
 
 ### Proposals Tab
 Displays all proposals for the project. A dropdown "New Proposal" button lets users create either a Standard or Additional Services proposal. Each proposal shows a type badge (Standard proposals have no badge; AS proposals show an "Additional Services" badge). Signed proposals expose a Consultant Contracts section.
