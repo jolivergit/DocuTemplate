@@ -13,6 +13,7 @@ import { TeamEditor } from "./team-editor";
 import { CompaniesEditor } from "./companies-editor";
 import { PhaseTimelineEditor } from "./phase-timeline-editor";
 import type { ProjectWork } from "@shared/project-work";
+import { SetupSummary } from "./setup-summary";
 
 type Props = { lead: LeadWithCompanies; workDirty?: boolean; onDirtyChange?: (dirty: boolean) => void };
 type IdentityDraft = {
@@ -112,7 +113,6 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
   const dirtyCallback = useRef(onDirtyChange);
   dirtyCallback.current = onDirtyChange;
   const setupMutationPending = teamSaving || identitySave.isPending || identityReloading || completeSetup.isPending || reopening.isPending;
-  const activePhases = (work?.phases ?? []).filter(phase => !phase.archived);
   const teamBlockReason = workDirty
     ? "Save or cancel the current project edit before changing team access. Saving team access refreshes the project workspace."
     : dirtyIdentity || sectionDirty.companies || sectionDirty.phases
@@ -197,20 +197,7 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
 
       {message && <div role="alert" className="border-b border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive sm:px-6">{message}</div>}
       {!setupExpanded && lead.setupComplete ? (
-        <div className="grid gap-4 px-4 py-5 sm:grid-cols-3 sm:px-6">
-          <div className="min-w-0">
-            <span className="text-[10px] font-semibold uppercase tracking-[.14em] text-muted-foreground">Team</span>
-            <p className="mt-1 truncate text-sm">{team?.members.filter(member => member.assigned).map(member => member.name).join(", ") || "No teammates assigned"}</p>
-          </div>
-          <div className="min-w-0">
-            <span className="text-[10px] font-semibold uppercase tracking-[.14em] text-muted-foreground">Companies</span>
-            <p className="mt-1 truncate text-sm">{lead.companies.map(company => company.companyName || company.companyRole).join(", ") || "No companies"}</p>
-          </div>
-          <div className="min-w-0">
-            <span className="text-[10px] font-semibold uppercase tracking-[.14em] text-muted-foreground">Scope</span>
-            <p className="mt-1 truncate text-sm">{activePhases.length ? `${activePhases.length} active ${activePhases.length === 1 ? "phase" : "phases"}` : "No phases yet"}{lead.generalTimeline ? ` · ${lead.generalTimeline}` : ""}</p>
-          </div>
-        </div>
+        <SetupSummary lead={lead} team={team} teamLoading={teamLoading} teamError={teamError} options={options} optionsLoading={optionsLoading} optionsError={optionsError} work={work} workLoading={workLoading} workError={workError} />
       ) : (
         <fieldset disabled={setupMutationPending} className="m-0 min-w-0 border-0 p-0">
         <div className="divide-y">
