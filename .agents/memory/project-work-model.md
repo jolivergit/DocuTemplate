@@ -27,7 +27,7 @@ The user did not need the retired standalone project notes saved.
 
 **How to apply:** Do not add a legacy-notes archive or restore retired notes. This does not prohibit new general notes in the running project log.
 
-The desired flow is: start a project; pick the team and collaborating companies; pick phases, fees and an optional general timeline; then maintain Work in motion. The team has Owner, Project Manager and Designer roles.
+The desired flow is: start a project; pick the team and collaborating companies; pick phases, fees and an optional general timeline; then maintain Work in motion. The team has Project Admin, Project Manager and Designer roles. Each role can have one or many people.
 
 **Why:** The user showed the customer the task-first implementation and reported that it was still clunky, with too many pop-ups.
 
