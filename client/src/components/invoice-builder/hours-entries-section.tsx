@@ -30,7 +30,7 @@ export function HoursEntriesSection({ hoursRows, hoursSubtotal, onAdd, onUpdate,
       ) : (
         <div className="divide-y">
           {hoursRows.map((h) => (
-            <div key={h.id} className="grid grid-cols-[100px_1fr_80px_90px_36px] gap-2 items-start px-4 py-3">
+            <div key={h.id} className="grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-[100px_minmax(0,1fr)_80px_90px_36px] sm:items-start">
               <div className="space-y-1">
                 <Label className="text-xs">Date</Label>
                 <Input
@@ -81,7 +81,7 @@ export function HoursEntriesSection({ hoursRows, hoursSubtotal, onAdd, onUpdate,
               <Button
                 variant="ghost"
                 size="icon"
-                className="mt-5"
+                className="sm:mt-5"
                 onClick={() => onRemove(h.id)}
                 data-testid={`button-remove-hours-${h.id}`}
               >

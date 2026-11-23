@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Plus,
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/lib/workspace";
 import { formatCurrency as formatCurrencyDecimal } from "@/lib/utils";
 import type { HoursEntry, ExpenseEntry, Invoice } from "@shared/schema";
 import { EXPENSE_TYPES } from "@shared/schema";
@@ -90,14 +91,18 @@ function DatePickerInput({
   );
 }
 
-export function TimeExpensesTab({ leadId }: { leadId: number }) {
+export function TimeExpensesTab({ leadId, onDirtyChange, guardedDirty = false, billingAllowed = true }: { leadId: number; onDirtyChange?: (dirty: boolean) => void; guardedDirty?: boolean; billingAllowed?: boolean }) {
   const { toast } = useToast();
+  const { isOwner } = useWorkspace();
+  const dirtyCallback = useRef(onDirtyChange);
+  dirtyCallback.current = onDirtyChange;
+  const [editorNotice, setEditorNotice] = useState("");
 
-  const { data: allHours = [], isLoading: hoursLoading } = useQuery<HoursEntry[]>({
+  const { data: allHours = [], isLoading: hoursLoading, isError: hoursError, refetch: refetchHours } = useQuery<HoursEntry[]>({
     queryKey: ["/api/leads", leadId, "hours"],
   });
 
-  const { data: allExpenses = [], isLoading: expensesLoading } = useQuery<ExpenseEntry[]>({
+  const { data: allExpenses = [], isLoading: expensesLoading, isError: expensesError, refetch: refetchExpenses } = useQuery<ExpenseEntry[]>({
     queryKey: ["/api/leads", leadId, "expenses"],
   });
 
@@ -138,6 +143,10 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
   const [eeAmount, setEeAmount] = useState("");
 
   function startEditHours(h: HoursEntry) {
+    if (pending) return;
+    if (guardedDirty && !dirty) { setEditorNotice("Finish the open project edit before starting an hours editor."); return; }
+    if ((editingHoursId && editingHoursId !== h.id || editingExpenseId || showHoursForm || showExpenseForm) && dirty) { setEditorNotice("Save or cancel the current time/expense editor before opening another."); return; }
+    setEditorNotice("");
     setEditingHoursId(h.id);
     setEhDate(h.date);
     setEhDesc(h.description);
@@ -146,6 +155,10 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
   }
 
   function startEditExpense(e: ExpenseEntry) {
+    if (pending) return;
+    if (guardedDirty && !dirty) { setEditorNotice("Finish the open project edit before starting an expense editor."); return; }
+    if ((editingExpenseId && editingExpenseId !== e.id || editingHoursId || showHoursForm || showExpenseForm) && dirty) { setEditorNotice("Save or cancel the current time/expense editor before opening another."); return; }
+    setEditorNotice("");
     setEditingExpenseId(e.id);
     setEeDate(e.date);
     setEeType(e.expenseType);
@@ -161,8 +174,9 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
       hours: hHours,
       ratePerHour: hRate,
     }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "hours"] });
+    onMutate: () => dirtyCallback.current?.(true),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "hours"] });
       setShowHoursForm(false);
       setHDate(""); setHDesc(""); setHHours(""); setHRate("");
     },
@@ -182,8 +196,9 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
       }
       return apiRequest("POST", `/api/leads/${leadId}/expenses`, body);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "expenses"] });
+    onMutate: () => dirtyCallback.current?.(true),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "expenses"] });
       setShowExpenseForm(false);
       setEDate(""); setEType("Parking"); setEMiles(""); setERatePerMile(MILEAGE_RATE_DEFAULT); setEAmount("");
     },
@@ -199,8 +214,9 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
       hours: ehHours,
       ratePerHour: ehRate,
     }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "hours"] });
+    onMutate: () => dirtyCallback.current?.(true),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "hours"] });
       setEditingHoursId(null);
     },
     onError: (err: Error) => {
@@ -210,8 +226,9 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
 
   const deleteHoursMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/hours/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "hours"] });
+    onMutate: () => dirtyCallback.current?.(true),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "hours"] });
     },
     onError: (err: Error) => {
       toast({ title: "Failed to delete entry", description: err.message, variant: "destructive" });
@@ -229,8 +246,9 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
       }
       return apiRequest("PATCH", `/api/expenses/${id}`, body);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "expenses"] });
+    onMutate: () => dirtyCallback.current?.(true),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "expenses"] });
       setEditingExpenseId(null);
     },
     onError: (err: Error) => {
@@ -240,8 +258,9 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
 
   const deleteExpenseMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/expenses/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "expenses"] });
+    onMutate: () => dirtyCallback.current?.(true),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "expenses"] });
     },
     onError: (err: Error) => {
       toast({ title: "Failed to delete entry", description: err.message, variant: "destructive" });
@@ -250,9 +269,42 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
 
   const hoursTotal = allHours.reduce((sum, h) => sum + (parseFloat(h.hours) || 0) * (parseFloat(h.ratePerHour) || 0), 0);
   const expensesTotal = allExpenses.reduce((sum, e) => sum + calcExpenseAmount(e), 0);
+  const editedHours = allHours.find(entry => entry.id === editingHoursId);
+  const editedExpense = allExpenses.find(entry => entry.id === editingExpenseId);
+  const draftHoursDirty = showHoursForm && !!(hDate || hDesc || hHours || hRate);
+  const draftExpenseDirty = showExpenseForm && !!(eDate || eType !== "Parking" || eMiles || eAmount || eRatePerMile !== MILEAGE_RATE_DEFAULT);
+  const editHoursDirty = !!editedHours && (ehDate !== editedHours.date || ehDesc !== editedHours.description || ehHours !== editedHours.hours || ehRate !== editedHours.ratePerHour);
+  const editExpenseDirty = !!editedExpense && (eeDate !== editedExpense.date || eeType !== editedExpense.expenseType || eeMiles !== (editedExpense.milesTraveled || "") || eeRatePerMile !== (editedExpense.ratePerMile || MILEAGE_RATE_DEFAULT) || eeAmount !== (editedExpense.amount || ""));
+  const dirty = draftHoursDirty || draftExpenseDirty || editHoursDirty || editExpenseDirty ||
+    addHoursMutation.isPending || addExpenseMutation.isPending || updateHoursMutation.isPending || updateExpenseMutation.isPending ||
+    deleteHoursMutation.isPending || deleteExpenseMutation.isPending;
+  const pending = addHoursMutation.isPending || addExpenseMutation.isPending || updateHoursMutation.isPending || updateExpenseMutation.isPending || deleteHoursMutation.isPending || deleteExpenseMutation.isPending;
+  useEffect(() => { dirtyCallback.current?.(dirty); }, [dirty]);
+  const closeDraft = (close: () => void) => {
+    if (pending) return;
+    if (dirty && !window.confirm("Discard this time or expense draft?")) return;
+    setEditorNotice("");
+    close();
+  };
+  const openHoursEditor = () => {
+    if (pending) return;
+    if (guardedDirty && !dirty) { setEditorNotice("Finish the open project edit before starting a time entry."); return; }
+    if (showHoursForm || showExpenseForm || editingHoursId || editingExpenseId) { setEditorNotice("Save or cancel the current time/expense editor before opening another."); return; }
+    setEditorNotice("");
+    setShowHoursForm(true);
+  };
+  const openExpenseEditor = () => {
+    if (pending) return;
+    if (guardedDirty && !dirty) { setEditorNotice("Finish the open project edit before starting an expense entry."); return; }
+    if (showHoursForm || showExpenseForm || editingHoursId || editingExpenseId) { setEditorNotice("Save or cancel the current time/expense editor before opening another."); return; }
+    setEditorNotice("");
+    setShowExpenseForm(true);
+  };
 
   return (
-    <div className="space-y-4">
+    <fieldset disabled={pending} aria-busy={pending} className="m-0 min-w-0 space-y-4 border-0 p-0">
+      {!billingAllowed && <p role="status" className="rounded-md border border-amber-500/30 bg-amber-50/60 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-100">The project is no longer Active or Completed. Your time and expense draft is preserved; restore the project stage before saving or adding entries.</p>}
+      {editorNotice && <p role="status" className="rounded-md border border-amber-500/30 bg-amber-50/60 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-100">{editorNotice}</p>}
       {/* Hours */}
       <div className="rounded-md border bg-card">
         <div className="px-4 py-3 border-b flex items-center justify-between gap-2">
@@ -260,7 +312,7 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
             <Clock className="w-4 h-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold">Hours</h3>
           </div>
-          <Button size="sm" variant="outline" onClick={() => setShowHoursForm(true)} data-testid="button-add-hours-entry">
+              <Button size="sm" variant="outline" onClick={openHoursEditor} disabled={!billingAllowed} data-testid="button-add-hours-entry">
             <Plus className="w-3.5 h-3.5" />
             Add
           </Button>
@@ -268,7 +320,7 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
 
         {showHoursForm && (
           <div className="px-4 py-3 border-b bg-muted/20 space-y-3">
-            <div className="grid grid-cols-[120px_1fr_80px_90px] gap-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[120px_minmax(0,1fr)_80px_90px]">
               <div className="space-y-1">
                 <Label className="text-xs">Date</Label>
                 <DatePickerInput value={hDate} onChange={setHDate} testId="input-te-hours-date" />
@@ -287,20 +339,23 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
               </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <Button size="sm" variant="outline" onClick={() => setShowHoursForm(false)}>Cancel</Button>
+              <Button size="sm" variant="outline" disabled={pending} onClick={() => closeDraft(() => setShowHoursForm(false))}>Cancel</Button>
               <Button
                 size="sm"
                 onClick={() => addHoursMutation.mutate()}
-                disabled={!hDate || !hDesc || !hHours || !hRate || addHoursMutation.isPending}
+                disabled={!billingAllowed || !hDate || !hDesc || !hHours || !hRate || addHoursMutation.isPending}
                 data-testid="button-save-hours-entry"
               >
                 {addHoursMutation.isPending ? "Saving…" : "Save"}
               </Button>
             </div>
+            {addHoursMutation.error && <p role="alert" className="text-xs text-destructive">Hours were not saved. {addHoursMutation.error.message} Your draft is preserved; retry Save.</p>}
           </div>
         )}
 
-        {hoursLoading ? (
+        {hoursError ? (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm"><span>Hours could not load.</span><Button size="sm" variant="outline" onClick={() => void refetchHours()}>Retry hours</Button></div>
+        ) : hoursLoading ? (
           <div className="p-4 space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>
         ) : allHours.length === 0 ? (
           <p className="px-4 py-5 text-sm text-muted-foreground text-center">No hours entries yet.</p>
@@ -314,7 +369,7 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
               if (isEditing) {
                 return (
                   <div key={h.id} className="px-4 py-3 bg-muted/10 space-y-2" data-testid={`row-hours-edit-${h.id}`}>
-                    <div className="grid grid-cols-[120px_1fr_80px_90px] gap-2">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[120px_minmax(0,1fr)_80px_90px]">
                       <div className="space-y-1">
                         <Label className="text-xs">Date</Label>
                         <DatePickerInput value={ehDate} onChange={setEhDate} testId={`input-edit-hours-date-${h.id}`} />
@@ -333,16 +388,17 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
                       </div>
                     </div>
                     <div className="flex gap-2 justify-end">
-                      <Button size="sm" variant="outline" onClick={() => setEditingHoursId(null)}>Cancel</Button>
+                      <Button size="sm" variant="outline" disabled={pending} onClick={() => closeDraft(() => setEditingHoursId(null))}>Cancel</Button>
                       <Button
                         size="sm"
                         onClick={() => updateHoursMutation.mutate(h.id)}
-                        disabled={!ehDate || !ehDesc || !ehHours || !ehRate || updateHoursMutation.isPending}
+                        disabled={!billingAllowed || !ehDate || !ehDesc || !ehHours || !ehRate || updateHoursMutation.isPending}
                         data-testid={`button-save-edit-hours-${h.id}`}
                       >
                         {updateHoursMutation.isPending ? "Saving…" : "Save"}
                       </Button>
                     </div>
+                    {updateHoursMutation.error && <p role="alert" className="text-xs text-destructive">Hours were not updated. {updateHoursMutation.error.message} Your edits are preserved; retry Save.</p>}
                   </div>
                 );
               }
@@ -364,19 +420,19 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-sm font-medium">{formatCurrencyDecimal(amount)}</span>
-                    <Button
+                    {isOwner && <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => startEditHours(h)}
                       data-testid={`button-edit-hours-${h.id}`}
                     >
                       <Edit className="w-3.5 h-3.5 text-muted-foreground" />
-                    </Button>
+                    </Button>}
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => deleteHoursMutation.mutate(h.id)}
-                      disabled={deleteHoursMutation.isPending}
+                      onClick={() => { if (window.confirm("Delete this hours entry?")) deleteHoursMutation.mutate(h.id); }}
+                      disabled={!billingAllowed || deleteHoursMutation.isPending}
                       data-testid={`button-delete-hours-${h.id}`}
                     >
                       <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
@@ -403,7 +459,7 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
             <Receipt className="w-4 h-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold">Expenses</h3>
           </div>
-          <Button size="sm" variant="outline" onClick={() => setShowExpenseForm(true)} data-testid="button-add-expense-entry">
+          <Button size="sm" variant="outline" onClick={openExpenseEditor} disabled={!billingAllowed} data-testid="button-add-expense-entry">
             <Plus className="w-3.5 h-3.5" />
             Add
           </Button>
@@ -411,7 +467,7 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
 
         {showExpenseForm && (
           <div className="px-4 py-3 border-b bg-muted/20 space-y-3">
-            <div className="grid grid-cols-[120px_140px_1fr] gap-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[120px_140px_minmax(0,1fr)]">
               <div className="space-y-1">
                 <Label className="text-xs">Date</Label>
                 <DatePickerInput value={eDate} onChange={setEDate} testId="input-te-expense-date" />
@@ -450,20 +506,23 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
               )}
             </div>
             <div className="flex gap-2 justify-end">
-              <Button size="sm" variant="outline" onClick={() => setShowExpenseForm(false)}>Cancel</Button>
+              <Button size="sm" variant="outline" disabled={pending} onClick={() => closeDraft(() => setShowExpenseForm(false))}>Cancel</Button>
               <Button
                 size="sm"
                 onClick={() => addExpenseMutation.mutate()}
-                disabled={!eDate || addExpenseMutation.isPending}
+                disabled={!billingAllowed || !eDate || addExpenseMutation.isPending}
                 data-testid="button-save-expense-entry"
               >
                 {addExpenseMutation.isPending ? "Saving…" : "Save"}
               </Button>
             </div>
+            {addExpenseMutation.error && <p role="alert" className="text-xs text-destructive">Expense was not saved. {addExpenseMutation.error.message} Your draft is preserved; retry Save.</p>}
           </div>
         )}
 
-        {expensesLoading ? (
+        {expensesError ? (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm"><span>Expenses could not load.</span><Button size="sm" variant="outline" onClick={() => void refetchExpenses()}>Retry expenses</Button></div>
+        ) : expensesLoading ? (
           <div className="p-4 space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>
         ) : allExpenses.length === 0 ? (
           <p className="px-4 py-5 text-sm text-muted-foreground text-center">No expense entries yet.</p>
@@ -480,7 +539,7 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
               if (isEditing) {
                 return (
                   <div key={e.id} className="px-4 py-3 bg-muted/10 space-y-2" data-testid={`row-expense-edit-${e.id}`}>
-                    <div className="grid grid-cols-[120px_140px_1fr] gap-2">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[120px_140px_minmax(0,1fr)]">
                       <div className="space-y-1">
                         <Label className="text-xs">Date</Label>
                         <DatePickerInput value={eeDate} onChange={setEeDate} testId={`input-edit-expense-date-${e.id}`} />
@@ -517,16 +576,17 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
                       )}
                     </div>
                     <div className="flex gap-2 justify-end">
-                      <Button size="sm" variant="outline" onClick={() => setEditingExpenseId(null)}>Cancel</Button>
+                      <Button size="sm" variant="outline" disabled={pending} onClick={() => closeDraft(() => setEditingExpenseId(null))}>Cancel</Button>
                       <Button
                         size="sm"
                         onClick={() => updateExpenseMutation.mutate(e.id)}
-                        disabled={!eeDate || updateExpenseMutation.isPending}
+                        disabled={!billingAllowed || !eeDate || updateExpenseMutation.isPending}
                         data-testid={`button-save-edit-expense-${e.id}`}
                       >
                         {updateExpenseMutation.isPending ? "Saving…" : "Save"}
                       </Button>
                     </div>
+                    {updateExpenseMutation.error && <p role="alert" className="text-xs text-destructive">Expense was not updated. {updateExpenseMutation.error.message} Your edits are preserved; retry Save.</p>}
                   </div>
                 );
               }
@@ -546,19 +606,19 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-sm font-medium">{formatCurrencyDecimal(amount)}</span>
-                    <Button
+                    {isOwner && <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => startEditExpense(e)}
                       data-testid={`button-edit-expense-${e.id}`}
                     >
                       <Edit className="w-3.5 h-3.5 text-muted-foreground" />
-                    </Button>
+                    </Button>}
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => deleteExpenseMutation.mutate(e.id)}
-                      disabled={deleteExpenseMutation.isPending}
+                      onClick={() => { if (window.confirm("Delete this expense entry?")) deleteExpenseMutation.mutate(e.id); }}
+                      disabled={!billingAllowed || deleteExpenseMutation.isPending}
                       data-testid={`button-delete-expense-${e.id}`}
                     >
                       <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
@@ -577,6 +637,6 @@ export function TimeExpensesTab({ leadId }: { leadId: number }) {
           </div>
         )}
       </div>
-    </div>
+    </fieldset>
   );
 }

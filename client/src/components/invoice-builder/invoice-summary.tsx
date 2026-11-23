@@ -15,6 +15,7 @@ interface Props {
   onNotesChange: (value: string) => void;
   onSubmit: () => void;
   isPending: boolean;
+  isBlocked?: boolean;
 }
 
 export function InvoiceSummary({
@@ -29,6 +30,7 @@ export function InvoiceSummary({
   onNotesChange,
   onSubmit,
   isPending,
+  isBlocked = false,
 }: Props) {
   return (
     <>
@@ -88,7 +90,7 @@ export function InvoiceSummary({
         <Button
           className="w-full"
           onClick={onSubmit}
-          disabled={isPending}
+          disabled={isPending || isBlocked}
           data-testid="button-create-invoice"
         >
           {isPending ? "Creating…" : "Create Invoice"}

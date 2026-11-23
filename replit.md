@@ -90,7 +90,7 @@ When "Load to Doc Builder" is triggered from a specific record, a `returnTo` con
 ### Key Routes
 - `/` → Dashboard (pipeline strip + billing summary + recent projects — no in-page title)
 - `/projects` → Projects list (pipeline)
-- `/projects/new` → normal create page requiring a name only. `/projects/:id` → inline setup (identity, multi-person team roles/companies, phases/fees/optional timelines), followed by the Work in motion log (Task/Reminder/Meeting/Note). Secondary Overview | Proposals, plus Time & Expenses | Invoices for Active Project/Completed, remain until the later layout task. The old standalone Notes feature is retired.
+- `/projects/new` → normal create page requiring a name only. `/projects/:id` → one page: inline setup (identity, multi-person team roles/companies, phases/fees/optional timelines), Work in motion (Task/Reminder/Meeting/Note), then progressively disclosed Documents & billing. No project tabs or routine record-editor dialogs. The old standalone Notes feature is retired.
 - `/companies` → Companies address book
 - `/contacts` → Contacts page (address book + project-derived contacts)
 - `/doc-builder` → Google Docs template builder (accepts `?returnTo=proposal&returnToId=<id>` for auto save-back)
@@ -271,9 +271,9 @@ Combines active-workspace firm information with the user's personal document con
 
 ---
 
-## Project Detail Page — Tab Structure
+## Project Detail Page — Single-page Workflow
 
-Every project opens with inline setup, then Work in motion. Setup is resumable and collapses when complete. **Project Admin**, **Project Manager**, and **Designer** are multi-person, multi-role project assignments, separate from firm Owner/Member. The creator is Project Admin; old assignments retain unknown roles. Project Admins manage their own project's roster/setup and select same-firm address records without firm-wide admin rights; keep a Project Admin once configured. Existing assigned-member work permissions remain. Optional general and phase timelines are text, not task scheduling. Secondary tabs are **Overview | Proposals**, plus **Time & Expenses | Invoices** when `status ∈ { "Active Project", "Completed" }`; only their tab-free replacement remains downstream.
+Every project opens with inline setup, then Work in motion and Documents & billing. Setup is resumable and collapses when complete. **Project Admin**, **Project Manager**, and **Designer** are multi-person, multi-role project assignments, separate from firm Owner/Member. The creator is Project Admin; old assignments retain unknown roles. Project Admins manage their own project's roster/setup and select same-firm address records without firm-wide admin rights; keep a Project Admin once configured. Existing assigned-member work permissions remain. Optional general and phase timelines are text, not task scheduling. Supporting records expand in page; there is no Overview/Proposals/Time & Expenses/Invoices tab shell. Billing-stage prerequisites remain Active Project/Completed, with a Signed Standard proposal required for invoice creation. Destructive/loss confirmations and genuine Google provider windows remain exceptions to inline interaction.
 
 Work in motion is a newest-first inline **Task / Reminder / Meeting / Note** log. One composer, inline editing/discussion, and explicit project-context draft prefilling replace the task sheet. Meetings/notes have no task status/priority/due date; reminders use To do/Done; metrics count active tasks/reminders only. Kind is immutable after creation. No notification delivery, calendar integration, guessed deadlines or automatic person selection. All task-era IDs/discussions/assignments/dates/archive states are preserved in place; the retired standalone Notes feature is not restored. The legacy `work.tasks` payload is Task-only compatibility, never a second rendered task list. New entry/discussion saves use stable per-intent retry IDs; version conflicts retain drafts with explicit reload. Treat pending saves as dirty work for team/access-refresh guards.
 
@@ -281,11 +281,17 @@ Running-log rollout and preservation rules: `docs/project-work-rollout.md`. Run 
 
 Inline setup rollout and role UAT: `docs/project-setup-rollout.md`. Run `npm run db:migrate:project-setup` before compatible app code on an unmigrated database; this additive migration preserves legacy assignments without inferring roles. Development only was migrated in this task. No production migration or publish was performed. Run `npm run test:project-setup` with the work/workspace/Google suites for regression checks.
 
-### Proposals Tab
-Displays all proposals for the project. A dropdown "New Proposal" button lets users create either a Standard or Additional Services proposal. Each proposal shows a type badge (Standard proposals have no badge; AS proposals show an "Additional Services" badge). Signed proposals expose a Consultant Contracts section.
+### Supporting proposals
+Displays all proposals for the project. New Proposal supports Standard and Additional Services. Creation/editing, proposal details and consultant-contract preparation stay in page. Signed proposals retain Consultant Contracts and Load to Doc Builder actions. Preserve explicit empty scope, metadata-only legacy edits and confirmed replacement through the existing scope helpers; never infer all phases from an empty selection or mutate issued/billed snapshots.
 
-### Time & Expenses Tab
-Displays all hours and expenses logged against a project (across all invoices and unattached). Each entry shows an "Invoice #N" badge if attached to an invoice, or "Unattached" if not. Inline forms let you add new hours and expenses directly at the project level (`POST /api/leads/:leadId/hours` and `POST /api/leads/:leadId/expenses`). Entries can be deleted any time. Invoice attachment is handled through the Invoice Builder.
+Proposal forms share a project-scoped pending-save channel distinct from dirty
+state. Return/type-switch/record selection must wait for settlement. The router
+uses accepted-location snapshots with indexed history restoration so cancelled
+same-document Back/Forward cannot unmount a draft; link and unload warnings alone
+are insufficient. Keep existing history state when tracking entries.
+
+### Supporting time and expenses
+Displays hours and expenses across invoices and unattached records, with Invoice #N/Unattached badges. Add/edit forms stay inline and responsive. Preserve existing add/edit permissions and Owner-only deletion boundaries; deleting or editing an attached entry can change invoice data. Invoice attachment stays in the existing builder, not a duplicate time/expense subsystem.
 
 ### Invoice Builder — Attach Project Entries
 When creating a new invoice, a collapsible "Attach Project Entries" section appears if there are any unattached hours or expenses on the project. Checking an entry's checkbox includes it in the invoice total and passes its ID as `existingHoursIds`/`existingExpenseIds` in the create payload. On save, those entries' `invoiceId` is updated to the new invoice — they're now "attached" and no longer appear as unattached.
@@ -309,7 +315,7 @@ These describe prior refactoring, not a current code audit or UAT result. Verify
 `server/routes.ts` was a single 2,060-line file. Now split into: `auth.ts`, `leads.ts`, `proposals.ts`, `invoices.ts`, `companies.ts`, `field-values.ts`, `doc-builder.ts`, and `index.ts` barrel.
 
 **`client/src/pages/project-detail.tsx` — Tab extraction** ✓
-Proposals, time/expenses, and invoices remain extracted under `client/src/components/tabs/`. The retired notes tab was removed; project work lives under `client/src/components/project-work/`.
+Supporting proposal, time/expense and invoice components retain their historical source directory `client/src/components/tabs/`, but render as in-page sections, not project tabs. Project work lives under `client/src/components/project-work/`; shared page/editor helpers live under `client/src/components/project-page/` when needed.
 
 **`server/storage.ts` — Domain repositories** ✓
 The storage facade delegates to `server/repositories/leads.ts`, `proposals.ts`, `invoices.ts`, `companies.ts` and `doc-builder.ts`.

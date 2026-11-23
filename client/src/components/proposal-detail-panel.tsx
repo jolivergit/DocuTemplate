@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { ExternalLink, Check, X, Edit, Trash2, ArrowLeft, FileText, ScrollText, Loader2, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,13 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/lib/workspace";
 import { formatCurrencyFlexOrDash } from "@/lib/utils";
 import { ProposalFormDialog } from "@/components/proposal-form-dialog";
+import { focusProjectControl } from "@/lib/project-focus";
 import { scopeRefreshIds } from "@shared/proposal-scope";
 import { AdditionalServicesFormDialog } from "@/components/additional-services-form-dialog";
 import { GoogleDocsPicker, type PickedGoogleDoc } from "@/components/google-docs-picker";
@@ -66,26 +60,31 @@ function phaseTotal(phase: ProposalWithPhases["phases"][0]): number {
 }
 
 interface ConsultantContractDialogProps {
-  open: boolean;
   onOpenChange: (open: boolean) => void;
   proposalId: string;
   consultant: string;
   proposal: ProposalWithPhases;
   onGenerated: (contract: ConsultantContract) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  onPendingChange?: (pending: boolean) => void;
 }
 
 function ConsultantContractDialog({
-  open,
   onOpenChange,
   proposalId,
   consultant,
   proposal,
   onGenerated,
+  onDirtyChange,
+  onPendingChange,
 }: ConsultantContractDialogProps) {
   const { toast } = useToast();
   const [selectedTemplate, setSelectedTemplate] = useState<PickedGoogleDoc | null>(null);
   const [outputName, setOutputName] = useState("");
+  const [contractError, setContractError] = useState("");
   const pickerDialog = useGooglePickerDialog(onOpenChange);
+  const dirtyCallback = useRef(onDirtyChange);
+  dirtyCallback.current = onDirtyChange;
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -95,18 +94,24 @@ function ConsultantContractDialog({
         { consultant, templateId: selectedTemplate!.id, outputName }
       );
     },
-    onSuccess: (data) => {
+    onMutate: () => onPendingChange?.(true),
+    onSuccess: async (data) => {
+      setContractError("");
       toast({ title: "Contract generated", description: `${consultant} contract created successfully.` });
-      queryClient.invalidateQueries({ queryKey: ["/api/proposals", proposalId, "consultant-contracts"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/proposals", proposalId, "consultant-contracts"] });
       onGenerated(data.contract);
+      dirtyCallback.current?.(false);
       onOpenChange(false);
       setSelectedTemplate(null);
       setOutputName("");
     },
-    onError: (err: Error) => {
-      toast({ title: "Failed to generate contract", description: err.message, variant: "destructive" });
+    onError: () => {
+      setContractError("The document service could not complete this request. Confirm Google Docs access and try again.");
+      toast({ title: "Failed to generate contract", description: "Check Google Docs access and retry.", variant: "destructive" });
     },
+    onSettled: () => onPendingChange?.(false),
   });
+  useEffect(() => { dirtyCallback.current?.(!!selectedTemplate || !!outputName.trim() || generateMutation.isPending); }, [selectedTemplate, outputName, generateMutation.isPending]);
 
   const consultantRows = proposal.phases.flatMap(phase =>
     phase.feeLines
@@ -123,17 +128,21 @@ function ConsultantContractDialog({
   }, 0);
 
   const canGenerate = selectedTemplate && outputName.trim();
+  const closeEditor = () => {
+    if (generateMutation.isPending) return;
+    if ((selectedTemplate || outputName.trim()) && !window.confirm("Discard the consultant contract setup?")) return;
+    dirtyCallback.current?.(false);
+    onOpenChange(false);
+  };
 
   return (
-    <Dialog open={open} {...pickerDialog.dialogProps} modal={false}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg min-w-0 max-h-[90dvh] overflow-y-auto [overflow-wrap:anywhere]" data-testid="dialog-consultant-contract"
-        {...pickerDialog.contentProps}>
-        <DialogHeader>
-          <DialogTitle data-testid="text-contract-dialog-title">Generate Consultant Contract</DialogTitle>
-          <DialogDescription>
+    <section className="rounded-lg border bg-card p-4 sm:p-6" data-testid="section-consultant-contract">
+      <div className="mb-5">
+          <h3 className="text-base font-semibold" data-testid="text-contract-dialog-title">Generate Consultant Contract</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
             Generating contract for <span className="font-medium text-foreground">{consultant}</span>
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+      </div>
 
         <div className="space-y-5">
           {/* Data preview */}
@@ -190,12 +199,12 @@ function ConsultantContractDialog({
 
           {/* Generate button */}
           <div className="flex justify-end gap-2 pt-1">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} data-testid="button-cancel-contract">
+            <Button variant="outline" size="sm" disabled={generateMutation.isPending} onClick={closeEditor} data-testid="button-cancel-contract">
               Cancel
             </Button>
             <Button
               size="sm"
-              onClick={() => generateMutation.mutate()}
+              onClick={() => { setContractError(""); generateMutation.mutate(); }}
               disabled={!canGenerate || generateMutation.isPending}
               data-testid="button-generate-contract"
             >
@@ -206,9 +215,9 @@ function ConsultantContractDialog({
               )}
             </Button>
           </div>
+          {contractError && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">Contract was not generated. {contractError} No document was linked; your selections remain here.</p>}
         </div>
-      </DialogContent>
-    </Dialog>
+    </section>
   );
 }
 
@@ -217,9 +226,12 @@ interface Props {
   leadId: number;
   projectName?: string;
   onBack: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  guardedDirty?: boolean;
 }
 
-export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: Props) {
+export function ProposalDetailPanel({ proposal, leadId, projectName, onBack, onDirtyChange, guardedDirty = false }: Props) {
+  const proposalSaving = useIsMutating({ mutationKey: ["project-proposal-save", leadId] }) > 0;
   const { isOwner } = useWorkspace();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -228,9 +240,12 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
   const [showSignConfirm, setShowSignConfirm] = useState(false);
   const [isLoadingDocBuilder, setIsLoadingDocBuilder] = useState(false);
   const [contractDialogConsultant, setContractDialogConsultant] = useState<string | null>(null);
+  const [editorDirty, setEditorDirty] = useState(false);
+  const [editorNotice, setEditorNotice] = useState("");
+  const [contractPending, setContractPending] = useState(false);
   const [scopeError, setScopeError] = useState("");
   const canRefreshScope = !proposal.scopeLocked && ["Draft", "Revision"].includes(proposal.status);
-  const { data: projectWork, isLoading: isProjectWorkLoading } = useQuery<ProjectWork>({
+  const { data: projectWork, isLoading: isProjectWorkLoading, isError: projectWorkError, refetch: refetchProjectWork } = useQuery<ProjectWork>({
     queryKey: ["/api/leads", leadId, "work"],
   });
   const refreshScopeMutation = useMutation({
@@ -248,11 +263,13 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
         selectedPhaseIds,
       });
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
       toast({ title: canRefreshScope ? "Project scope refreshed" : "Updated draft created", description: canRefreshScope ? "The unissued proposal now uses current project inputs." : "The issued proposal remains unchanged." });
       setScopeError("");
     },
+    onMutate: () => onDirtyChange?.(true),
+    onSettled: () => onDirtyChange?.(false),
     onError: error => setScopeError(error instanceof Error ? error.message : "Could not refresh project scope."),
   });
 
@@ -263,15 +280,19 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
 
   const signMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/proposals/${proposal.id}/sign`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId] }),
+      ]);
       if (isAdditionalServices) {
         toast({ title: "Additional Services proposal signed" });
       } else {
         toast({ title: "Proposal signed — lead is now an Active Project" });
       }
     },
+    onMutate: () => onDirtyChange?.(true),
+    onSettled: () => onDirtyChange?.(false),
     onError: (err: Error) => {
       toast({ title: "Failed to sign proposal", description: err.message, variant: "destructive" });
     },
@@ -279,10 +300,12 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
 
   const declineMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/proposals/${proposal.id}/decline`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
       toast({ title: "Proposal marked as declined" });
     },
+    onMutate: () => onDirtyChange?.(true),
+    onSettled: () => onDirtyChange?.(false),
     onError: (err: Error) => {
       toast({ title: "Failed to decline proposal", description: err.message, variant: "destructive" });
     },
@@ -290,17 +313,20 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
 
   const deleteMutation = useMutation({
     mutationFn: () => apiRequest("DELETE", `/api/proposals/${proposal.id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
       toast({ title: "Proposal deleted" });
       onBack();
     },
+    onMutate: () => onDirtyChange?.(true),
+    onSettled: () => onDirtyChange?.(false),
     onError: (err: Error) => {
       toast({ title: "Failed to delete proposal", description: err.message, variant: "destructive" });
     },
   });
 
   const handleLoadToDocBuilder = async () => {
+    if (guardedDirty && !window.confirm("Load this proposal to Doc Builder and leave the current project edits? Unsaved changes will be discarded.")) return;
     setIsLoadingDocBuilder(true);
     try {
       const currentProposal = await apiRequest<ProposalWithPhases>("GET", `/api/proposals/${proposal.id}`);
@@ -377,10 +403,11 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
       await Promise.all(allWrites);
 
       queryClient.invalidateQueries({ queryKey: ["/api/field-values"] });
+      onDirtyChange?.(false);
       toast({ title: "Loaded to Doc Builder", description: "Proposal and firm info pre-filled as field values." });
       setLocation(`/doc-builder?returnTo=proposal&returnToId=${proposal.id}`);
-    } catch (e: unknown) {
-      toast({ title: "Failed to load to Doc Builder", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    } catch {
+      toast({ title: "Failed to load to Doc Builder", description: "Check the project and document service access, then retry.", variant: "destructive" });
     } finally {
       setIsLoadingDocBuilder(false);
     }
@@ -395,6 +422,13 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
       }, 0)
     : proposal.phases.reduce((sum, ph) => sum + phaseTotal(ph), 0);
   const isActionable = proposal.status !== "Signed" && proposal.status !== "Declined";
+  const startProposalEdit = () => {
+    if (guardedDirty && !editorDirty) { setEditorNotice("Finish or cancel the open project edit before editing this proposal."); return; }
+    if (contractDialogConsultant) { setEditorNotice("Close the consultant contract editor before editing proposal details."); return; }
+    setEditorNotice("");
+    setShowEdit(true);
+    focusProjectControl(proposal.proposalType === "Additional Services" ? "#as-name" : "#proposal-name");
+  };
 
   // Derive consultants with non-zero fees (for signed proposals)
   const activeConsultants = proposal.status === "Signed"
@@ -411,7 +445,13 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <Button variant="ghost" size="sm" onClick={onBack} data-testid="button-back-proposals">
+          <Button variant="ghost" size="sm" disabled={proposalSaving || signMutation.isPending || declineMutation.isPending || refreshScopeMutation.isPending || deleteMutation.isPending || contractPending} onClick={() => {
+            if (queryClient.isMutating({ mutationKey: ["project-proposal-save", leadId] })) return;
+            if (editorDirty && !window.confirm("Discard this proposal editor and return to the record list?")) return;
+            setEditorDirty(false);
+            onDirtyChange?.(false);
+            onBack();
+          }} data-testid="button-back-proposals">
           <ArrowLeft className="w-4 h-4" />
           Proposals
         </Button>
@@ -420,7 +460,7 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
             variant="outline"
             size="sm"
             onClick={handleLoadToDocBuilder}
-            disabled={isLoadingDocBuilder}
+            disabled={isLoadingDocBuilder || signMutation.isPending || declineMutation.isPending || refreshScopeMutation.isPending || deleteMutation.isPending || contractPending}
             data-testid="button-load-proposal-to-doc-builder"
           >
             <FileText className="w-4 h-4" />
@@ -430,8 +470,8 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
             <Button
               variant="outline"
               size="sm"
-              onClick={() => refreshScopeMutation.mutate()}
-              disabled={refreshScopeMutation.isPending || isProjectWorkLoading || !!projectWork?.needsReconciliation}
+            onClick={() => { if (projectWorkError) void refetchProjectWork(); else refreshScopeMutation.mutate(); }}
+            disabled={showEdit || refreshScopeMutation.isPending || isProjectWorkLoading || !!projectWork?.needsReconciliation}
               data-testid="button-refresh-project-scope"
             >
               <RotateCw className="mr-1.5 h-4 w-4" />
@@ -442,7 +482,7 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
                   : "Create updated draft"}
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => setShowEdit(true)} data-testid="button-edit-proposal">
+          <Button variant="outline" size="sm" disabled={showEdit || signMutation.isPending || declineMutation.isPending || refreshScopeMutation.isPending || deleteMutation.isPending || contractPending} onClick={startProposalEdit} data-testid="button-edit-proposal">
             <Edit className="w-4 h-4" />
             Edit
           </Button>
@@ -452,7 +492,9 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
         </div>
       </div>
       {projectWork?.needsReconciliation && <p className="rounded-md border border-amber-500/40 bg-amber-50/60 px-3 py-2 text-xs text-muted-foreground dark:bg-amber-950/20">Reconcile legacy project scope before refreshing or creating an updated draft.</p>}
+      {projectWorkError && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">Project phases could not load. Use “Refresh from project” to retry before changing proposal scope.</p>}
       {scopeError && <p role="alert" className="rounded-md border border-destructive/30 p-3 text-sm text-destructive">{scopeError} The existing proposal has not been changed.</p>}
+      {editorNotice && <p role="status" className="rounded-md border border-amber-500/30 bg-amber-50/60 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-100">{editorNotice}</p>}
 
       {/* Proposal card */}
       <div className="rounded-md border bg-card p-5 space-y-4">
@@ -511,7 +553,7 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
               size="sm"
               variant="outline"
               onClick={() => setShowSignConfirm(true)}
-              disabled={signMutation.isPending}
+              disabled={showEdit || signMutation.isPending}
               data-testid="button-sign-proposal"
             >
               <Check className="w-3.5 h-3.5" />
@@ -521,7 +563,7 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
               size="sm"
               variant="outline"
               onClick={() => declineMutation.mutate()}
-              disabled={declineMutation.isPending}
+              disabled={showEdit || declineMutation.isPending}
               data-testid="button-decline-proposal"
               className="text-destructive border-destructive/30"
             >
@@ -636,7 +678,15 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setContractDialogConsultant(consultant)}
+                    onClick={() => {
+                      if (showEdit || contractDialogConsultant || contractPending) return;
+                      if (guardedDirty) { setEditorNotice("Finish or cancel the open project edit before starting a contract editor."); return; }
+                      setEditorNotice("");
+                      setEditorDirty(true);
+                      onDirtyChange?.(true);
+                      setContractDialogConsultant(consultant);
+                    }}
+                    disabled={showEdit || !!contractDialogConsultant || contractPending}
                     data-testid={`button-generate-contract-${consultant.replace(/\s+/g, "-").toLowerCase()}`}
                   >
                     <ScrollText className="w-3.5 h-3.5" />
@@ -653,30 +703,35 @@ export function ProposalDetailPanel({ proposal, leadId, projectName, onBack }: P
       {isAdditionalServices ? (
         <AdditionalServicesFormDialog
           open={showEdit}
-          onOpenChange={setShowEdit}
+          onOpenChange={open => { setShowEdit(open); if (!open) { setEditorDirty(false); onDirtyChange?.(false); focusProjectControl('[data-testid="button-edit-proposal"]'); } }}
           leadId={leadId}
           existing={proposal}
+          inline
+          onDirtyChange={dirty => { setEditorDirty(dirty); onDirtyChange?.(dirty); }}
         />
       ) : (
         <ProposalFormDialog
           open={showEdit}
-          onOpenChange={setShowEdit}
+          onOpenChange={open => { setShowEdit(open); if (!open) { setEditorDirty(false); onDirtyChange?.(false); focusProjectControl('[data-testid="button-edit-proposal"]'); } }}
           leadId={leadId}
           existing={proposal}
           onSaved={() => setScopeError("")}
+          inline
+          onDirtyChange={dirty => { setEditorDirty(dirty); onDirtyChange?.(dirty); }}
         />
       )}
 
       {contractDialogConsultant && (
         <ConsultantContractDialog
-          open={!!contractDialogConsultant}
-          onOpenChange={(v) => { if (!v) setContractDialogConsultant(null); }}
+          onOpenChange={(v) => { if (!v) { const trigger = contractDialogConsultant.replace(/\s+/g, "-").toLowerCase(); setEditorDirty(false); setContractPending(false); onDirtyChange?.(false); setContractDialogConsultant(null); focusProjectControl(`[data-testid="${CSS.escape("button-generate-contract-" + trigger)}"]`); } }}
           proposalId={proposal.id}
           consultant={contractDialogConsultant}
           proposal={proposal}
           onGenerated={() => {
             queryClient.invalidateQueries({ queryKey: ["/api/proposals", proposal.id, "consultant-contracts"] });
           }}
+          onDirtyChange={dirty => { setEditorDirty(dirty); onDirtyChange?.(dirty); }}
+          onPendingChange={setContractPending}
         />
       )}
 

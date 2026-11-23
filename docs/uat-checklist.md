@@ -12,7 +12,33 @@ This is separate from customer sign-off; the manual result cells below remain
 blank for your own acceptance testing.
 
 - TypeScript and the production build passed. The running-log, setup, workspace,
-  project-work and Google regression suites passed 75 checks in total.
+  project-work, project-navigation and Google regression suites passed 81 checks
+  in total across the rollout. The added billing regression verifies signed
+  amounts, cumulative Standard/AS charges, unchanged AS source IDs on metadata
+  edits, and single-use time/expense attachment.
+- The final single-page financial walkthrough used an isolated fictional firm:
+  UI-created/signed Standard and AS proposals, inline time/expense edits,
+  retained disclosure/sidebar-cancel drafts, and saved/reloaded invoices of
+  $2,920 and $2,600. AS charges were $200 then $100 after previous billing.
+  A simulated remote stage change retained the invoice draft, blocked creation,
+  and allowed restoring the stage without retyping. At 390px the document had
+  no horizontal overflow; wide financial tables scrolled inside their panels.
+  Google document actions were reachable but not executed. Test fixtures are
+  separate from customer data, and this is not customer acceptance.
+- A focused follow-up verified the corrected Standard/AS editor visibility,
+  prefilled names/status/fees, cancel/return focus, reopen behavior and successful
+  description-only saves after billing. Original phase/AS item identities and
+  $10,000/$500 amounts were unchanged. The misleading blocked-state button label
+  and React list keys were corrected and type/build checked; invoice creation
+  was not repeated solely for those text/key fixes.
+- After final review, focused browser-history/save-timing checks passed in a new
+  isolated firm: cancelled Back and Forward retained the draft; a held Standard
+  create blocked record/New Proposal navigation and browser Back; releasing it
+  as a failure retained text and allowed successful retry. Held Standard
+  metadata succeeded without early Return, and held AS metadata failed with
+  input intact, then saved on retry. Test-only browser fetch/confirm stubs were
+  restored. The disabled New Proposal trigger made its type menu unreachable;
+  the internal type-switch handler was not separately forced.
 - The new log checks covered four-kind validation, unchanged task/discussion
   IDs/content/authors/dates after repeat migration, local-date actionable counts,
   concurrent create/discussion retry keys, immutable kinds, version conflicts,
@@ -98,7 +124,7 @@ Use Firm A for this sequence. Reuse one fictional project, for example **UAT Map
 
 | ID | What to do | Expected outcome | Result / notes |
 | --- | --- | --- | --- |
-| P1 | As Owner create a fictional company/contact. Open Projects → New Project, enter a name and Create and continue. Under inline setup, link the company/contact, enter its project role and Save companies. Edit Identity & status and Save details; search/filter and inspect Overview. | Saved Lead and linked details persist. No project creation/edit dialog is needed and company records are reused. | Not run |
+| P1 | As Owner create a fictional company/contact. Open Projects → New Project, enter a name and Create and continue. Under inline setup, link the company/contact, enter its project role and Save companies. Edit Identity & status and Save details; search/filter and inspect the single project page. | Saved Lead and linked details persist. Company/contact details remain reachable in setup. No project tabs or creation/edit dialog are needed and company records are reused. | Not run |
 | P2 | Add a shared Schematic Design phase with Interior Design / Fixed / $10,000 on the project. Create a Standard proposal by selecting that phase without retyping the fee. Reopen it, then record fictional approval with Mark as Signed. | Shared inputs are reused. The signed proposal retains its financial snapshot. Signing makes the project Active Project and shows Time & Expenses and Invoices. No email or electronic signature is sent. | Not run |
 | P3 | Add the 2-hour Hours entry and $20 Parking entry on the project. Check their Unattached badges. Correct a disposable entry with its pencil control and save. | Dates, descriptions and amounts persist. Entries are not billed twice merely because they appear in the project list. Review attached entries carefully before changing them. | Not run |
 | P4 | Create the first invoice at cumulative 25% complete. Attach the existing two entries; do not retype them as new entries. | With no other billing/charges, fixed earned and current fee are $2,500, Hours $200, Parking $20, total $2,720. Included entries gain an invoice badge and no longer appear as Unattached. | Not run |
@@ -123,8 +149,27 @@ Project roles do not replace the firm's Owner/Member roles.
 | S8 | Attempt to remove the last Project Admin from the roster and from firm membership. Transfer responsibility, then remove. | Both removal paths block a stranded project; transfer succeeds. Last firm Owner protection is separate. | Not run |
 | S9 | Edit setup in two authorized tabs and save competing values. Keep another setup/work draft while attempting a team change. | Stale saves fail with draft retained and explicit reload/review. Team refresh does not silently discard another draft. | Not run |
 
-The running log is available. The fully tab-free project layout remains
-downstream; this release retains the existing financial/Overview tabs.
+The running log and tab-free project layout are available. Documents & billing
+contains expandable supporting records below daily work; it is not another set
+of project tabs.
+
+## Single-page documents and billing
+
+Use the same fictional project and known financial amounts above. Keep one
+financial editor at a time. Real Google generation stays in the separate
+authorized-template cases; do not generate/send real client material here.
+
+| ID | What to do | Expected outcome | Result / notes |
+| --- | --- | --- | --- |
+| B1 | Follow setup → Work in motion → Documents & billing on desktop/phone. Finish setup, reload and reopen it. | Identity/status, team/companies and phases appear in the agreed sequence. Completed setup is compact. No Overview/Proposals/Time & Expenses/Invoices tabs or redundant company/access blocks remain. | Not run |
+| B2 | Expand supporting summaries, create/edit a Standard proposal, then return. Create an Additional Services proposal. Inspect signed proposal consultant-contract actions and invoice details. | Ordinary forms/details/builders stay in page with project context. No routine application dialog/sheet opens; actions and links remain reachable. Provider chooser/auth windows and intentional delete/loss confirmations are exceptions. | Not run |
+| B3 | Start a proposal/invoice/time/expense draft; attempt close or another editor, then cancel discard. Expand read-only content or scroll. Attempt sidebar/team/firm changes during a draft/save. On disposable data have another administrator change the stage away from Active/Completed, refresh project data without reloading the page, then restore it. | Input stays intact on safe interactions/cancelled exits. Active saves block conflicting actions. Financial drafts block local setup changes; remote stage changes retain drafts but pause financial writes until eligible again. Cancel/Return remains available. | Not run |
+| B4 | Create a Standard proposal with no phases despite priced phases being available. Refresh/reopen it and record fictional signing. On a suitable older fixture edit metadata only, then explicitly select replacement scope and confirm separately. | Empty remains empty. Legacy metadata preserves original IDs/fees. Replacement requires intentional selection/confirmation; no automatic all-phases selection or fee merging. Mark legacy case Not run if no safe fixture exists. | Not run |
+| B5 | Sign the fictional $10,000 Standard scope. Change project fee inputs afterward, then invoice 25% with existing 2h at $100 and $20 Parking. Reopen and compare. | Signed/billed basis stays $10,000. Current fixed billing is $2,500 and total $2,720 without AS. Existing time/expenses attach once and remain recognizable, not copied. | Not run |
+| B6 | Approve a $500 AS item. Bill 40%, then on a later invoice set it to cumulative 60%. Also advance the Standard cumulative percentage and review prior billing. | AS first current charge is $200, then $100, not $300 again. Standard billing also subtracts its prior charges. Preview and saved invoice agree; billing-context errors do not pretend prior billing is zero. | Not run |
+| B7 | As assigned Member add/edit permitted records and inspect Delete controls. Try an unassigned practice project. Change project stage and check billing prerequisites without deleting any record. | Firm/project access and Owner-only destructive restrictions remain. Invoice creation needs the permitted stage and Signed Standard proposal; AS alone does not unlock it. Hidden/unavailable actions do not imply deleted records. | Not run |
+| B8 | At 390px create/edit time and an expense, review proposal scope and invoice grids/summary, and reach Save/Cancel using keyboard as well as pointer. | No document-level horizontal overflow, hover-only actions or nested editors. Wide financial data stays contained or becomes readable stacked fields. Focus returns to the triggering context. | Not run |
+| B9 | Enter a project from its list, edit without saving, use browser Back and cancel the leave warning. Where a forward entry exists, test Forward too. If a practice proposal save stays visibly pending, try Return, another record and a proposal-type switch. | Cancelled history navigation keeps the same form/values mounted. Pending saves block those internal transitions; a failed save leaves its input/error available, and a successful save completes before returning. Mark timing-dependent checks Not run if they cannot be exercised. | Not run |
 
 ## Work in motion running log
 

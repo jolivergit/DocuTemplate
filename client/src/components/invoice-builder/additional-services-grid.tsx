@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Input } from "@/components/ui/input";
 import { fmt, type AsSnapshotInput } from "./types";
 import type { ProposalWithPhases } from "@shared/schema";
@@ -5,11 +6,12 @@ import type { ProposalWithPhases } from "@shared/schema";
 interface Props {
   asSnapshots: AsSnapshotInput[];
   additionalServiceProposals: ProposalWithPhases[];
+  priorBilling: Record<string, number>;
   asSubtotal: number;
   onUpdate: (lineItemId: string, pct: string) => void;
 }
 
-export function AdditionalServicesGrid({ asSnapshots, additionalServiceProposals, asSubtotal, onUpdate }: Props) {
+export function AdditionalServicesGrid({ asSnapshots, additionalServiceProposals, priorBilling, asSubtotal, onUpdate }: Props) {
   if (asSnapshots.length === 0) return null;
 
   return (
@@ -24,16 +26,17 @@ export function AdditionalServicesGrid({ asSnapshots, additionalServiceProposals
             <tr className="border-b bg-muted/30">
               <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Scope of Services</th>
               <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs">Fee</th>
+              <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs">Previously billed</th>
               <th className="text-center px-3 py-2 font-medium text-muted-foreground text-xs w-28">% Complete</th>
               <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">This Invoice</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {additionalServiceProposals.map((asp) => (
-              <>
+              <Fragment key={asp.id}>
                 {additionalServiceProposals.length > 1 && (
                   <tr key={`asp-${asp.id}`} className="bg-muted/10">
-                    <td colSpan={4} className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    <td colSpan={5} className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                       {asp.name}
                     </td>
                   </tr>
@@ -43,7 +46,8 @@ export function AdditionalServicesGrid({ asSnapshots, additionalServiceProposals
                   if (!snap) return null;
                   const pct = parseFloat(snap.percentComplete) || 0;
                   const amt = parseFloat(item.amount || "0") || 0;
-                  const current = (amt * pct) / 100;
+                  const previous = priorBilling[item.id] || 0;
+                  const current = Math.max(0, (amt * pct) / 100 - previous);
                   return (
                     <tr key={item.id}>
                       <td className="px-4 py-3">
@@ -52,6 +56,7 @@ export function AdditionalServicesGrid({ asSnapshots, additionalServiceProposals
                       <td className="px-3 py-3 text-right text-muted-foreground text-xs">
                         {item.amount ? fmt(parseFloat(item.amount)) : <span className="italic">—</span>}
                       </td>
+                      <td className="px-3 py-3 text-right text-muted-foreground text-xs">{previous > 0 ? fmt(previous) : "—"}</td>
                       <td className="px-3 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <Input
@@ -73,12 +78,12 @@ export function AdditionalServicesGrid({ asSnapshots, additionalServiceProposals
                     </tr>
                   );
                 })}
-              </>
+              </Fragment>
             ))}
           </tbody>
           <tfoot>
             <tr className="border-t bg-muted/10">
-              <td colSpan={3} className="px-4 py-2.5 text-sm font-medium text-right">Add. Services Subtotal</td>
+              <td colSpan={4} className="px-4 py-2.5 text-sm font-medium text-right">Add. Services Subtotal</td>
               <td className="px-4 py-2.5 text-right font-semibold">{fmt(asSubtotal)}</td>
             </tr>
           </tfoot>

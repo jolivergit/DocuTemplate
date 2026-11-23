@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { fmt, calcEarned, type SnapshotInput } from "./types";
@@ -43,7 +44,7 @@ export function FeeSnapshotGrid({ phaseGroups, billingSummary, hasPriorBilling, 
           </thead>
           <tbody className="divide-y">
             {phaseGroups.map(({ phase, snapshots }) => (
-              <>
+              <Fragment key={phase.id}>
                 <tr key={`phase-${phase.id}`} className="bg-muted/10">
                   <td colSpan={colSpan} className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     {phase.name}
@@ -128,7 +129,7 @@ export function FeeSnapshotGrid({ phaseGroups, billingSummary, hasPriorBilling, 
                     </tr>
                   );
                 })}
-              </>
+              </Fragment>
             ))}
           </tbody>
           <tfoot>

@@ -44,7 +44,7 @@ export function ExpenseEntriesSection({ expenseRows, expenseSubtotal, onAdd, onU
               : parseFloat(e.amount) || 0;
             return (
               <div key={e.id} className="px-4 py-3 space-y-2">
-                <div className="grid grid-cols-[100px_130px_100px_1fr_36px] gap-2 items-end">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[100px_130px_100px_minmax(0,1fr)_36px] sm:items-end">
                   <div className="space-y-1">
                     <Label className="text-xs">Date</Label>
                     <Input

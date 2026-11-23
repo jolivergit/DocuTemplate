@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { focusProjectControl } from "@/lib/project-focus";
+import { useIsMutating, useQuery } from "@tanstack/react-query";
 import {
   ChevronDown,
   Plus,
@@ -29,14 +30,25 @@ const PROPOSAL_STATUS_COLORS: Record<ProposalStatus, string> = {
   Declined: "bg-secondary text-secondary-foreground",
 };
 
-export function ProposalsTab({ leadId, projectName }: { leadId: number; projectName: string }) {
-  const [showNew, setShowNew] = useState(false);
-  const [showNewAS, setShowNewAS] = useState(false);
+export function ProposalsTab({ leadId, projectName, onDirtyChange, guardedDirty = false }: { leadId: number; projectName: string; onDirtyChange?: (dirty: boolean) => void; guardedDirty?: boolean }) {
+  const proposalSaving = useIsMutating({ mutationKey: ["project-proposal-save", leadId] }) > 0;
+  const [showNew, setShowNew] = useState<"standard" | "additional" | null>(null);
+  const [newEditorDirty, setNewEditorDirty] = useState(false);
+  const [editorNotice, setEditorNotice] = useState("");
   const [selectedProposal, setSelectedProposal] = useState<ProposalWithPhases | null>(null);
 
-  const { data: proposals = [], isLoading } = useQuery<ProposalWithPhases[]>({
+  const { data: proposals = [], isLoading, isError, refetch } = useQuery<ProposalWithPhases[]>({
     queryKey: ["/api/leads", leadId, "proposals"],
   });
+  const selectNewType = (type: "standard" | "additional") => {
+    if (queryClient.isMutating({ mutationKey: ["project-proposal-save", leadId] })) { setEditorNotice("Wait for the proposal save to finish before switching editors."); return; }
+    if (!showNew && guardedDirty) { setEditorNotice("Finish or cancel the open project edit before starting a proposal editor."); return; }
+    if (showNew && showNew !== type && newEditorDirty && !window.confirm("Discard this proposal draft and switch editor?")) return;
+    if (showNew && showNew !== type) { setNewEditorDirty(false); onDirtyChange?.(false); }
+    setEditorNotice("");
+    setShowNew(type);
+    focusProjectControl(type === "standard" ? "#proposal-name" : "#as-name");
+  };
 
   if (selectedProposal) {
     const current = proposals.find((p) => p.id === selectedProposal.id) || selectedProposal;
@@ -45,7 +57,9 @@ export function ProposalsTab({ leadId, projectName }: { leadId: number; projectN
         proposal={current}
         leadId={leadId}
         projectName={projectName}
-        onBack={() => setSelectedProposal(null)}
+        onBack={() => { onDirtyChange?.(false); setSelectedProposal(null); focusProjectControl(`[data-testid="card-proposal-${selectedProposal.id}"]`); }}
+        onDirtyChange={onDirtyChange}
+        guardedDirty={guardedDirty}
       />
     );
   }
@@ -70,23 +84,24 @@ export function ProposalsTab({ leadId, projectName }: { leadId: number; projectN
 
   return (
     <div className="space-y-4">
+      {editorNotice && <p role="status" className="rounded-md border border-amber-500/30 bg-amber-50/60 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-100">{editorNotice}</p>}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {proposals.length === 0 ? "No proposals yet" : `${proposals.length} proposal${proposals.length !== 1 ? "s" : ""}`}
+          {isLoading ? "Loading proposals…" : isError ? "Proposal list unavailable" : proposals.length === 0 ? "No proposals yet" : `${proposals.length} proposal${proposals.length !== 1 ? "s" : ""}`}
         </p>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm" data-testid="button-new-proposal">
+            <Button size="sm" disabled={proposalSaving} data-testid="button-new-proposal">
               <Plus className="w-3.5 h-3.5" />
               New Proposal
               <ChevronDown className="w-3 h-3" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setShowNew(true)} data-testid="menu-new-standard-proposal">
+            <DropdownMenuItem onClick={() => selectNewType("standard")} data-testid="menu-new-standard-proposal">
               Standard Proposal
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setShowNewAS(true)} data-testid="menu-new-as-proposal">
+            <DropdownMenuItem onClick={() => selectNewType("additional")} data-testid="menu-new-as-proposal">
               Additional Services
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -100,21 +115,28 @@ export function ProposalsTab({ leadId, projectName }: { leadId: number; projectN
         </div>
       )}
 
-      {!isLoading && proposals.length === 0 && (
+      {isError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm"><span>Proposals could not load. Your project work remains available.</span><Button size="sm" variant="outline" onClick={() => void refetch()}>Retry proposals</Button></div>}
+      {!isLoading && !isError && proposals.length === 0 && (
         <div className="rounded-md border bg-card p-8 text-center">
           <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No proposals yet. Create one to get started.</p>
         </div>
       )}
 
-      <div className="space-y-3">
+      {!isError && <div className="space-y-3">
         {proposals.map((proposal) => {
           const total = grandTotal(proposal);
           return (
             <button
               key={proposal.id}
+              disabled={proposalSaving}
               className="w-full text-left rounded-md border bg-card p-4 hover-elevate active-elevate-2 space-y-2"
-              onClick={() => setSelectedProposal(proposal)}
+              onClick={() => {
+                if (queryClient.isMutating({ mutationKey: ["project-proposal-save", leadId] })) return;
+                if (showNew && newEditorDirty && !window.confirm("Discard the unsaved proposal draft and open this record?")) return;
+                if (showNew) { setShowNew(null); setNewEditorDirty(false); onDirtyChange?.(false); }
+                setSelectedProposal(proposal);
+              }}
               data-testid={`card-proposal-${proposal.id}`}
             >
               <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -155,19 +177,10 @@ export function ProposalsTab({ leadId, projectName }: { leadId: number; projectN
             </button>
           );
         })}
-      </div>
+      </div>}
 
-      <ProposalFormDialog
-        open={showNew}
-        onOpenChange={setShowNew}
-        leadId={leadId}
-        onSaved={() => queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] })}
-      />
-      <AdditionalServicesFormDialog
-        open={showNewAS}
-        onOpenChange={setShowNewAS}
-        leadId={leadId}
-      />
+      {showNew === "standard" && <ProposalFormDialog open onOpenChange={open => { if (!open) { setNewEditorDirty(false); onDirtyChange?.(false); setShowNew(null); focusProjectControl('[data-testid="button-new-proposal"]'); } }} inline leadId={leadId} onDirtyChange={dirty => { setNewEditorDirty(dirty); onDirtyChange?.(dirty); }} onSaved={() => queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] })} />}
+      {showNew === "additional" && <AdditionalServicesFormDialog open onOpenChange={open => { if (!open) { setNewEditorDirty(false); onDirtyChange?.(false); setShowNew(null); focusProjectControl('[data-testid="button-new-proposal"]'); } }} inline leadId={leadId} onDirtyChange={dirty => { setNewEditorDirty(dirty); onDirtyChange?.(dirty); }} />}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowRight, Check, ChevronDown, ChevronUp, Users, Building2, Layers3 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -14,7 +14,7 @@ import { CompaniesEditor } from "./companies-editor";
 import { PhaseTimelineEditor } from "./phase-timeline-editor";
 import type { ProjectWork } from "@shared/project-work";
 
-type Props = { lead: LeadWithCompanies; workDirty?: boolean };
+type Props = { lead: LeadWithCompanies; workDirty?: boolean; onDirtyChange?: (dirty: boolean) => void };
 type IdentityDraft = {
   projectName: string;
   description: string;
@@ -37,7 +37,7 @@ const optionsKey = (id: number) => ["/api/leads", id, "setup-options"];
 const workKey = (id: number) => ["/api/leads", id, "work"];
 const inputClass = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
 
-export function ProjectSetup({ lead, workDirty = false }: Props) {
+export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) {
   const [identity, setIdentity] = useState(() => identityFrom(lead));
   const [identityBase, setIdentityBase] = useState(() => ({ value: identityFrom(lead), version: lead.setupVersion }));
   const [identityOpen, setIdentityOpen] = useState(!lead.setupComplete);
@@ -105,10 +105,12 @@ export function ProjectSetup({ lead, workDirty = false }: Props) {
   const dirtyIdentity = JSON.stringify(identity) !== JSON.stringify(identityBase.value);
   const setupHasUnsaved = dirtyIdentity || sectionDirty.team || sectionDirty.companies || sectionDirty.phases;
   const hasUnsaved = setupHasUnsaved || workDirty;
+  const dirtyCallback = useRef(onDirtyChange);
+  dirtyCallback.current = onDirtyChange;
   const setupMutationPending = teamSaving || identitySave.isPending || identityReloading || completeSetup.isPending || reopening.isPending;
   const activePhases = (work?.phases ?? []).filter(phase => !phase.archived);
   const teamBlockReason = workDirty
-    ? "Save or discard the current task draft before changing team access. Saving team access refreshes the project workspace."
+    ? "Save or cancel the current project edit before changing team access. Saving team access refreshes the project workspace."
     : dirtyIdentity || sectionDirty.companies || sectionDirty.phases
       ? "Save or cancel the other setup edits before saving team access."
       : undefined;
@@ -124,6 +126,7 @@ export function ProjectSetup({ lead, workDirty = false }: Props) {
     window.addEventListener("beforeunload", prevent);
     return () => window.removeEventListener("beforeunload", prevent);
   }, [hasUnsaved]);
+  useEffect(() => { dirtyCallback.current?.(setupHasUnsaved); }, [setupHasUnsaved]);
   const toggleSetup = () => {
     if (setupMutationPending) return;
     if (setupExpanded && setupHasUnsaved && !window.confirm("Discard unsaved setup changes and close setup?")) return;

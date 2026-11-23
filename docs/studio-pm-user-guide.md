@@ -6,7 +6,7 @@ Reviewed November 22, 2026 · No technical experience required
 
 Studio PM keeps your opportunities, proposals, active projects, billing, and document templates in one place. Start with the quick start, then use the contents to find a specific task.
 
-**About this guide:** This edition covers inline project setup, the Work in motion running log, multi-person project roles, company teams, multiple firms and Google chooser recovery controls. It is not a completed customer acceptance test. Real Google consent, file access and generated-document formatting still need testing with your own authorized test accounts and templates.
+**About this guide:** This edition covers the single-page project workflow, inline setup and supporting records, the Work in motion running log, multi-person project roles, company teams, multiple firms and Google chooser recovery. It is not a completed customer acceptance test. Real Google consent, file access and generated-document formatting still need testing with your own authorized test accounts and templates.
 
 ## Contents
 
@@ -232,21 +232,50 @@ Change the status in **Project setup → Identity & status**, then **Save detail
 
 ### Use the project workspace
 
-The page starts with **Project setup**: identity, team and companies, then **Phases, fees & timeline**. **Work in motion** follows with a running log of tasks, reminders, meetings and notes. Phases are the project's stages of work as well as reusable proposal scope; there is no second set to enter for proposals.
+The project is one page, in this order:
 
-- **Overview:** Expand each row under **Associated Companies** to see company and contact details.
-- **Proposals:** Create and review proposals.
-- **Time & Expenses:** Available when status is Active Project or Completed.
-- **Invoices:** Also available when status is Active Project or Completed.
-- Log entries and their discussions expand directly in the page; there is no task-detail popup or separate Notes tab.
+1. **Project setup:** identity and status; team and companies; phases, fees and
+   optional timelines. Completed setup is compact. Use **Edit setup** when you
+   need those details again.
+2. **Work in motion:** the running log of tasks, reminders, meetings and notes.
+3. **Documents & billing:** supporting proposals, time/expenses and invoices.
+   Open the relevant section and record in place when needed.
 
-If the billing tabs disappear, check the project status before assuming data has been deleted.
+There are no project tabs. Expanding a section or using a section link does not
+take you to another project screen. Proposal and invoice details/builders stay
+within the project, with return/cancel/save controls. Keep one financial editor
+open at a time; finish or deliberately discard its draft before switching.
 
-**Current release boundary:** Inline setup and the Work in motion running log are available. The financial/Overview tabs still remain; their tab-free replacement is a separate planned change.
+Phases are the project's stages of work as well as reusable proposal scope; do
+not enter a second set for proposals. Company/contact information stays with
+setup rather than a separate Overview. Log entries and discussion also expand
+inline, with no task-detail popup or separate Notes tab.
+
+Time/expense and invoice work still requires **Active Project** or **Completed**
+status. A signed Standard proposal is additionally required for a new invoice.
+If those actions are unavailable, check prerequisites before assuming records
+were deleted.
+
+Save errors keep the current editor's input available. Save or cancel before
+closing an editor, changing firm, or leaving for Doc Builder. The app protects
+drafts and active saves, but unsaved input is not a cross-session autosave.
+Delete and loss-of-edit confirmations remain intentional. Google authorization
+and file selection can still use Google's own windows.
+
+While a financial draft is open, finish or cancel it before changing project
+setup. If another user changes the project to a non-billing stage, an open
+time/expense or invoice draft stays visible with a warning; financial saves
+pause. A permitted project administrator can restore the stage, or you can
+cancel the draft deliberately. Changing status does not delete saved invoices.
+
+Browser **Back/Forward** also checks unsaved project edits. Cancel the leave
+warning to stay with your draft. While a save is pending, wait for its result:
+returning from a proposal, selecting another record, or switching proposal type
+is blocked so an unsuccessful save cannot close and lose the form.
 
 ## Build a Standard proposal
 
-1. Open the project and select **Proposals**.
+1. Open the project, scroll to **Documents & billing**, and expand **Proposals & contracts**.
 2. Click **New Proposal → Standard Proposal**.
 3. Enter the proposal name, description, and status.
 4. Select the shared project phases you want to include. Their fees and optional timelines are shown for review, not entered a second time.
@@ -282,13 +311,19 @@ For the example, mark the $10,000 Standard proposal Signed only after the fictio
 
 ### Add scope without replacing the original proposal
 
-1. Open **Proposals → New Proposal → Additional Services**.
+1. Under **Documents & billing**, open **Proposals & contracts → New Proposal → Additional Services**.
 2. Enter a clear name, such as **Maple Street — Extra Site Visit**, and describe the additional work.
 3. Add the **Line Items**, each with a description and amount. For example, “Additional site visit” at $500.
 4. Review the total and save the proposal.
 5. Record its approval with **Mark as Signed** after approval is received.
 
 Additional Services uses description-and-amount line items, not the Standard phase/consultant grid. Signed Additional Services proposals can appear in the invoice builder alongside the Standard scope. Review their amounts carefully before billing them.
+
+For a name/description correction, leave the priced lines unchanged. After
+approval or billing, use a new Additional Services proposal for changed work or
+pricing rather than replacing the original lines. Earlier invoice snapshots do
+not update automatically, and later cumulative billing depends on those source
+lines.
 
 For a document, use **Load to Doc Builder** and a suitable template. The special tag `{{additional_services_table}}` is intended for the additional-services line-item table. Load the correct Additional Services proposal immediately before using it.
 
@@ -310,7 +345,8 @@ Generating a contract does not sign it, email it, or establish that its wording 
 
 ## Log time and expenses
 
-Open an Active Project or Completed project and select **Time & Expenses**.
+Open an Active Project or Completed project. Under **Documents & billing**,
+expand **Time & Expenses**.
 
 ### Add time
 
@@ -346,7 +382,7 @@ The project must be Active Project or Completed, and it must have a **Signed Sta
 
 ### Build an invoice
 
-1. Open the project's **Invoices** tab and click **New Invoice**.
+1. Under **Documents & billing**, expand **Invoices** and click **New Invoice**.
 2. Review the proposal fee rows.
 3. For Fixed fees, enter the **cumulative percentage complete** to date—not just this month's percentage.
 4. For Hourly fees, enter hours and rate.
@@ -358,7 +394,7 @@ The project must be Active Project or Completed, and it must have a **Signed Sta
 
 **Example:** For the $10,000 fixed fee at 25% complete, earned fees are $2,500. With no previous billing, this invoice's fixed-fee charge is $2,500. If you attach the example's $200 Hours and $20 Parking entries, the total should be $2,720, excluding any additional services.
 
-On a later invoice, 50% complete means $5,000 earned to date. If previous fixed-fee billing was $2,500, the new fixed-fee charge should be $2,500. Always check **Prev Billed** and **This Invoice** rather than relying only on the percentage.
+On a later invoice, 50% complete means $5,000 earned to date. If previous fixed-fee billing was $2,500, the new fixed-fee charge should be $2,500. Signed Additional Services also use cumulative percentages and subtract their previous billing. Always review previous/current charges rather than relying only on the percentage. Wait for billing information to load; if it cannot load, use Retry instead of assuming nothing has been billed.
 
 Saved invoices capture billing information at creation. Do not assume later proposal edits recalculate existing invoices.
 

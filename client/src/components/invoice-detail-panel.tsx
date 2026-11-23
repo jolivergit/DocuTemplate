@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ExternalLink, ArrowLeft, Trash2, FileText, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -49,25 +49,35 @@ interface Props {
   leadId: number;
   lead: LeadWithCompanies;
   onBack: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  guardedDirty?: boolean;
+  billingAllowed?: boolean;
 }
 
-export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
+export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack, onDirtyChange, guardedDirty = false, billingAllowed = true }: Props) {
   const { isOwner } = useWorkspace();
   const { toast } = useToast();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showGeneratePanel, setShowGeneratePanel] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<PickedGoogleDoc | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [documentError, setDocumentError] = useState("");
+  const [editorNotice, setEditorNotice] = useState("");
+  const dirtyCallback = useRef(onDirtyChange);
+  dirtyCallback.current = onDirtyChange;
 
-  const { data: invoice, isLoading } = useQuery<InvoiceWithDetails>({
+  const { data: invoice, isLoading, isError, refetch } = useQuery<InvoiceWithDetails>({
     queryKey: ["/api/invoices", invoiceId],
   });
 
   const statusMutation = useMutation({
     mutationFn: (status: string) => apiRequest("PATCH", `/api/invoices/${invoiceId}/status`, { status }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/invoices", invoiceId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "invoices"] });
+    onMutate: () => dirtyCallback.current?.(true),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/invoices", invoiceId] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "invoices"] }),
+      ]);
       toast({ title: "Invoice status updated" });
     },
     onError: (err: Error) => {
@@ -77,25 +87,30 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
 
   const deleteMutation = useMutation({
     mutationFn: () => apiRequest("DELETE", `/api/invoices/${invoiceId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "invoices"] });
+    onMutate: () => dirtyCallback.current?.(true),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "invoices"] });
       toast({ title: "Invoice deleted" });
+      dirtyCallback.current?.(false);
       onBack();
     },
     onError: (err: Error) => {
       toast({ title: "Failed to delete invoice", description: err.message, variant: "destructive" });
     },
   });
+  const dirty = !!selectedTemplate || isGenerating || statusMutation.isPending || deleteMutation.isPending;
+  useEffect(() => { dirtyCallback.current?.(dirty); }, [dirty]);
 
   const buildInvoiceFieldMappings = (inv: InvoiceWithDetails): { name: string; value: string }[] => {
     const clientCompany = lead.companies.find((c) => c.companyRole === "Client" || c.companyRole === "ContractHolder");
     const feeTotal = inv.feeLineSnapshots.reduce((sum, s) => sum + parseFloat(s.currentBilling || "0"), 0);
+    const additionalServicesTotal = (inv.additionalLineItemSnapshots || []).reduce((sum, s) => sum + (parseFloat(s.currentBilling || "0") || 0), 0);
     const hoursTotal = inv.hoursEntries.reduce((sum, h) => sum + parseFloat(h.hours) * parseFloat(h.ratePerHour), 0);
     const expenseTotal = inv.expenseEntries.reduce((sum, e) => {
       if (e.expenseType === "Mileage") return sum + parseFloat(e.milesTraveled || "0") * parseFloat(e.ratePerMile || "0");
       return sum + parseFloat(e.amount || "0");
     }, 0);
-    const grandTotal = feeTotal + hoursTotal + expenseTotal;
+    const grandTotal = feeTotal + additionalServicesTotal + hoursTotal + expenseTotal;
 
     const fields: { name: string; value: string }[] = [
       { name: "invoice_number", value: String(inv.invoiceNumber) },
@@ -106,6 +121,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       { name: "client_contact", value: clientCompany?.linkedContact?.fullName || "" },
       { name: "client_address", value: [clientCompany?.addressLine1, clientCompany?.city, clientCompany?.state].filter(Boolean).join(", ") },
       { name: "invoice_fee_total", value: fmt(feeTotal) },
+      { name: "invoice_additional_services_total", value: fmt(additionalServicesTotal) },
       { name: "invoice_hours_total", value: fmt(hoursTotal) },
       { name: "invoice_expense_total", value: fmt(expenseTotal) },
       { name: "invoice_grand_total", value: fmt(grandTotal) },
@@ -158,6 +174,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
     if (!invoice || !selectedTemplate) return;
 
     setIsGenerating(true);
+    setDocumentError("");
     try {
       // Step 1: Clear stale invoice context fields before loading fresh values
       await apiRequest("DELETE", "/api/field-values/by-prefix", {
@@ -244,13 +261,17 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
       // Step 6: Auto-save the document URL to this invoice
       await apiRequest("PATCH", `/api/invoices/${invoiceId}/doc-url`, { docUrl: documentUrl });
 
-      queryClient.invalidateQueries({ queryKey: ["/api/invoices", invoiceId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/field-values"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/invoices", invoiceId] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "invoices"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/field-values"] }),
+      ]);
       setShowGeneratePanel(false);
+      setSelectedTemplate(null);
       toast({ title: "Invoice document generated", description: "The document has been linked to this invoice." });
-    } catch (e: unknown) {
-      toast({ title: "Document generation failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    } catch {
+      setDocumentError("The document service could not complete the request. Confirm Google Docs access and try again.");
+      toast({ title: "Document generation failed", description: "Check Google Docs access and retry.", variant: "destructive" });
     } finally {
       setIsGenerating(false);
     }
@@ -266,6 +287,9 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
     );
   }
 
+  if (isError) {
+    return <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm"><p>Invoice details could not load.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => void refetch()}>Retry invoice</Button></div>;
+  }
   if (!invoice) {
     return <p className="text-muted-foreground text-sm">Invoice not found.</p>;
   }
@@ -275,19 +299,20 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
 
   const feeCurrentTotal = invoice.feeLineSnapshots.reduce((sum, s) => sum + parseFloat(s.currentBilling || "0"), 0);
   const feePrevTotal = invoice.feeLineSnapshots.reduce((sum, s) => sum + parseFloat(s.previousBilling || "0"), 0);
+  const asCurrentTotal = invoice.additionalLineItemSnapshots.reduce((sum, s) => sum + (parseFloat(s.currentBilling || "0") || 0), 0);
   const hoursTotal = invoice.hoursEntries.reduce((sum, h) => sum + parseFloat(h.hours) * parseFloat(h.ratePerHour), 0);
   const expenseTotal = invoice.expenseEntries.reduce((sum, e) => {
     if (e.expenseType === "Mileage") return sum + parseFloat(e.milesTraveled || "0") * parseFloat(e.ratePerMile || "0");
     return sum + parseFloat(e.amount || "0");
   }, 0);
-  const grandTotal = feeCurrentTotal + hoursTotal + expenseTotal;
+  const grandTotal = feeCurrentTotal + asCurrentTotal + hoursTotal + expenseTotal;
   const hasPriorBilling = feePrevTotal > 0;
 
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <Button variant="ghost" size="sm" onClick={onBack} data-testid="button-back-from-invoice">
+        <Button variant="ghost" size="sm" disabled={isGenerating || statusMutation.isPending || deleteMutation.isPending} onClick={() => { if (dirty && !window.confirm("Leave invoice details? Unsaved document setup will be discarded.")) return; dirtyCallback.current?.(false); onBack(); }} data-testid="button-back-from-invoice">
           <ArrowLeft className="w-4 h-4" />
           Project
         </Button>
@@ -303,18 +328,31 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowGeneratePanel((v) => !v)}
+            disabled={(!billingAllowed && !showGeneratePanel) || isGenerating || statusMutation.isPending || deleteMutation.isPending}
+            onClick={() => {
+              if (showGeneratePanel) {
+                if (dirty && !window.confirm("Close document setup and discard the selected template?")) return;
+                setSelectedTemplate(null);
+                setShowGeneratePanel(false);
+              } else {
+                if (guardedDirty) { setEditorNotice("Finish or cancel the open project edit before starting document setup."); return; }
+                setEditorNotice("");
+                setShowGeneratePanel(true);
+              }
+            }}
             data-testid="button-generate-invoice-doc"
           >
             <FileText className="w-4 h-4" />
             {invoice.docUrl ? "Regenerate Doc" : "Generate Doc"}
             <ChevronDown className="w-3 h-3 ml-1" />
           </Button>
-          {isOwner && <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(true)} data-testid="button-delete-invoice">
+          {isOwner && <Button variant="outline" size="sm" disabled={!billingAllowed} onClick={() => setShowDeleteConfirm(true)} data-testid="button-delete-invoice">
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>}
         </div>
       </div>
+      {!billingAllowed && <p role="status" className="rounded-md border border-amber-500/30 bg-amber-50/60 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-100">The project is no longer Active or Completed. Invoice details remain available, but billing changes and document generation are paused until the stage is restored.</p>}
+      {editorNotice && <p role="status" className="rounded-md border border-amber-500/30 bg-amber-50/60 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-100">{editorNotice}</p>}
 
       {/* Integrated doc generation panel */}
       {showGeneratePanel && (
@@ -333,15 +371,16 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
             <Button
               size="sm"
               onClick={handleGenerate}
-              disabled={!selectedTemplate || isGenerating}
+              disabled={!billingAllowed || !selectedTemplate || isGenerating}
               data-testid="button-confirm-generate-doc"
             >
               {isGenerating ? "Generating…" : "Generate & Save"}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setShowGeneratePanel(false)} data-testid="button-cancel-generate">
+            <Button variant="ghost" size="sm" disabled={isGenerating} onClick={() => { if (dirty && !window.confirm("Discard the selected invoice document template?")) return; setSelectedTemplate(null); setShowGeneratePanel(false); }} data-testid="button-cancel-generate">
               Cancel
             </Button>
           </div>
+          {documentError && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">Document was not generated. {documentError} Your invoice remains unchanged. Check the template or permissions and retry.</p>}
         </div>
       )}
 
@@ -388,7 +427,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
             <Button
               size="sm"
               onClick={() => statusMutation.mutate(nextStatus)}
-              disabled={statusMutation.isPending}
+              disabled={!billingAllowed || statusMutation.isPending}
               data-testid={`button-advance-status-${nextStatus.toLowerCase()}`}
             >
               Mark as {nextStatus}
@@ -444,6 +483,34 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
                   <td className="px-4 py-2.5 text-right font-semibold">{fmt(feeCurrentTotal)}</td>
                 </tr>
               </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {invoice.additionalLineItemSnapshots.length > 0 && (
+        <div className="rounded-md border bg-card">
+          <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
+            <div><h3 className="text-sm font-semibold">Additional Services</h3><p className="text-xs text-muted-foreground">Proposal line-item billing snapshot</p></div>
+            <span className="text-sm font-semibold">{fmt(asCurrentTotal)}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b bg-muted/30">
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Scope of Services</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Fee</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Previously billed</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">This invoice</th>
+              </tr></thead>
+              <tbody className="divide-y">{invoice.additionalLineItemSnapshots.map(snapshot => (
+                <tr key={snapshot.id}>
+                  <td className="px-4 py-3">{snapshot.description}</td>
+                  <td className="px-3 py-3 text-right text-muted-foreground">{snapshot.amount ? fmt(snapshot.amount) : "—"}</td>
+                  <td className="px-3 py-3 text-right text-muted-foreground">{snapshot.previousBilling ? fmt(snapshot.previousBilling) : "—"}</td>
+                  <td className="px-4 py-3 text-right font-medium">{fmt(snapshot.currentBilling)}</td>
+                </tr>
+              ))}</tbody>
+              <tfoot><tr className="border-t bg-muted/10"><td colSpan={3} className="px-4 py-2.5 text-right text-sm font-medium">Additional Services Subtotal</td><td className="px-4 py-2.5 text-right font-semibold">{fmt(asCurrentTotal)}</td></tr></tfoot>
             </table>
           </div>
         </div>
@@ -558,6 +625,7 @@ export function InvoiceDetailPanel({ invoiceId, leadId, lead, onBack }: Props) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteMutation.mutate()}
+              disabled={!billingAllowed || deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground"
               data-testid="button-confirm-delete-invoice"
             >

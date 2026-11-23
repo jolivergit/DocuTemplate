@@ -37,6 +37,44 @@ meeting date/time and project duration estimates never become task due dates.
 Project-context prefilling is explicit, reviewable draft text, never an automatic
 event, assignee selection, notification or calendar invitation.
 
+## Final single-page project layout
+
+The project page now follows identity/status, team/companies, phases/fees/optional
+timeline, Work in motion, then progressively disclosed Documents & billing.
+Project tabs and routine record dialogs are replaced by in-page sections and
+editors. Delete/loss confirmations and actual Google authorization/file-selection
+windows remain justified exceptions.
+
+This final presentation step requires no additional database migration. Keep the
+workspace, shared-work, setup and typed-log prerequisites above; installing this
+UI on an unmigrated database is not supported. Only development was exercised.
+Production backup, prerequisites, migration approval and publishing remain
+separate operator decisions; none is authorized by completing development work.
+
+Financial repositories and issued snapshots are not replaced. Additional
+Services client requests must match the existing accepted input names, and
+previews must subtract previous billing using the server's existing rules.
+Time/expense attachment remains single-use; archived/saved data is not recreated
+when a section opens. Billing-context failures must be visible, not defaulted to
+zero previous billing. Draft/active-save guards also cover team-access refresh
+and real navigation exits.
+
+Required checks include `npm run check`, `npm run build`,
+`npm run test:project-work` (signed snapshot/cumulative/attachment boundaries) and
+`npm run test:project-page` (same-tab navigation versus safe reading links).
+Financial drafts must remain mounted if live project status becomes ineligible;
+pause writes with an explanatory warning, keep Cancel/Return, and permit setup
+to restore the stage. Do not turn ordinary disclosure/read actions into loss
+confirmations.
+
+Same-document browser history requires router-level protection: accepted route
+snapshots remain on the project during cancelled Back/Forward restoration.
+Track entries at bootstrap, preserve existing history state, and test both
+directions plus asynchronous rollback. Link-click/beforeunload warnings alone
+do not cover this. Standard/AS saves expose a separate pending mutation channel;
+internal Return/type-switch/record-selection must block until settlement, even
+when a user would otherwise confirm discarding a dirty editor.
+
 ## Apply
 
 1. Confirm the target database/environment and authorization. Do not point development tooling at production.

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import {
@@ -6,7 +6,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,15 +34,22 @@ function makeRow(): LineItemRow {
   return { id: crypto.randomUUID(), description: "", amount: "" };
 }
 
+function comparableItems(items: Array<{ description: string; amount: string | null }>) {
+  return JSON.stringify(items.filter(item => item.description.trim())
+    .map(item => ({ description: item.description.trim(), amount: item.amount || "" })));
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   leadId: number;
   existing?: ProposalWithPhases;
   onSaved?: () => void;
+  inline?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function AdditionalServicesFormDialog({ open, onOpenChange, leadId, existing, onSaved }: Props) {
+export function AdditionalServicesFormDialog({ open, onOpenChange, leadId, existing, onSaved, inline = false, onDirtyChange }: Props) {
   const { toast } = useToast();
   const isEdit = !!existing;
 
@@ -60,7 +66,25 @@ export function AdditionalServicesFormDialog({ open, onOpenChange, leadId, exist
     }
     return [makeRow()];
   });
-
+  const [formError, setFormError] = useState("");
+  const initializedForOpen = useRef(false);
+  const initial = useRef({ name: existing?.name || "", description: existing?.description || "", status: existing?.status || "Draft", lineItems: comparableItems(existing?.additionalLineItems || []) });
+  useEffect(() => {
+    if (!open) { initializedForOpen.current = false; return; }
+    if (initializedForOpen.current) return;
+    const rows = existing?.additionalLineItems?.length
+      ? existing.additionalLineItems.map(item => ({ id: item.id, description: item.description, amount: item.amount || "" }))
+      : [makeRow()];
+    const values = { name: existing?.name || "", description: existing?.description || "", status: existing?.status || "Draft" };
+    setName(values.name); setDescription(values.description); setStatus(values.status);
+    setLineItems(rows); setFormError("");
+    initial.current = { ...values, lineItems: comparableItems(rows) };
+    initializedForOpen.current = true;
+  }, [open, existing]);
+  const lineItemsChanged = comparableItems(lineItems) !== initial.current.lineItems;
+  const dirty = open && initializedForOpen.current && (name !== initial.current.name || description !== initial.current.description || status !== initial.current.status || lineItemsChanged);
+  const dirtyCallback = useRef(onDirtyChange);
+  dirtyCallback.current = onDirtyChange;
   const addRow = () => setLineItems((prev) => [...prev, makeRow()]);
 
   const removeRow = (id: string) => {
@@ -80,20 +104,21 @@ export function AdditionalServicesFormDialog({ open, onOpenChange, leadId, exist
   }, 0);
 
   const saveMutation = useMutation({
+    mutationKey: ["project-proposal-save", leadId],
     mutationFn: async () => {
       const body = {
         name: name.trim(),
         description: description.trim() || null,
         status,
         proposalType: "Additional Services",
-        phases: [],
-        additionalLineItems: lineItems
+        ...(!isEdit ? { phases: [] } : {}),
+        ...(!isEdit || lineItemsChanged ? { additionalLineItems: lineItems
           .filter((r) => r.description.trim())
           .map((r, idx) => ({
             description: r.description.trim(),
             amount: r.amount ? r.amount : null,
             sortOrder: idx,
-          })),
+          })) } : {}),
       };
       if (isEdit) {
         return apiRequest("PATCH", `/api/proposals/${existing!.id}`, body);
@@ -101,26 +126,30 @@ export function AdditionalServicesFormDialog({ open, onOpenChange, leadId, exist
         return apiRequest("POST", `/api/leads/${leadId}/proposals`, body);
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
       toast({ title: isEdit ? "Additional Services proposal updated" : "Additional Services proposal created" });
       onSaved?.();
+      dirtyCallback.current?.(false);
       onOpenChange(false);
     },
     onError: (err: Error) => {
+      setFormError(err.message);
       toast({ title: "Failed to save proposal", description: err.message, variant: "destructive" });
     },
   });
+  const closeForm = (next: boolean) => {
+    if (!next && (saveMutation.isPending || queryClient.isMutating({ mutationKey: ["project-proposal-save", leadId] }))) return;
+    if (!next && dirty && !window.confirm("Discard unsaved Additional Services proposal edits?")) return;
+    dirtyCallback.current?.(false);
+    onOpenChange(next);
+  };
+  useEffect(() => { dirtyCallback.current?.(dirty || saveMutation.isPending); }, [dirty, saveMutation.isPending]);
 
   const canSave = name.trim().length > 0;
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Additional Services Proposal" : "New Additional Services Proposal"}</DialogTitle>
-        </DialogHeader>
-
+  const content = <>
+        {inline ? <div className="mb-4"><h2 className="text-base font-semibold">{isEdit ? "Edit Additional Services proposal" : "New Additional Services proposal"}</h2><p className="mt-1 text-sm text-muted-foreground">Keep additional scope and amounts in this proposal snapshot.</p></div> : <DialogHeader><DialogTitle>{isEdit ? "Edit Additional Services Proposal" : "New Additional Services Proposal"}</DialogTitle></DialogHeader>}
         <div className="flex-1 overflow-y-auto space-y-5 pr-1">
           {/* Basic info */}
           <div className="space-y-4">
@@ -243,8 +272,8 @@ export function AdditionalServicesFormDialog({ open, onOpenChange, leadId, exist
           </div>
         </div>
 
-        <DialogFooter className="pt-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+        <div className={`flex justify-end gap-2 border-t pt-4 ${inline ? "mt-4" : ""}`}>
+          <Button variant="outline" onClick={() => closeForm(false)}>Cancel</Button>
           <Button
             onClick={() => saveMutation.mutate()}
             disabled={!canSave || saveMutation.isPending}
@@ -252,8 +281,9 @@ export function AdditionalServicesFormDialog({ open, onOpenChange, leadId, exist
           >
             {saveMutation.isPending ? "Saving…" : isEdit ? "Save Changes" : "Create Proposal"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+        </div>
+        {formError && <p role="alert" className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">The proposal was not saved. {formError} Your edits remain here.</p>}
+  </>;
+  if (inline && !open) return null;
+  return inline ? <section className="rounded-lg border bg-card p-4 sm:p-6" data-testid="inline-additional-services-form">{content}</section> : <Dialog open={open} onOpenChange={closeForm}><DialogContent className="max-w-2xl max-h-[90dvh] flex flex-col">{content}</DialogContent></Dialog>;
 }

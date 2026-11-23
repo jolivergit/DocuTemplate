@@ -1,4 +1,4 @@
 - [Google authorization boundaries](google-authorization.md) — app users need per-file grants; assistant connections and saved branding are not substitutes.
 - [Company project access](company-project-access.md) — coworkers should access only assigned projects, not every company project.
 - [Project work model](project-work-model.md) — phases are shared across project work and proposal documents; avoid duplicate entry and replace legacy notes.
-- [Project edit consistency](project-edit-consistency.md) — automatic status changes must invalidate old setup drafts; access refresh must not discard unsaved daily work.
+- [Project edit consistency](project-edit-consistency.md) — status concurrency, draft protection and source identity during financial metadata edits.

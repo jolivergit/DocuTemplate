@@ -208,6 +208,63 @@ test("shared phase, task, proposal and access lifecycle", async t => {
       assert.ok(work.phases.some((p: any) => p.id === phase.id));
       assert.ok(work.tasks.some((r: any) => r.id === task.id));
     });
+    await t.test("supporting billing retains cumulative signed amounts, additional services and one-time time/expense attachment", async () => {
+      const feeId = proposal.phases[0].feeLines[0].id;
+      const additional = await A("POST", `/api/leads/${project.id}/proposals`, {
+        name: "Extra site visit", proposalType: "Additional Services", status: "Draft",
+        additionalLineItems: [{ description: "Site visit", amount: "500", sortOrder: 0 }],
+      });
+      assert.equal(additional.status, 200);
+      const approved = (await A("POST", `/api/proposals/${additional.body.id}/sign`, {})).body;
+      const item = approved.additionalLineItems[0];
+      const hours = (await M("POST", `/api/leads/${project.id}/hours`, {
+        date: "2026-11-22", description: "Practice billing hours", hours: "2", ratePerHour: "100",
+      })).body;
+      const expense = (await M("POST", `/api/leads/${project.id}/expenses`, {
+        date: "2026-11-22", expenseType: "Parking", amount: "20",
+      })).body;
+      const next = await A("POST", `/api/leads/${project.id}/invoices`, {
+        proposalId: proposal.id, feeLineInputs: [{ proposalFeeLineId: feeId, percentComplete: "75" }],
+        existingHoursIds: [hours.id], existingExpenseIds: [expense.id],
+        additionalLineItemInputs: [{ additionalLineItemId: item.id, description: "Untrusted client text", amount: "999999", percentComplete: "40" }],
+      });
+      assert.equal(next.status, 200);
+      assert.equal(next.body.feeLineSnapshots[0].currentBilling, "300.00");
+      assert.equal(next.body.additionalLineItemSnapshots[0].currentBilling, "200.00");
+      assert.equal(next.body.additionalLineItemSnapshots[0].amount, "500.00");
+      assert.equal(next.body.additionalLineItemSnapshots[0].description, "Site visit");
+      assert.equal(next.body.hoursEntries[0].id, hours.id);
+      assert.equal(next.body.expenseEntries[0].id, expense.id);
+      const total = Number(next.body.feeLineSnapshots[0].currentBilling)
+        + Number(next.body.additionalLineItemSnapshots[0].currentBilling)
+        + Number(next.body.hoursEntries[0].hours) * Number(next.body.hoursEntries[0].ratePerHour)
+        + Number(next.body.expenseEntries[0].amount);
+      assert.equal(total, 720); // 300 current Standard + 200 AS + 200 time + 20 parking
+      const saved = (await A("GET", `/api/invoices/${next.body.id}`)).body;
+      assert.equal(saved.hoursEntries[0].invoiceId, next.body.id);
+      assert.equal(saved.expenseEntries[0].invoiceId, next.body.id);
+      const metadata = await A("PATCH", `/api/proposals/${approved.id}`, { description: "Metadata only after billing" });
+      assert.equal(metadata.status, 200);
+      assert.equal(metadata.body.additionalLineItems[0].id, item.id);
+      assert.equal(metadata.body.additionalLineItems[0].amount, "500.00");
+      const count = (await A("GET", `/api/leads/${project.id}/invoices`)).body.length;
+      assert.equal((await A("POST", `/api/leads/${project.id}/invoices`, {
+        proposalId: proposal.id, existingHoursIds: [hours.id],
+      })).status, 400);
+      assert.equal((await A("POST", `/api/leads/${project.id}/invoices`, {
+        proposalId: proposal.id, existingExpenseIds: [expense.id],
+      })).status, 400);
+      assert.equal((await A("GET", `/api/leads/${project.id}/invoices`)).body.length, count);
+      const final = await A("POST", `/api/leads/${project.id}/invoices`, {
+        proposalId: proposal.id, feeLineInputs: [{ proposalFeeLineId: feeId, percentComplete: "100" }],
+        additionalLineItemInputs: [{ additionalLineItemId: item.id, description: item.description, amount: item.amount, percentComplete: "60" }],
+      });
+      assert.equal(final.status, 200);
+      assert.equal(final.body.feeLineSnapshots[0].currentBilling, "300.00");
+      assert.equal(final.body.additionalLineItemSnapshots[0].currentBilling, "100.00");
+      assert.equal(final.body.hoursEntries.length, 0); assert.equal(final.body.expenseEntries.length, 0);
+      assert.equal((await A("GET", `/api/proposals/${proposal.id}/billing-summary`)).body[feeId], 1200);
+    });
     await t.test("empty proposal scope stays empty after priced phases are added, refresh, signing and status transitions", async () => {
       const emptySign = (await A("POST", `/api/leads/${project.id}/proposals`, { name: "Explicitly no scope", selectedPhaseIds: [] })).body;
       const emptyStatus = (await A("POST", `/api/leads/${project.id}/proposals`, { name: "Empty sent document", selectedPhaseIds: [] })).body;

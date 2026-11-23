@@ -22,13 +22,15 @@ interface Props {
   leadId: number;
   existing?: ProposalWithPhases;
   onSaved?: () => void;
+  inline?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 const workKey = (id: number) => ["/api/leads", id, "work"];
 function phaseTotal(phase: WorkPhase) {
   return phase.feeLines.reduce((sum, line) => sum + (line.feeType === "Fixed" && line.amount ? Number(line.amount) || 0 : 0), 0);
 }
 
-export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSaved }: Props) {
+export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSaved, inline = false, onDirtyChange }: Props) {
   const { toast } = useToast();
   const isEdit = !!existing;
   const isIssued = !!existing && (existing.scopeLocked || !["Draft", "Revision"].includes(existing.status));
@@ -62,8 +64,12 @@ export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSav
 
   const sortedPhases = useMemo(() => [...(work?.phases || [])].filter(phase => !phase.archived || selectedPhaseIds.includes(phase.id)).sort((a, b) => a.sortOrder - b.sortOrder), [work?.phases, selectedPhaseIds]);
   const originalPhaseIds = (existing?.phases || []).map(phase => (phase as ExistingPhaseMapping).projectPhaseId).filter((id): id is string => !!id);
-  const dirty = name !== (existing?.name || "") || description !== (existing?.description || "") || status !== (existing?.status || "Draft") || !isIssued && (selectedPhaseIds.join("|") !== originalPhaseIds.join("|") || hasUnmappedScope && scopeTouched);
+  const isInitialized = initializedFor.current === `${existing?.id ?? "new"}`;
+  const dirty = isInitialized && (name !== (existing?.name || "") || description !== (existing?.description || "") || status !== (existing?.status || "Draft") || !isIssued && (selectedPhaseIds.join("|") !== originalPhaseIds.join("|") || hasUnmappedScope && scopeTouched));
+  const dirtyCallback = useRef(onDirtyChange);
+  dirtyCallback.current = onDirtyChange;
   const saveMutation = useMutation({
+    mutationKey: ["project-proposal-save", leadId],
     mutationFn: () => {
       const body = {
         name: name.trim(), description: description.trim() || null, status,
@@ -71,17 +77,19 @@ export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSav
       };
       return isEdit ? apiRequest("PATCH", `/api/proposals/${existing.id}`, body) : apiRequest("POST", `/api/leads/${leadId}/proposals`, body);
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "proposals"] });
       toast({ title: isEdit ? "Proposal updated" : "Proposal created" });
       onSaved?.();
+      dirtyCallback.current?.(false);
       onOpenChange(false);
     },
     onError: error => setFormError(error instanceof Error ? error.message : "Could not save proposal. Your edits remain here."),
   });
+  useEffect(() => { dirtyCallback.current?.(dirty || saveMutation.isPending); }, [dirty, saveMutation.isPending]);
   const close = (next: boolean) => {
     if (!next && dirty && !window.confirm("Discard unsaved proposal edits?")) return;
-    if (!next && saveMutation.isPending) return;
+    if (!next && (saveMutation.isPending || queryClient.isMutating({ mutationKey: ["project-proposal-save", leadId] }))) return;
     if (!next) setFormError("");
     onOpenChange(next);
   };
@@ -91,10 +99,9 @@ export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSav
     setSelectedPhaseIds(previous => checked ? previous.includes(id) ? previous : previous.concat(id) : previous.filter(value => value !== id));
   };
 
-  return <Dialog open={open} onOpenChange={close}>
-    <DialogContent className="flex max-h-[90dvh] max-w-2xl flex-col">
-      <DialogHeader><DialogTitle>{isEdit ? "Edit proposal" : "New standard proposal"}</DialogTitle><DialogDescription>Choose shared project phases. Project fee inputs are maintained once; this proposal retains its own recorded financial snapshot.</DialogDescription></DialogHeader>
-      <div className="flex-1 space-y-6 overflow-y-auto pr-1">
+  const content = <>
+    {inline ? <div className="mb-4"><h2 className="text-base font-semibold">{isEdit ? "Edit proposal" : "New standard proposal"}</h2><p className="mt-1 text-sm text-muted-foreground">Choose project phases. Recorded proposal amounts remain a financial snapshot.</p></div> : <DialogHeader><DialogTitle>{isEdit ? "Edit proposal" : "New standard proposal"}</DialogTitle><DialogDescription>Choose shared project phases. Project fee inputs are maintained once; this proposal retains its own recorded financial snapshot.</DialogDescription></DialogHeader>}
+    <div className="flex-1 space-y-6 overflow-y-auto pr-1">
         {hasUnmappedScope && !isIssued && <div className="rounded-md border border-amber-500/40 p-3 text-sm">
           <p className="font-medium">Legacy proposal scope is retained</p>
           <p className="mt-1 text-xs text-muted-foreground">This document has phases that are not linked to shared project phases. Changing its name or description keeps its original phase and fee breakdown. Selecting shared phases replaces that scope only after your confirmation.</p>
@@ -116,8 +123,13 @@ export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSav
           })}</div> : <div className="rounded-md border border-dashed px-4 py-7 text-center"><FileText className="mx-auto h-5 w-5 text-muted-foreground" /><p className="mt-2 text-sm font-medium">No shared phases yet</p><p className="mt-1 text-xs text-muted-foreground">Add phases and optional fee inputs on the project page first.</p></div>}
         </section>
         {formError && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">{formError} Your text has been preserved.</p>}
-      </div>
-      <DialogFooter className="border-t pt-4"><Button variant="outline" onClick={() => close(false)}>Cancel</Button><Button disabled={!name.trim() || saveMutation.isPending || workLoading || workError || !!work?.needsReconciliation || hasUnmappedScope && scopeTouched && !legacyReplacementConfirmed} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? "Saving…" : isEdit ? "Save proposal" : "Create proposal"}</Button></DialogFooter>
+    </div>
+    <div className={`flex justify-end gap-2 border-t pt-4 ${inline ? "mt-4" : ""}`}><Button variant="outline" onClick={() => close(false)}>Cancel</Button><Button disabled={!name.trim() || saveMutation.isPending || workLoading || workError || !!work?.needsReconciliation || hasUnmappedScope && scopeTouched && !legacyReplacementConfirmed} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? "Saving…" : isEdit ? "Save proposal" : "Create proposal"}</Button></div>
+  </>;
+  if (inline && !open) return null;
+  return inline ? <section className="rounded-lg border bg-card p-4 sm:p-6" data-testid="inline-proposal-form">{content}</section> : <Dialog open={open} onOpenChange={close}>
+    <DialogContent className="flex max-h-[90dvh] max-w-2xl flex-col">
+      {content}
     </DialogContent>
   </Dialog>;
 }

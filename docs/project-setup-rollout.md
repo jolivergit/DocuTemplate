@@ -13,8 +13,11 @@ existing same-firm address records in that context. Firm membership/invitations,
 global address-book writes and destructive financial/project actions remain
 firm Owner-only. Managers/Designers keep ordinary assigned-project editing.
 
-The existing Work in motion tasks, discussions and financial tabs remain.
-The broader running log and removal of all tabs belong to downstream work.
+This setup is now integrated with the typed Work in motion running log and
+tab-free Documents & billing sections. No project financial/Overview tabs
+remain. Supporting forms expand in page, with financial drafts included in
+setup/team-change guards; see `project-work-rollout.md` for the final layout
+checks and the typed-log prerequisite.
 
 ## Apply safely
 

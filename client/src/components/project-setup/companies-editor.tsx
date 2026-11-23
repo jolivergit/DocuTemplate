@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { Mail, Plus, Phone, Trash2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,7 +90,9 @@ export function CompaniesEditor({ leadId, entries, options, version, disabled = 
   return <div>
     <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
     {draft.length === 0 ? <div className="rounded-lg border border-dashed px-4 py-6 text-center"><p className="text-sm font-medium">No companies attached yet</p><p className="mt-1 text-xs text-muted-foreground">Add a client, consultant, vendor, or any other project participant.</p></div> :
-      <div className="space-y-3">{draft.map((entry, index) => <article key={index} className="rounded-lg border bg-background p-3">
+      <div className="space-y-3">{draft.map((entry, index) => {
+        const linkedContact = options.contacts.find(contact => contact.id === entry.contactId);
+        return <article key={index} className="rounded-lg border bg-background p-3">
         <div className="mb-3 flex items-start justify-between gap-2"><div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{entry.companyRole || "New entry"}</Badge>{entry.companyId && <Badge variant="outline">Linked record</Badge>}</div><Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Remove company entry ${index + 1}`} onClick={() => setDraft(current => current.filter((_, i) => i !== index))}><Trash2 className="h-4 w-4" /></Button></div>
         <div className="grid gap-2">
           <label className="space-y-1 text-[11px] font-medium">Project role<Input className="h-9" value={entry.companyRole} maxLength={160} onChange={event => set(index, { companyRole: event.target.value })} placeholder="Client, Architect, Lighting consultant…" /></label>
@@ -102,11 +104,17 @@ export function CompaniesEditor({ leadId, entries, options, version, disabled = 
             } : { companyId: null });
           }}><option value="">No linked company</option>{options.companies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}</select></label>
           <label className="space-y-1 text-[11px] font-medium">Linked contact<select className={field} value={entry.contactId ?? ""} onChange={event => set(index, { contactId: event.target.value || null })}><option value="">No linked contact</option>{options.contacts.map(contact => <option key={contact.id} value={contact.id}>{contact.fullName}{contact.companyName ? ` · ${contact.companyName}` : ""}</option>)}</select></label>
+           {linkedContact && <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-2 text-xs text-muted-foreground">
+             <span className="font-medium text-foreground">{linkedContact.fullName}{linkedContact.title ? ` · ${linkedContact.title}` : ""}</span>
+             {linkedContact.phone && <a className="inline-flex items-center gap-1.5 hover:text-foreground" href={`tel:${linkedContact.phone}`}><Phone className="h-3.5 w-3.5" />{linkedContact.phone}</a>}
+             {linkedContact.email && <a className="inline-flex items-center gap-1.5 hover:text-foreground" href={`mailto:${linkedContact.email}`}><Mail className="h-3.5 w-3.5" />{linkedContact.email}</a>}
+           </div>}
           <label className="space-y-1 text-[11px] font-medium">Project company name<Input className="h-9" value={entry.companyName} onChange={event => set(index, { companyName: event.target.value })} placeholder="Name for this project" /></label>
           <div className="grid grid-cols-2 gap-2"><label className="space-y-1 text-[11px] font-medium">Address<Input className="h-9" value={entry.addressLine1} onChange={event => set(index, { addressLine1: event.target.value })} /></label><label className="space-y-1 text-[11px] font-medium">Address line 2<Input className="h-9" value={entry.addressLine2} onChange={event => set(index, { addressLine2: event.target.value })} /></label></div>
           <div className="grid grid-cols-3 gap-2"><label className="space-y-1 text-[11px] font-medium">City<Input className="h-9" value={entry.city} onChange={event => set(index, { city: event.target.value })} /></label><label className="space-y-1 text-[11px] font-medium">State<Input className="h-9" value={entry.state} onChange={event => set(index, { state: event.target.value })} /></label><label className="space-y-1 text-[11px] font-medium">ZIP<Input className="h-9" value={entry.zip} onChange={event => set(index, { zip: event.target.value })} /></label></div>
         </div>
-      </article>)}</div>}
+      </article>;
+      })}</div>}
     <Button variant="outline" size="sm" className="mt-3" onClick={() => setDraft(current => [...current, { ...blank }])}><Plus className="mr-1.5 h-4 w-4" />Add company entry</Button>
     {save.error && <p role="alert" className="mt-3 text-xs text-destructive">{save.error instanceof Error ? save.error.message : "Could not save company entries. Your changes are preserved."}</p>}
     {dirty && <div className="mt-4 flex justify-end gap-2 border-t pt-3"><Button size="sm" variant="ghost" onClick={cancel}>Cancel</Button><Button size="sm" disabled={draft.some(entry => !entry.companyRole.trim())} onClick={() => save.mutate({ version: baseVersion, entries: draft })}>{save.isPending ? "Saving…" : "Save companies"}</Button></div>}
