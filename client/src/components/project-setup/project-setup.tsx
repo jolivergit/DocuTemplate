@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowRight, Check, ChevronDown, ChevronUp, Users, Building2, Layers3 } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Users, Building2, Layers3 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge, badgeVariants } from "@/components/ui/badge";
+import { badgeVariants } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { LeadWithCompanies } from "@shared/schema";
 import type { ProjectTeam, ProjectSetupOptions } from "@shared/project-setup";
@@ -14,6 +14,7 @@ import { CompaniesEditor } from "./companies-editor";
 import { PhaseTimelineEditor } from "./phase-timeline-editor";
 import type { ProjectWork } from "@shared/project-work";
 import { SetupSummary } from "./setup-summary";
+import { ProjectContextHeader } from "./project-context-header";
 
 type Props = { lead: LeadWithCompanies; workDirty?: boolean; onDirtyChange?: (dirty: boolean) => void };
 type IdentityDraft = {
@@ -43,6 +44,7 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
   const [identityBase, setIdentityBase] = useState(() => ({ value: identityFrom(lead), version: lead.setupVersion }));
   const [identityOpen, setIdentityOpen] = useState(!lead.setupComplete);
   const [setupExpanded, setSetupExpanded] = useState(!lead.setupComplete);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [sectionDirty, setSectionDirty] = useState({ team: false, companies: false, phases: false });
   const [teamSavingLocal, setTeamSavingLocal] = useState(false);
@@ -171,34 +173,31 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
     setIdentityOpen(false);
   }
 
+  const activePhaseCount = work ? work.phases.filter(phase => !phase.archived).length : 0;
+
   return (
-    <section className="overflow-hidden rounded-xl border bg-card shadow-sm" aria-label="Project setup">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/25 px-4 py-4 sm:px-6">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-[.2em] text-primary">Project setup</span>
-            {lead.setupComplete && <Badge variant="secondary" className="gap-1"><Check className="h-3 w-3" />Ready</Badge>}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h2 className="max-w-full truncate text-base font-semibold">{lead.projectName}</h2>
-            <Badge variant="outline" className="text-[10px]">{lead.status}</Badge>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {lead.setupComplete ? "The scope is ready to carry into proposals." : "Set the project context once. Your proposal scope starts here."}
-          </p>
-        </div>
-        {lead.setupComplete && (
-          <Button variant="outline" size="sm" onClick={toggleSetup} disabled={setupMutationPending} aria-expanded={setupExpanded}>
-            {setupExpanded ? "Close setup" : "Edit setup"}
-            {setupExpanded ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
-          </Button>
-        )}
-      </div>
+    <section className="overflow-hidden rounded-xl border bg-card" aria-label="Project setup">
+      <ProjectContextHeader
+        projectName={lead.projectName}
+        status={lead.status}
+        setupComplete={lead.setupComplete}
+        timeline={lead.generalTimeline?.trim() || "Timeline not set"}
+        activePhaseCount={work ? activePhaseCount : undefined}
+        phaseLoading={!work && !workError}
+        phaseError={workError && !work}
+        setupExpanded={setupExpanded}
+        detailsOpen={detailsOpen}
+        detailsId={`project-details-${id}`}
+        setupDisabled={setupMutationPending}
+        onToggleSetup={toggleSetup}
+        onToggleDetails={() => setDetailsOpen(value => !value)}
+      />
 
       {message && <div role="alert" className="border-b border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive sm:px-6">{message}</div>}
-      {!setupExpanded && lead.setupComplete ? (
+      {lead.setupComplete && <div id={`project-details-${id}`} hidden={!detailsOpen} className="border-t">
         <SetupSummary lead={lead} team={team} teamLoading={teamLoading} teamError={teamError} options={options} optionsLoading={optionsLoading} optionsError={optionsError} work={work} workLoading={workLoading} workError={workError} />
-      ) : (
+      </div>}
+      {(setupExpanded || !lead.setupComplete) && (
         <fieldset disabled={setupMutationPending} className="m-0 min-w-0 border-0 p-0">
         <div className="divide-y">
           <section className="px-4 py-5 sm:px-6">

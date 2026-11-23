@@ -2,7 +2,7 @@
 
 A practical walkthrough for everyday users
 
-Reviewed November 22, 2026 · No technical experience required
+Reviewed November 23, 2026 · No technical experience required
 
 Studio PM keeps your opportunities, proposals, active projects, billing, and document templates in one place. Start with the quick start, then use the contents to find a specific task.
 
@@ -212,7 +212,7 @@ Studio PM uses one project record throughout the relationship, even when the wor
 3. In **Identity & status**, enter a description, status, probability, square footage and potential fee as known, then **Save details**. Probability expresses confidence in winning the work; it is not proposal approval.
 4. Pick the **Team** and collaborating **Companies** directly on the page. These appear side by side on a wide screen and stack on a phone. Save each section. A company entry can link an existing company/contact or hold project-specific names and addresses; it does not create a new address-book record. Custom roles and several companies with the same role are supported.
 5. Under **Phases, fees & timeline**, add named stages of work, optional fee lines and optional timelines. You can add ad-hoc phases later. **5 weeks** and **8–10 weeks** are examples, not required dates; project and phase timelines do not calculate task due dates.
-6. Save any edits, then **Finish setup**. At least one Project Admin is required. You can leave companies, fees and timelines empty while information is unknown. Closed setup shows a read-only overview of the project details, team roles, companies, active phases, timelines and fixed fees. Hourly fees are identified separately, not added to the fixed-fee total. Longer lists show a few entries and how many more are available; **Edit setup** opens the full details inline again.
+6. Save any edits, then **Finish setup**. At least one Project Admin is required. You can leave companies, fees and timelines empty while information is unknown. Setup closes to a compact project header so **Work in motion** is easy to reach. **View project details** expands the fuller read-only overview: project details, team roles, companies, active phases, timelines and fixed fees. Hourly fees are identified separately, not added to the fixed-fee total. Longer lists show a few entries and how many more are available; **Edit setup** opens the editors inline again.
 
 Search the Projects list by name and use the status filter to narrow results. Click a project card to open its full record. Incomplete setup remains expanded when you return. Completed setup stays compact. You can update the saved information without opening the old project-edit popup.
 
@@ -234,12 +234,21 @@ Change the status in **Project setup → Identity & status**, then **Save detail
 
 The project is one page, in this order:
 
-1. **Project setup:** identity and status; team and companies; phases, fees and
-   optional timelines. Completed setup is compact. Use **Edit setup** when you
-   need those details again.
-2. **Work in motion:** the running log of tasks, reminders, meetings and notes.
+1. **Project context and setup:** completed setup stays compact with project
+   name/status, optional general timeline and active phase count. Use **View
+   project details** for the fuller read-only overview or **Edit setup** to
+   change the saved information. New or unfinished projects still open the
+   guided setup: identity/status → team/companies → phases, fees and timelines.
+2. **Work in motion:** the main daily-work area, with a compact active-work
+   summary and **Add update** above the running log of tasks, reminders, meetings
+   and notes.
 3. **Documents & billing:** supporting proposals, time/expenses and invoices.
-   Open the relevant section and record in place when needed.
+   Sections start closed; open the relevant section and record in place when needed.
+
+**View project details** is only a reading disclosure. Showing or hiding it does
+not save, discard or change an open draft elsewhere on the page. **Edit setup**
+is separate; **Close setup** keeps the existing warning if setup has unsaved
+changes. Read-only project details remain available even while setup is open.
 
 **Team and Companies start collapsed**, even while setup is open. Their headers
 show saved counts and a short names/roles summary. Click either header to expand
@@ -455,7 +464,9 @@ The same project phases and fees are reused when preparing proposals. Changing t
 
 ### Choose the right kind of entry
 
-Click **Add entry** in Work in motion. Everything is written and edited inline.
+Click **Add update** in Work in motion, then choose Task, Reminder, Meeting or
+Note in the inline composer. Everything is written and edited on the project
+page. **Use project details** remains a separate, secondary action.
 
 | Kind | What to enter |
 | --- | --- |
@@ -500,6 +511,23 @@ shows entries naming you as their teammate/assignee, not every note you authored
 Counts include only non-archived tasks and reminders. Meetings and notes are
 never overdue or Done. A due date before today on your device is overdue unless
 the item is complete; due today is not overdue.
+
+The compact **Active work** summary shows open, overdue, blocked and done counts
+for the whole active project log. The separate **shown** count describes your
+current filters; searching or switching to Archived does not change the active
+summary. Entries remain newest-created first, not grouped or reordered by status.
+Blocked and overdue work have visible text labels; notes emphasize the note text
+rather than requiring a title.
+
+**Next meeting** appears only when a non-archived meeting has a date today or
+later. A timed meeting earlier today is skipped; a date-only meeting remains
+upcoming for that day and says **Time not set**, not “all day.” Dates and entered
+times are interpreted in your device's local time without shifting to UTC.
+Undated meetings stay in the log but do not appear as the next meeting. No
+calendar invitation or reminder is sent. The summary refreshes as time passes
+and when you return to the window. If a background refresh fails, the app labels
+the saved entries as not freshly refreshed and keeps open drafts available;
+loss of project access still blocks the log.
 
 ### Discuss an entry and recover safely
 

@@ -2,11 +2,30 @@
 
 Practice scenarios and a blank acceptance-test record
 
-Reviewed November 22, 2026 · Results have not been filled in
+Reviewed November 23, 2026 · Results have not been filled in
 
 Use this alongside the Studio PM User Guide. UAT means user acceptance testing: you try real workflows and decide whether the app meets your needs. These are instructions and expected outcomes, not a report that the scenarios passed.
 
-### Development verification — November 22, 2026
+### Development verification — November 23, 2026
+
+- The Work in motion presentation update passed TypeScript, the production
+  build, and 10 project-page checks covering local-date summaries and existing
+  navigation protections. Five summary cases also passed independently in
+  America/New_York and Pacific/Kiritimati: active-only counts, dated/timed
+  upcoming meetings, date-only meetings, midnight rollover and empty results.
+- Actual setup/header/filter/entry components were rendered with fictional
+  inputs, not customer records. Checks confirmed configured versus unfinished
+  setup, a default-hidden but mounted read-only overview, separate disclosure
+  and edit actions, active versus shown labels, disabled header actions and
+  “Time not set” instead of an invented all-day appointment.
+- Screenshots of those actual components covered dark desktop at 1280px and
+  light phone at 390px. Compact context, primary Add update, next meeting,
+  selected filter states and wrapped entry metadata were inspected. Temporary
+  visual pages were removed. No customer data, Google actions or financial
+  records were changed. A signed-in browser save/discard walkthrough was not
+  repeated for this presentation-only change; manual acceptance remains below.
+
+### Earlier development verification — November 22, 2026
 
 This is separate from customer sign-off; the manual result cells below remain
 blank for your own acceptance testing.
@@ -175,7 +194,7 @@ Project roles do not replace the firm's Owner/Member roles.
 | S11 | Type a company edit and change a disposable team-role draft. Collapse/reopen each section without saving. | No write, discard prompt or lost values. Unsaved changes stays visible on the closed header; team saves still respect other project drafts. Save/Cancel remain inside the reopened editor. | Not run |
 | S12 | In an approved practice environment, delay/fail a company save, collapse its section and then reopen it. Check a project with no assigned admin and a separate empty Companies section. | Saving/Needs attention is discoverable while closed, failed input remains available, and Open to review reaches recovery controls. Missing-admin warning remains visible. Add a company opens the empty editor; Add company entry sits above the entries. | Not run |
 | S13 | Expand individual saved company entries, add a new entry, and choose standard/custom Project roles from the dropdown. Collapse/reopen a draft, remove an earlier entry, then save/reload. | Saved cards start closed, new cards open automatically, and each toggles independently without losing input. Removing a neighbor does not transfer card state. Standard and existing/custom roles persist with company/contact/address fields; no new company-role restriction is imposed. | Not run |
-| S14 | Save setup and select Close setup on a project with several teammates, companies, phases and mixed Fixed/Hourly fee lines. Repeat on a phone and reopen Edit setup. | Closed setup shows saved project details, names and roles, company contacts, active phase names/timelines and fixed-fee totals. Hourly reference amounts are excluded; unpriced fixed fees are marked incomplete. Lists stay compact with more-entry counts, and editing still opens inline. | Not run |
+| S14 | Save setup and select Close setup on a project with several teammates, companies, phases and mixed Fixed/Hourly fee lines. Select View project details, then hide it, and reopen Edit setup. Repeat on a phone. | Closed setup has compact project context above Work in motion; the reading disclosure retains saved details, names/roles, contacts, active phase timelines and fixed fees. Hourly reference amounts are excluded; unpriced fixed fees are marked incomplete. Lists stay compact and editing still opens inline. | Not run |
 
 The running log and tab-free project layout are available. Documents & billing
 contains expandable supporting records below daily work; it is not another set
@@ -208,7 +227,7 @@ Record customer outcomes below; developer checks are not customer sign-off.
 | ID | What to do | Expected outcome | Result / notes |
 | --- | --- | --- | --- |
 | L1 | Open an existing practice task with a discussion and an archived task. Inspect the running log on desktop and phone. | Each task appears once with original fields; archived work is in Archived. Discussion stays under its task, not another top-level entry. No task sheet/pop-up is needed. | Not run |
-| L2 | Choose Add entry → Note and write text only. Save and reload. Then add a Task with an optional assignee/phase, priority, status and due date. | Note needs no fake title/status/priority/date. Task retains all task fields. Both persist with kind and recorded time; new entries identify their author. | Not run |
+| L2 | Choose Add update → Note and write text only. Save and reload. Then add a Task with an optional assignee/phase, priority, status and due date. | Note needs no fake title/status/priority/date. Task retains all task fields. Both persist with kind and recorded time; new entries identify their author. | Not run |
 | L3 | Add a Reminder with no date or teammate. Complete, reopen, archive and restore it. Add a Meeting with notes and an optional real date/time. | Reminder works without dates; completion persists through restore. Meeting does not require priority/status/due date or send a calendar invitation. | Not run |
 | L4 | Create an ad-hoc phase with timeline `8–10 weeks`. Use project details in a new draft. Inspect before saving, then cancel. | Known text is reviewable; no entry is posted before Save. No meeting, selected person or calendar due date is invented from the duration. Cancelling creates nothing. | Not run |
 | L5 | Enter/edit content and try to close or open another entry. Keep the draft, then deliberately discard. Try filters and firm switching with unsaved text or an active save. | Inline discard protection preserves text when cancelled. Filters cannot hide an inaccessible editor. Firm/team changes do not silently discard drafts; active saves block conflicting actions. | Not run |
@@ -216,6 +235,8 @@ Record customer outcomes below; developer checks are not customer sign-off.
 | L7 | If a real save failure occurs, retry the same entry/discussion in the same editor. Use its recovery action before starting a different save. | Same-intent retries create one record, not duplicates. Uncertain/conflicting saves retain text and explain recovery. Do not disrupt another user's connection to manufacture a failure. | Not run |
 | L8 | Add past/due-today tasks/reminders and past meetings/notes; complete/archive some. Search and filter by kind, Actionable and Archived. | Counts/overdue include only active tasks/reminders. Due today is not overdue. Notes/meetings never inflate open/Done/overdue counts; archive/restore retains history. | Not run |
 | L9 | As assigned Member add/edit/discuss each kind. Remove access using an authorized admin after drafts are saved. Inspect as another authorized user. | Revoked user cannot continue reading/writing. Saved entries/discussions remain; revoked assignees are flagged and cannot be newly selected. Foreign-firm phases/users and unassigned coworkers are not valid references. | Not run |
+| L10 | On a practice project with active/archived work, overdue and blocked items, and past/future/undated meetings, change the log's search/type/Actionable/Mine/Active/Archived filters. | Compact Active work counts stay independent of the shown count and exclude archived work. Next meeting excludes archived, undated and past meetings; a missing time is not invented. Entry order stays newest-created first. Blocked/overdue states have text labels. | Not run |
+| L11 | Start an update or entry edit, then show/hide View project details and scroll through supporting records. Repeat the configured and unfinished project layouts at 390px and desktop in light/dark mode. | Read-only disclosures retain draft input and do not write records. Configured project context is compact, unfinished setup stays guided, Add update is prominent, and document groups remain below the log. No horizontal page overflow or hidden Save/Cancel controls. | Not run |
 
 ## Project tasks and shared phases
 

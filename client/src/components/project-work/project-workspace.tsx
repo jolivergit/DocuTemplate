@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Archive, CalendarDays, Check, Circle, Clock3, FileText, MessageSquare, Plus, RotateCcw, Users, X } from "lucide-react";
+import { Archive, Circle, MessageSquare, RotateCcw, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkspace } from "@/lib/workspace";
 import type { LeadWithCompanies } from "@shared/schema";
-import { TASK_PRIORITIES, TASK_STATUSES, entrySummary, isEntryOverdue, type EntryInput, type EntryType, type ProjectWork, type TaskNote, type WorkEntry } from "@shared/project-work";
+import { TASK_PRIORITIES, TASK_STATUSES, type EntryInput, type EntryType, type ProjectWork, type TaskNote, type WorkEntry } from "@shared/project-work";
 import { Composer, emptyDraft, entryHasContent, PhaseAssigneeFields, type EntryDraft } from "@/components/project-work/work-entry-composer";
 import { WorkLogFilters } from "@/components/project-work/work-log-filters";
+import { workMotionSummary } from "@/lib/work-motion-summary";
+import { WorkMotionHeader } from "@/components/project-work/work-motion-header";
+import { WorkEntryContent } from "@/components/project-work/work-entry-content";
 
 const workKey = (id: number) => ["/api/leads", id, "work"];
 const fieldClass = "h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm";
@@ -53,18 +55,6 @@ function fieldPatch(draft: EntryDraft) {
     meetingTime: draft.entryType === "Meeting" ? draft.meetingTime || null : null,
   };
 }
-function dateLabel(value: string | null) {
-  if (!value) return "";
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
-function typeIcon(type: EntryType) {
-  if (type === "Task") return <Check className="h-3.5 w-3.5" />;
-  if (type === "Reminder") return <Clock3 className="h-3.5 w-3.5" />;
-  if (type === "Meeting") return <Users className="h-3.5 w-3.5" />;
-  return <FileText className="h-3.5 w-3.5" />;
-}
-
 export function ProjectWorkWorkspace({ leadId, lead, onDirtyChange }: { leadId: number; lead?: LeadWithCompanies; onDirtyChange?: (dirty: boolean) => void }) {
   const { userId } = useWorkspace();
   const [entryTypeFilter, setEntryTypeFilter] = useState("all");
@@ -89,9 +79,10 @@ export function ProjectWorkWorkspace({ leadId, lead, onDirtyChange }: { leadId: 
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [reloadPending, setReloadPending] = useState(false);
+  const [summaryNow, setSummaryNow] = useState(() => new Date());
   const dirtyCallback = useRef(onDirtyChange);
   dirtyCallback.current = onDirtyChange;
-  const { data, isLoading, isError, refetch } = useQuery<ProjectWork>({ queryKey: workKey(leadId) });
+  const { data, isLoading, isError, error, refetch } = useQuery<ProjectWork>({ queryKey: workKey(leadId) });
   const invalidate = async () => { await queryClient.invalidateQueries({ queryKey: workKey(leadId) }); };
   const createMutation = useMutation({
     mutationKey: ["project-work-entry-create", leadId],
@@ -124,6 +115,15 @@ export function ProjectWorkWorkspace({ leadId, lead, onDirtyChange }: { leadId: 
   const workDirty = hasDraft || editDirty || !!discussion.trim() || pendingCount > 0;
   useEffect(() => { dirtyCallback.current?.(workDirty); }, [workDirty]);
   useEffect(() => {
+    const update = () => setSummaryNow(new Date());
+    const timer = window.setInterval(update, 60_000);
+    window.addEventListener("focus", update);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", update);
+    };
+  }, []);
+  useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (!workDirty) return;
       event.preventDefault();
@@ -132,7 +132,7 @@ export function ProjectWorkWorkspace({ leadId, lead, onDirtyChange }: { leadId: 
     window.addEventListener("beforeunload", beforeUnload);
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, [workDirty]);
-  const summary = entrySummary(entries);
+  const summary = workMotionSummary(entries, summaryNow);
   const phaseName = (id: string | null) => id ? phases.find(phase => phase.id === id)?.name ?? "Archived phase" : "";
   const visibleEntries = useMemo(() => {
     const q = search.trim().toLocaleLowerCase();
@@ -260,21 +260,22 @@ export function ProjectWorkWorkspace({ leadId, lead, onDirtyChange }: { leadId: 
   };
 
   if (isLoading) return <section className="space-y-3" aria-label="Work in motion loading"><Skeleton className="h-20 w-full" /><Skeleton className="h-14 w-full" /><Skeleton className="h-48 w-full" /></section>;
-  if (isError || !data) return <section className="rounded-lg border border-destructive/30 bg-card p-5" role="alert"><h2 className="text-sm font-semibold">Work log could not load</h2><p className="mt-1 text-sm text-muted-foreground">Your project setup is safe. Try loading the log again.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => void refetch()}>Retry</Button></section>;
+  const errorStatus = (error as { status?: number } | null)?.status;
+  const accessDenied = [401, 403, 404].includes(errorStatus ?? 0);
+  if ((isError && (!data || accessDenied)) || !data) return <section className="rounded-lg border border-destructive/30 bg-card p-5" role="alert"><h2 className="text-sm font-semibold">Work log could not load</h2><p className="mt-1 text-sm text-muted-foreground">{accessDenied ? "You no longer have access to this project work log." : "Your project setup is safe. Try loading the log again."}</p>{!accessDenied && <Button className="mt-3" size="sm" variant="outline" onClick={() => void refetch()}>Retry</Button>}</section>;
 
   return <div className="space-y-5">
+    {isError && data && <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"><span>The latest refresh failed. Saved entries and any open drafts are still here.</span><Button size="sm" variant="ghost" onClick={() => void refetch()}>Retry</Button></div>}
     {saveError && !composer && <div role="alert" className="flex items-start justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm"><span>{saveError}</span><Button size="icon" variant="ghost" aria-label="Dismiss message" onClick={() => setSaveError("")}><X className="h-4 w-4" /></Button></div>}
-    <section aria-label="Active work summary" className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
-      {[["Open", summary.open], ["Blocked", summary.blocked], ["Overdue", summary.overdue], ["Done", summary.done]].map(([name, count]) => <div key={String(name)} className="bg-card px-3 py-2.5 sm:px-4"><p className="text-[10px] font-medium uppercase tracking-[.12em] text-muted-foreground">{name}</p><p className="mt-0.5 text-xl font-semibold tabular-nums">{count}</p></div>)}
-    </section>
     <section className="overflow-hidden rounded-lg border bg-card" aria-label="Work in motion">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4 sm:px-5">
-        <div><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold normal-case tracking-normal">Work in motion</h2><Badge variant="secondary">{visibleEntries.length} shown</Badge></div><p className="mt-1 text-sm text-muted-foreground">The day, as it moves. Newest first.</p></div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" disabled={!lead || !!pendingCount || activeEditor} onClick={useProjectDetails}>Use project details</Button>
-          <Button size="sm" disabled={!!pendingCount || activeEditor} onClick={() => startComposer("Task")}><Plus className="mr-1.5 h-4 w-4" />Add entry</Button>
-        </div>
-      </header>
+      <WorkMotionHeader
+        summary={summary}
+        shownCount={visibleEntries.length}
+        addDisabled={!!pendingCount || activeEditor}
+        detailsDisabled={!lead || !!pendingCount || activeEditor}
+        onUseProjectDetails={useProjectDetails}
+        onAddUpdate={() => startComposer("Task")}
+      />
       {composer && <Composer draft={composer} setDraft={setComposer} phases={phases} assignees={assignees} pending={!!pendingCount || recoveryPending}
         error={createError} saveError={saveError} onDismiss={requestClose}
         onSubmit={() => {
@@ -336,9 +337,6 @@ function EntryRow({ entry, phase, editing, editDraft, setEditDraft, editError, e
   const [notes, setNotes] = useState<TaskNote[] | null>(null);
   const [notesError, setNotesError] = useState("");
   const [notesLoading, setNotesLoading] = useState(false);
-  const due = entry.dueDate;
-  const meetingDate = entry.meetingDate;
-  const overdue = isEntryOverdue(entry);
   const actionable = entry.entryType === "Task" || entry.entryType === "Reminder";
   const editDirty = !!editDraft && JSON.stringify(fieldPatch(editDraft)) !== JSON.stringify(fieldPatch(fromEntry(entry)));
   const getNotes = async () => {
@@ -349,37 +347,14 @@ function EntryRow({ entry, phase, editing, editDraft, setEditDraft, editError, e
   useEffect(() => {
     if (notesOpen && notes === null && !notesLoading) void getNotes();
   }, [notesOpen]);
-  return <article className={`px-4 py-4 sm:px-5 ${entry.archived ? "bg-muted/20" : ""}`}>
-    <div className="flex gap-3">
-      <div className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full ${entry.entryType === "Task" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>{typeIcon(entry.entryType)}</div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className="text-[10px]">{entry.entryType}</Badge>
-              {entry.status && <Badge variant={entry.status === "Done" ? "secondary" : "outline"} className="text-[10px]">{entry.status}</Badge>}
-              {entry.priority && <span className="text-[11px] text-muted-foreground">{entry.priority} priority</span>}
-              {entry.archived && <Badge variant="secondary" className="text-[10px]">Archived</Badge>}
-            </div>
-            {entry.entryType !== "Note" && <h3 className={`mt-1 text-sm font-semibold normal-case tracking-normal ${entry.status === "Done" ? "text-muted-foreground line-through" : ""}`}>{entry.title || "Untitled meeting"}</h3>}
-            {!!entry.description && <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-foreground/85">{entry.description}</p>}
-          </div>
-          <time className="shrink-0 text-[11px] tabular-nums text-muted-foreground" dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time>
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          <span>{entry.authorName || "Project teammate"}</span>
-          {phase && <span>{phase}</span>}
-          {entry.assigneeName && <span>For {entry.assigneeName}</span>}
-          {entry.assigneeId && !entry.assigneeName && <span className="text-amber-700">Teammate needs reassignment</span>}
-          {entry.entryType === "Meeting" && (meetingDate || entry.meetingTime) && <span className="inline-flex items-center gap-1"><CalendarDays className="h-3 w-3" />{meetingDate ? dateLabel(meetingDate) : ""}{meetingDate && entry.meetingTime ? " · " : ""}{entry.meetingTime || ""}</span>}
-          {actionable && <span className={overdue ? "font-semibold text-destructive" : ""}>{due ? `${overdue ? "Overdue · " : "Due "}${dateLabel(due)}` : "No due date"}</span>}
-          {entry.noteCount > 0 && <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{entry.noteCount} {entry.noteCount === 1 ? "reply" : "replies"}</span>}
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+  return <article className={`px-4 py-4 sm:px-5 ${entry.archived ? "bg-muted/20" : ""} ${entry.status === "Blocked" && !entry.archived ? "border-l-2 border-foreground/40" : ""}`}>
+    <WorkEntryContent entry={entry} phase={phase} />
+    <div className="ml-10">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
           {actionable && !entry.archived && <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" disabled={interactionDisabled} onClick={onToggleStatus}>{entry.status === "Done" ? "Reopen" : "Mark done"}</Button>}
           <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs" disabled={interactionDisabled} onClick={onEdit}>Edit</Button>
           <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs" disabled={interactionDisabled} onClick={onDiscussion}><MessageSquare className="mr-1 h-3.5 w-3.5" />Discussion</Button>
           <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs" disabled={interactionDisabled} onClick={onArchive}>{entry.archived ? <><RotateCcw className="mr-1 h-3.5 w-3.5" />Restore</> : <><Archive className="mr-1 h-3.5 w-3.5" />Archive</>}</Button>
-        </div>
       </div>
     </div>
     {editing && editDraft && <form className="ml-10 mt-4 space-y-3 rounded-md border bg-muted/20 p-3 sm:p-4" onSubmit={e => { e.preventDefault(); onSave(); }}>
