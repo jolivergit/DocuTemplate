@@ -13,7 +13,6 @@ import { TeamEditor } from "./team-editor";
 import { CompaniesEditor } from "./companies-editor";
 import { PhaseTimelineEditor } from "./phase-timeline-editor";
 import type { ProjectWork } from "@shared/project-work";
-import { SetupSummary } from "./setup-summary";
 import { ProjectContextHeader } from "./project-context-header";
 
 type Props = { lead: LeadWithCompanies; workDirty?: boolean; onDirtyChange?: (dirty: boolean) => void };
@@ -44,7 +43,6 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
   const [identityBase, setIdentityBase] = useState(() => ({ value: identityFrom(lead), version: lead.setupVersion }));
   const [identityOpen, setIdentityOpen] = useState(!lead.setupComplete);
   const [setupExpanded, setSetupExpanded] = useState(!lead.setupComplete);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [sectionDirty, setSectionDirty] = useState({ team: false, companies: false, phases: false });
   const [teamSavingLocal, setTeamSavingLocal] = useState(false);
@@ -95,18 +93,6 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
     onError: error => setMessage(error instanceof Error ? error.message : "Could not complete setup."),
   });
 
-  const reopening = useMutation({
-    mutationFn: () => apiRequest<LeadWithCompanies>("PATCH", `/api/leads/${id}/setup`, {
-      version: lead.setupVersion, setupComplete: false,
-    }),
-    onSuccess: updated => {
-      queryClient.setQueryData(["/api/leads", id], updated);
-      setSetupExpanded(true);
-      setMessage("");
-    },
-    onError: error => setMessage(error instanceof Error ? error.message : "Could not reopen setup."),
-  });
-
   const hasAdmin = team?.hasAdmin ?? false;
   const canComplete = !!team?.canManage && team.members.some(member => member.assigned && member.roles.includes("Project Admin"));
   const dirtyIdentity = JSON.stringify(identity) !== JSON.stringify(identityBase.value);
@@ -114,7 +100,7 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
   const hasUnsaved = setupHasUnsaved || workDirty;
   const dirtyCallback = useRef(onDirtyChange);
   dirtyCallback.current = onDirtyChange;
-  const setupMutationPending = teamSaving || identitySave.isPending || identityReloading || completeSetup.isPending || reopening.isPending;
+  const setupMutationPending = teamSaving || identitySave.isPending || identityReloading || completeSetup.isPending;
   const teamBlockReason = workDirty
     ? "Save or cancel the current project edit before changing team access. Saving team access refreshes the project workspace."
     : dirtyIdentity || sectionDirty.companies || sectionDirty.phases
@@ -142,7 +128,7 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
   useEffect(() => { dirtyCallback.current?.(setupHasUnsaved); }, [setupHasUnsaved]);
   const toggleSetup = () => {
     if (setupMutationPending) return;
-    if (setupExpanded && setupHasUnsaved && !window.confirm("Discard unsaved setup changes and close setup?")) return;
+    if (setupExpanded && setupHasUnsaved && !window.confirm("Discard unsaved project changes and close project details?")) return;
     if (setupExpanded && setupHasUnsaved) {
       setIdentity(identityBase.value);
       setSectionDirty({ team: false, companies: false, phases: false });
@@ -176,7 +162,7 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
   const activePhaseCount = work ? work.phases.filter(phase => !phase.archived).length : 0;
 
   return (
-    <section className="overflow-hidden rounded-xl border bg-card" aria-label="Project setup">
+    <section className="overflow-hidden rounded-xl border bg-card" aria-label="Project details">
       <ProjectContextHeader
         projectName={lead.projectName}
         status={lead.status}
@@ -186,17 +172,13 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
         phaseLoading={!work && !workError}
         phaseError={workError && !work}
         setupExpanded={setupExpanded}
-        detailsOpen={detailsOpen}
         detailsId={`project-details-${id}`}
         setupDisabled={setupMutationPending}
         onToggleSetup={toggleSetup}
-        onToggleDetails={() => setDetailsOpen(value => !value)}
       />
 
       {message && <div role="alert" className="border-b border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive sm:px-6">{message}</div>}
-      {lead.setupComplete && <div id={`project-details-${id}`} hidden={!detailsOpen} className="border-t">
-        <SetupSummary lead={lead} team={team} teamLoading={teamLoading} teamError={teamError} options={options} optionsLoading={optionsLoading} optionsError={optionsError} work={work} workLoading={workLoading} workError={workError} />
-      </div>}
+      <div id={`project-details-${id}`}>
       {(setupExpanded || !lead.setupComplete) && (
         <fieldset disabled={setupMutationPending} className="m-0 min-w-0 border-0 p-0">
         <div className="divide-y">
@@ -296,17 +278,15 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
           </section>
 
           <div className="flex flex-col gap-3 bg-muted/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <p className="max-w-xl text-xs leading-relaxed text-muted-foreground">Setup stays editable later. Project scope and fee details are shared with proposal preparation.</p>
-            <div className="flex flex-wrap gap-2">
-              {lead.setupComplete && team?.canManage && <Button variant="outline" size="sm" onClick={() => reopening.mutate()} disabled={setupMutationPending}>Reopen setup</Button>}
+            <p className="max-w-xl text-xs leading-relaxed text-muted-foreground">Project details stay editable. Project scope and fee details are shared with proposal preparation.</p>
               {!lead.setupComplete && team?.canManage && <Button size="sm" onClick={() => completeSetup.mutate()} disabled={!canComplete || hasUnsaved || setupMutationPending}>
                 {completeSetup.isPending ? "Finishing…" : <>Finish setup <ArrowRight className="ml-2 h-4 w-4" /></>}
               </Button>}
-            </div>
           </div>
         </div>
         </fieldset>
       )}
+      </div>
     </section>
   );
 }

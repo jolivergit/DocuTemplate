@@ -44,3 +44,9 @@ Avoid redundant indicators on the project page, such as setup “Ready” or log
 **Why:** The user found these indicators confusing rather than useful.
 
 **How to apply:** Keep the project context and Work in motion focused on useful information and actions, not extra readiness or display-mode labels.
+
+Use a single place to view and edit project information, rather than separate view-only and editing modes.
+
+**Why:** The user found the two project-detail/setup buttons awkward and chose one toggle for the existing inline fields, keeping save controls and unsaved-change warnings.
+
+**How to apply:** Keep the project-details interaction unified; do not reintroduce a parallel read-only overview with a second editing entry point.

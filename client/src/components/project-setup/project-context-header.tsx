@@ -11,16 +11,14 @@ type Props = {
   phaseLoading?: boolean;
   phaseError?: boolean;
   setupExpanded: boolean;
-  detailsOpen: boolean;
   detailsId: string;
   setupDisabled: boolean;
   onToggleSetup: () => void;
-  onToggleDetails: () => void;
 };
 
 export function ProjectContextHeader({
   projectName, status, setupComplete, timeline, activePhaseCount, phaseLoading, phaseError,
-  setupExpanded, detailsOpen, detailsId, setupDisabled, onToggleSetup, onToggleDetails,
+  setupExpanded, detailsId, setupDisabled, onToggleSetup,
 }: Props) {
   return <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
     <div className="min-w-0">
@@ -37,12 +35,8 @@ export function ProjectContextHeader({
       ) : <p className="mt-1 text-sm text-muted-foreground">Set the project context once. Your proposal scope starts here.</p>}
     </div>
     <div className="flex flex-wrap items-center gap-2">
-      {setupComplete && <Button type="button" variant="ghost" size="sm" onClick={onToggleDetails} aria-expanded={detailsOpen} aria-controls={detailsId}>
-        {detailsOpen ? "Hide project details" : "View project details"}
-        {detailsOpen ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
-      </Button>}
-      {setupComplete && <Button variant="outline" size="sm" onClick={onToggleSetup} disabled={setupDisabled} aria-expanded={setupExpanded}>
-        {setupExpanded ? "Close setup" : "Edit setup"}
+      {setupComplete && <Button type="button" variant="outline" size="sm" onClick={onToggleSetup} disabled={setupDisabled} aria-expanded={setupExpanded} aria-controls={detailsId}>
+        Project details
         {setupExpanded ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
       </Button>}
     </div>

@@ -143,7 +143,7 @@ New invitees join as Members. An Owner can change a person's role using the role
 ### Choose the project team — firm Owner or Project Admin
 
 1. Open the project in the correct workspace.
-2. In **Project setup**, click **Edit setup** if it is collapsed.
+2. Click **Project details** if it is collapsed, then expand **Team**.
 3. Under **Team**, enable **Access** for each coworker who should work on this project.
 4. Choose **Project Admin**, **Project Manager**, **Designer**, or more than one role for that person. Each role can have several people.
 5. Click **Save team**. Save or cancel other project drafts first; changing access refreshes the project screen.
@@ -212,7 +212,7 @@ Studio PM uses one project record throughout the relationship, even when the wor
 3. In **Identity & status**, enter a description, status, probability, square footage and potential fee as known, then **Save details**. Probability expresses confidence in winning the work; it is not proposal approval.
 4. Pick the **Team** and collaborating **Companies** directly on the page. These appear side by side on a wide screen and stack on a phone. Save each section. A company entry can link an existing company/contact or hold project-specific names and addresses; it does not create a new address-book record. Custom roles and several companies with the same role are supported.
 5. Under **Phases, fees & timeline**, add named stages of work, optional fee lines and optional timelines. You can add ad-hoc phases later. **5 weeks** and **8–10 weeks** are examples, not required dates; project and phase timelines do not calculate task due dates.
-6. Save any edits, then **Finish setup**. At least one Project Admin is required. You can leave companies, fees and timelines empty while information is unknown. Setup closes to a compact project header so **Work in motion** is easy to reach. **View project details** expands the fuller read-only overview: project details, team roles, companies, active phases, timelines and fixed fees. Hourly fees are identified separately, not added to the fixed-fee total. Longer lists show a few entries and how many more are available; **Edit setup** opens the editors inline again.
+6. Save any edits, then **Finish setup**. At least one Project Admin is required. You can leave companies, fees and timelines empty while information is unknown. The details close to a compact project header so **Work in motion** is easy to reach. Use **Project details** to reopen the same inline sections whenever you want to view or edit them. There is no separate view-only summary or edit mode.
 
 Search the Projects list by name and use the status filter to narrow results. Click a project card to open its full record. Incomplete setup remains expanded when you return. Completed setup stays compact. You can update the saved information without opening the old project-edit popup.
 
@@ -226,7 +226,7 @@ Search the Projects list by name and use the status filter to narrow results. Cl
 | Completed | Work you have finished. |
 | Lost | An opportunity that did not proceed. |
 
-Change the status in **Project setup → Identity & status**, then **Save details**.
+Change the status in **Project details → Identity & status**, then **Save details**.
 
 **Important:** Manually changing a project to Active Project is not the same as signing its proposal. Invoices still need a signed Standard proposal.
 
@@ -234,10 +234,10 @@ Change the status in **Project setup → Identity & status**, then **Save detail
 
 The project is one page, in this order:
 
-1. **Project context and setup:** completed setup stays compact with project
-   name/status, optional general timeline and active phase count. Use **View
-   project details** for the fuller read-only overview or **Edit setup** to
-   change the saved information. New or unfinished projects still open the
+1. **Project details:** completed setup stays compact with project
+   name/status, optional general timeline and active phase count. Use the single
+   **Project details** toggle to view or edit the saved information inline.
+   New or unfinished projects still open the
    guided setup: identity/status → team/companies → phases, fees and timelines.
 2. **Work in motion:** the main daily-work area, with a compact active-work
    summary and **Add update** above the running log of tasks, reminders, meetings
@@ -245,16 +245,17 @@ The project is one page, in this order:
 3. **Documents & billing:** supporting proposals, time/expenses and invoices.
    Sections start closed; open the relevant section and record in place when needed.
 
-**View project details** is only a reading disclosure. Showing or hiding it does
-not save, discard or change an open draft elsewhere on the page. **Edit setup**
-is separate; **Close setup** keeps the existing warning if setup has unsaved
-changes. Read-only project details remain available even while setup is open.
+**Project details** opens and closes the same inline sections; it does not save
+changes. Save or cancel edits inside each section. If you close project details
+with unsaved changes there, you are asked whether to discard them. Cancelling
+that warning leaves the sections and your draft open. Work in motion drafts
+are separate and are not discarded by this toggle.
 
 **Team and Companies start collapsed**, even while setup is open. Their headers
 show saved counts and a short names/roles summary. Click either header to expand
 just that section; use **Collapse** to close it again. Keyboard users can focus
 the header and press Enter or Space. If setup is already complete, use
-**Edit setup** first.
+**Project details** first.
 
 In an empty section, **Assign a teammate** or **Add a company** opens its editor.
 Within Companies, **Add company entry** is above the entries, so you do not need
@@ -454,7 +455,7 @@ Neither action sends email or processes payment. The detail view advances status
 
 ### Create phases once
 
-1. In **Project setup**, find **Phases, fees & timeline** and click **Add phase**. Choose **Edit setup** first if setup is collapsed.
+1. Open **Project details**, find **Phases, fees & timeline** and click **Add phase**.
 2. Choose **Phase name** from the dropdown, or select **Other / custom** and enter an ad-hoc name. Ad-hoc phases can be added at any point; you are not limited to the suggested list. The same choices are available when editing a phase.
 3. Optionally enter **Estimated timeline**, such as **5 weeks** or **8–10 weeks**. Leave it blank if unknown. This is an estimate, not a required start/end date or an automatic task schedule.
 4. Optionally add a fee line, choose **Consultant or service** from its dropdown (or **Other / custom** for your own name), choose Fixed or Hourly, and save. More fee rows can be added through the phase's Edit controls.
