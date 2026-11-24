@@ -321,6 +321,11 @@ function EntryRow({ entry, phase, editing, editDraft, setEditDraft, editError, e
   const [notesError, setNotesError] = useState("");
   const [notesLoading, setNotesLoading] = useState(false);
   const actionable = entry.entryType === "Task" || entry.entryType === "Reminder";
+  const discussionPreview = entry.discussionPreview;
+  const hasDiscussionPreview = entry.noteCount > 0
+    && !!discussionPreview
+    && typeof discussionPreview.authorName === "string"
+    && typeof discussionPreview.content === "string";
   const editDirty = !!editDraft && JSON.stringify(fieldPatch(editDraft)) !== JSON.stringify(fieldPatch(fromEntry(entry)));
   const getNotes = async () => {
     setNotesLoading(true); setNotesError("");
@@ -328,7 +333,7 @@ function EntryRow({ entry, phase, editing, editDraft, setEditDraft, editError, e
     finally { setNotesLoading(false); }
   };
   useEffect(() => {
-    if (notesOpen && notes === null && !notesLoading) void getNotes();
+    if (notesOpen) void getNotes();
   }, [notesOpen]);
   return <article className={`px-4 py-4 sm:px-5 ${entry.archived ? "bg-muted/20" : ""} ${entry.status === "Blocked" && !entry.archived ? "border-l-2 border-foreground/40" : ""}`}>
     <WorkEntryContent entry={entry} phase={phase} />
@@ -336,9 +341,27 @@ function EntryRow({ entry, phase, editing, editDraft, setEditDraft, editError, e
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
           {actionable && !entry.archived && <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" disabled={interactionDisabled} onClick={onToggleStatus}>{entry.status === "Done" ? "Reopen" : "Mark done"}</Button>}
           <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs" disabled={interactionDisabled} onClick={onEdit}>Edit</Button>
-          <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs" disabled={interactionDisabled} onClick={onDiscussion}><MessageSquare className="mr-1 h-3.5 w-3.5" />Discussion</Button>
+          <Button size="sm" variant="ghost" className={`h-7 px-2.5 text-xs ${entry.noteCount > 0 ? "bg-muted font-semibold" : "text-muted-foreground"}`} disabled={interactionDisabled} onClick={onDiscussion} aria-expanded={notesOpen} aria-controls={`entry-discussion-${entry.id}`}>
+            <MessageSquare aria-hidden="true" className={`mr-1 h-3.5 w-3.5 ${entry.noteCount > 0 ? "fill-foreground/20 text-foreground" : "text-muted-foreground"}`} />
+            Discussion{entry.noteCount > 0 ? ` (${entry.noteCount})` : ""}
+          </Button>
           <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs" disabled={interactionDisabled} onClick={onArchive}>{entry.archived ? <><RotateCcw className="mr-1 h-3.5 w-3.5" />Restore</> : <><Archive className="mr-1 h-3.5 w-3.5" />Archive</>}</Button>
       </div>
+      {!notesOpen && hasDiscussionPreview && discussionPreview && <Button
+        size="sm"
+        variant="ghost"
+        className="mt-1.5 flex h-8 w-full min-w-0 justify-start gap-2 overflow-hidden px-2 text-left text-xs text-muted-foreground"
+        disabled={interactionDisabled}
+        onClick={onDiscussion}
+        aria-label={`Latest comment by ${discussionPreview.authorName}: ${discussionPreview.content}`}
+        aria-expanded={notesOpen}
+        aria-controls={`entry-discussion-${entry.id}`}
+      >
+        <MessageSquare aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-foreground/75" />
+        <span className="max-w-[34%] shrink-0 truncate font-medium text-foreground/80 sm:max-w-[28%]">{discussionPreview.authorName}</span>
+        <span aria-hidden="true" className="shrink-0 text-muted-foreground/70">·</span>
+        <span className="min-w-0 flex-1 truncate">{discussionPreview.content}</span>
+      </Button>}
     </div>
     {editing && editDraft && <form className="ml-10 mt-4 space-y-3 rounded-md border bg-muted/20 p-3 sm:p-4" onSubmit={e => { e.preventDefault(); onSave(); }}>
       <fieldset disabled={editPending} className="contents">
@@ -353,7 +376,7 @@ function EntryRow({ entry, phase, editing, editDraft, setEditDraft, editError, e
       <div className="flex flex-wrap justify-end gap-2"><Button type="button" size="sm" variant="ghost" disabled={editPending} onClick={onCancelEdit}>Cancel</Button><Button size="sm" disabled={!editDirty || !entryHasContent(editDraft) || editPending}>{editPending ? "Saving…" : "Save changes"}</Button></div>
       </fieldset>
     </form>}
-    {notesOpen && <section className="ml-10 mt-4 space-y-3 border-l-2 border-primary/15 pl-3 sm:pl-4" aria-label="Entry discussion">
+    {notesOpen && <section id={`entry-discussion-${entry.id}`} className="ml-10 mt-4 space-y-3 border-l-2 border-primary/15 pl-3 sm:pl-4" aria-label="Entry discussion">
       <div className="flex items-center justify-between"><h4 className="text-xs font-semibold">Discussion</h4><Button size="sm" variant="ghost" className="h-7 text-xs" disabled={editPending} onClick={onCloseDiscussion}>Close</Button></div>
       {notesError && <p role="alert" className="text-xs text-destructive">{notesError} <Button size="sm" variant="outline" onClick={() => void getNotes()}>Retry</Button></p>}
       {notesLoading ? <><Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" /></> : notes?.length ? <div className="space-y-2">{notes.map(note => <article key={note.id} className="rounded-md bg-muted/45 p-3"><div className="flex flex-wrap justify-between gap-2 text-[11px]"><span className="font-medium">{note.authorName}</span><time>{new Date(note.createdAt).toLocaleString()}</time></div><p className="mt-1 whitespace-pre-wrap text-sm">{note.content}</p></article>)}</div> : !notesError && <p className="text-xs text-muted-foreground">No discussion yet.</p>}

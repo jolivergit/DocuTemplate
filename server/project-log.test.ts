@@ -196,6 +196,40 @@ test("typed log APIs preserve tasks and enforce validation, access, conflicts an
       assert.equal((await member("POST", `${base}/entries/${note.id}/notes`, { ...payload, content: "Changed" })).status, 409);
       assert.equal((await member("GET", base)).body.entries.length, countBefore);
     });
+    await t.test("discussion summaries include bounded latest replies, accurate counts and deterministic ordering", async () => {
+      const created = await member("POST", `${base}/entries`, {
+        requestId: randomUUID(), entry: { entryType: "Note", description: "Discussion summary fixture" },
+      });
+      const id = created.body.id;
+      const entryUrl = `${base}/entries/${id}`;
+      const feedEntry = async (entryId = id) => (await member("GET", base)).body.entries.find((row: any) => row.id === entryId);
+      assert.equal((await feedEntry()).noteCount, 0);
+      assert.equal((await feedEntry()).discussionPreview, null);
+      const longReply = "Full discussion stays available. ".repeat(50).trim();
+      const first = await member("POST", `${entryUrl}/notes`, { requestId: randomUUID(), content: longReply });
+      assert.equal(first.status, 201);
+      const preview = (await feedEntry()).discussionPreview;
+      assert.equal(preview.id, first.body[0].id);
+      assert.equal(preview.authorName, "Log member");
+      assert.equal(preview.content, longReply.slice(0, 240) + "…");
+      assert.equal((await member("GET", `${entryUrl}/notes`)).body[0].content, longReply);
+      const second = await owner("POST", `${entryUrl}/notes`, { requestId: randomUUID(), content: "Newest project update" });
+      assert.equal(second.status, 201);
+      const latest = second.body.at(-1);
+      assert.equal((await feedEntry()).noteCount, 2);
+      assert.deepEqual((await feedEntry()).discussionPreview, {
+        id: latest.id, authorName: "Log owner", content: "Newest project update",
+      });
+      const patched = await member("PATCH", entryUrl, { version: created.body.version, description: "Updated entry" });
+      assert.equal(patched.status, 200);
+      assert.equal(patched.body.noteCount, 2);
+      assert.equal(patched.body.discussionPreview.id, latest.id);
+      await db.update(projectTaskNotes).set({ createdAt: new Date("2026-11-23T12:00:00Z") }).where(eq(projectTaskNotes.taskId, id));
+      const ordered = (await member("GET", `${entryUrl}/notes`)).body;
+      assert.equal((await feedEntry()).discussionPreview.id, ordered.at(-1).id);
+      assert.equal((await feedEntry(reminder.id)).discussionPreview, null);
+      assert.equal((await feedEntry(oldTask.id)).discussionPreview.content, priorDiscussion.content);
+    });
     await t.test("phase and assignee eligibility, firm boundaries and revocation apply to every type", async () => {
       const otherPhase = (await owner("POST", `${otherBase}/phases`, { name: "Foreign phase" })).body;
       for (const extra of [{ phaseId: otherPhase.id }, { assigneeId: ids[3] }, { assigneeId: ids[2] }]) {

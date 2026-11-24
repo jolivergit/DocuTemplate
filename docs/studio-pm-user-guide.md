@@ -541,6 +541,11 @@ loss of project access still blocks the log.
 
 ### Discuss an entry and recover safely
 
+Entries with comments show **Discussion (count)** with a stronger grayscale icon
+and a one-line preview of the latest comment and its author. Click the preview
+or **Discussion** to expand the full thread inline. Entries without comments
+show no count or preview; these indicators do not mean a comment is unread.
+
 Open **Discussion** on the relevant entry and add your update there. Discussion
 is dated and attributed, not copied into another top-level log entry. It is
 internal recordkeeping, not a message sent to a client. Saved discussion is

@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql, type SQLWrapper } from "drizzle-orm";
 import { createHash, randomUUID } from "node:crypto";
 import { db } from "../db";
 import { context, projectPredicate, AccessError } from "../workspace-context";
@@ -6,10 +6,24 @@ import {
   leads, users, workspaceMembers, projectAssignments, projectPhases, projectPhaseFees,
   projectTasks, projectTaskNotes, projectWorkSetup, proposals, proposalPhases, proposalFeeLines,
 } from "@shared/schema";
-import { phaseInput, phasePatch, taskInput, taskPatch, entryInput, entryCreate, entryPatch, type EntryInput, type WorkEntry, type ProjectWork, type WorkPhase } from "@shared/project-work";
+import { phaseInput, phasePatch, taskInput, taskPatch, entryInput, entryCreate, entryPatch, type EntryInput, type WorkEntry, type ProjectWork, type WorkPhase, type DiscussionPreview } from "@shared/project-work";
 import { accessProject } from "../project-team";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+function latestDiscussionPreview(taskId: string | SQLWrapper) {
+  return sql<DiscussionPreview | null>`(
+    select json_build_object(
+      'id', ${projectTaskNotes.id},
+      'authorName', ${projectTaskNotes.authorName},
+      'content', case when length(${projectTaskNotes.content}) > 240
+        then left(${projectTaskNotes.content}, 240) || '…'
+        else ${projectTaskNotes.content} end
+    ) from ${projectTaskNotes}
+    where ${projectTaskNotes.taskId} = ${taskId}
+    order by ${projectTaskNotes.createdAt} desc, ${projectTaskNotes.id} desc
+    limit 1
+  )`;
+}
 export async function lockProject(tx: Tx, leadId: number) {
   // Same lock order as team/offboarding writes; never trust an older request's role.
   return (await accessProject(tx, leadId)).lead;
@@ -57,11 +71,12 @@ export async function getProjectWork(leadId: number) {
       task: projectTasks,
       assigneeName: users.name,
       noteCount: sql<number>`(select count(*)::int from ${projectTaskNotes} where ${projectTaskNotes.taskId}=${projectTasks.id})`,
+      discussionPreview: latestDiscussionPreview(projectTasks.id),
     }).from(projectTasks).leftJoin(users, eq(users.id, projectTasks.assigneeId))
       .where(eq(projectTasks.leadId, leadId)).orderBy(projectTasks.createdAt, projectTasks.id);
     const setup = await tx.select().from(projectWorkSetup).where(eq(projectWorkSetup.leadId, leadId));
     const sources = setup.length ? [] : await legacySources(tx, leadId);
-    const entries = tasks.map(({ task, assigneeName, noteCount }) => entryView(task, assigneeName, assignees, noteCount));
+    const entries = tasks.map(({ task, assigneeName, noteCount, discussionPreview }) => entryView(task, assigneeName, assignees, noteCount, discussionPreview));
     return {
       phases, assignees, needsReconciliation: sources.length > 0, legacySources: sources,
       entries: entries.slice().reverse(),
@@ -151,18 +166,18 @@ function entryFields(row: typeof projectTasks.$inferSelect): EntryInput {
     status: row.status, dueDate: row.dueDate, meetingDate: row.meetingDate, meetingTime: row.meetingTime,
   } as EntryInput;
 }
-function entryView(row: typeof projectTasks.$inferSelect, assigneeName: string | null, assignees: { userId: string }[], noteCount: number): WorkEntry {
+function entryView(row: typeof projectTasks.$inferSelect, assigneeName: string | null, assignees: { userId: string }[], noteCount: number, discussionPreview: DiscussionPreview | null): WorkEntry {
   const { leadId: _lead, creationFingerprint: _fingerprint, ...entry } = row;
   return {
-    ...entry, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), assigneeName, noteCount,
+    ...entry, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), assigneeName, noteCount, discussionPreview,
     assigneeEligible: !row.assigneeId || assignees.some(person => person.userId === row.assigneeId),
   } as WorkEntry;
 }
 async function savedEntryView(tx: Tx, row: typeof projectTasks.$inferSelect) {
   const assignees = await eligibleAssignees(tx, row.leadId);
   const [person] = row.assigneeId ? await tx.select({ name: users.name }).from(users).where(eq(users.id, row.assigneeId)) : [];
-  const [notes] = await tx.select({ count: sql<number>`count(*)::int` }).from(projectTaskNotes).where(eq(projectTaskNotes.taskId, row.id));
-  return entryView(row, person?.name ?? null, assignees, notes.count);
+  const [notes] = await tx.select({ count: sql<number>`count(*)::int`, discussionPreview: latestDiscussionPreview(row.id) }).from(projectTaskNotes).where(eq(projectTaskNotes.taskId, row.id));
+  return entryView(row, person?.name ?? null, assignees, notes.count, notes.discussionPreview);
 }
 export async function saveEntry(leadId: number, id: string | undefined, input: unknown, taskOnly = false) {
   const creation = id ? undefined : entryCreate.parse(input);

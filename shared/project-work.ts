@@ -49,6 +49,7 @@ export interface WorkTask extends TaskInput {
 export interface TaskNote {
   id: string; content: string; authorName: string; createdAt: string;
 }
+export type DiscussionPreview = Pick<TaskNote, "id" | "content" | "authorName">;
 export interface ProjectWork {
   phases: WorkPhase[]; tasks: WorkTask[];
   entries: WorkEntry[];
@@ -119,6 +120,7 @@ export type WorkEntry = EntryInput & {
   authorId: string | null; authorName: string | null;
   creationRequestId: string | null;
   assigneeName: string | null; assigneeEligible: boolean; noteCount: number;
+  discussionPreview?: DiscussionPreview | null;
 };
 export function isActionable(entry: Pick<WorkEntry, "entryType">) {
   return entry.entryType === "Task" || entry.entryType === "Reminder";

@@ -1,4 +1,4 @@
-import { CalendarDays, Check, Clock3, FileText, MessageSquare, Users } from "lucide-react";
+import { CalendarDays, Check, Clock3, FileText, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { isEntryOverdue, type WorkEntry } from "@shared/project-work";
 
@@ -40,7 +40,6 @@ export function WorkEntryContent({ entry, phase }: { entry: WorkEntry; phase: st
         {entry.assigneeId && !entry.assigneeName && <span className="font-medium">Teammate needs reassignment</span>}
         {entry.entryType === "Meeting" && (entry.meetingDate || entry.meetingTime) && <span className="inline-flex items-center gap-1"><CalendarDays className="h-3 w-3" />{entry.meetingDate ? dateLabel(entry.meetingDate) : ""}{entry.meetingDate && entry.meetingTime ? " · " : ""}{entry.meetingTime || ""}</span>}
         {actionable && <span className={overdue ? "font-semibold text-destructive" : ""}>{entry.dueDate ? `${overdue ? "Overdue · " : "Due "}${dateLabel(entry.dueDate)}` : "No due date"}</span>}
-        {entry.noteCount > 0 && <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{entry.noteCount} {entry.noteCount === 1 ? "reply" : "replies"}</span>}
       </div>
     </div>
   </div>;
