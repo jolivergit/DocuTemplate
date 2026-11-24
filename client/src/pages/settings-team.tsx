@@ -72,7 +72,7 @@ export default function TeamSettingsPage() {
       <div className="mx-auto max-w-3xl space-y-6 px-5 py-6">
         <div className="flex items-center gap-3 border-b pb-4">
           <div className="grid h-10 w-10 place-items-center rounded-md border"><Building2 className="h-5 w-5" /></div>
-          <div><h1 className="text-lg font-semibold">Workspace team</h1><p className="text-xs text-muted-foreground">Manage the studio workspace and project access.</p></div>
+          <h1 className="text-lg font-semibold">Workspace team</h1>
         </div>
         <section className="rounded-md border bg-card p-4">
           <h2 className="mb-3 text-xs font-semibold tracking-wide">WORKSPACE NAME</h2>

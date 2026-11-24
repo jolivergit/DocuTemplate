@@ -126,7 +126,6 @@ export default function FirmProfilePage() {
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
         <div>
           <h1 className="text-2xl font-semibold" data-testid="text-firm-title">Firm</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Studio name, phone, email, and address — used in proposals and documents.</p>
           {!canEditFirm && <p className="mt-2 text-xs text-muted-foreground">Only workspace owners can change shared firm details.</p>}
         </div>
 

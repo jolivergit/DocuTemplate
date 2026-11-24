@@ -104,7 +104,6 @@ export default function ContactProfilePage() {
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
         <div>
           <h1 className="text-2xl font-semibold" data-testid="text-contact-title">Contact</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Primary contact person — appears on proposals and documents.</p>
         </div>
 
         <Form {...form}>

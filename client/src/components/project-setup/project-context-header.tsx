@@ -32,7 +32,7 @@ export function ProjectContextHeader({
           <span aria-hidden="true">·</span>
           <span>{phaseError ? "Phase scope unavailable" : phaseLoading ? "Loading phase scope…" : `${activePhaseCount ?? 0} active ${(activePhaseCount ?? 0) === 1 ? "phase" : "phases"}`}</span>
         </p>
-      ) : <p className="mt-1 text-sm text-muted-foreground">Set the project context once. Your proposal scope starts here.</p>}
+      ) : null}
     </div>
     <div className="flex flex-wrap items-center gap-2">
       {setupComplete && <Button type="button" variant="outline" size="sm" onClick={onToggleSetup} disabled={setupDisabled} aria-expanded={setupExpanded} aria-controls={detailsId}>

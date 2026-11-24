@@ -84,28 +84,26 @@ export default function ProjectDetailPage({ params }: Props) {
 
         <section id="project-supporting-records" className="scroll-mt-5 overflow-hidden rounded-xl border bg-card">
           <div className="border-b bg-muted/20 px-4 py-4 sm:px-6">
-            <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-primary">Supporting records</p>
-            <h2 className="mt-1 text-lg font-semibold">Documents & billing</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Proposals, consultant documents, project entries, and invoices stay out of the way until needed.</p>
+            <h2 className="text-lg font-semibold">Documents & billing</h2>
           </div>
           <fieldset disabled={teamSaving} aria-busy={teamSaving} className="m-0 min-w-0 border-0 p-0">
             <details id="project-proposals" className="group border-b scroll-mt-5">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 marker:hidden sm:px-6">
-                <span><span className="block text-sm font-semibold">Proposals & contracts</span><span className="mt-1 block text-xs text-muted-foreground">Standard scope, Additional Services, signing, consultant contracts, and Doc Builder.</span></span>
+                <span className="text-sm font-semibold">Proposals & contracts</span>
                 <span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-muted-foreground group-open:inline">Close</span>
               </summary>
               <div className="px-4 pb-5 sm:px-6"><ProposalsTab leadId={leadId} projectName={lead.projectName} onDirtyChange={setProposalDirty} guardedDirty={guardedDirty} /></div>
             </details>
             {(isProject || timeDirty) && <details id="project-time-expenses" className="group border-b scroll-mt-5">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 marker:hidden sm:px-6">
-                <span><span className="block text-sm font-semibold">Time & expenses</span><span className="mt-1 block text-xs text-muted-foreground">{isProject ? "Unattached entries remain available to include once on an invoice." : "Stage changed · draft is preserved; restore Active Project or Completed to save."}</span></span>
+                <span><span className="block text-sm font-semibold">Time & expenses</span>{!isProject && <span className="mt-1 block text-xs text-muted-foreground">Stage changed · draft is preserved; restore Active Project or Completed to save.</span>}</span>
                 <span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-muted-foreground group-open:inline">Close</span>
               </summary>
               <div className="px-4 pb-5 sm:px-6"><TimeExpensesTab leadId={leadId} onDirtyChange={setTimeDirty} guardedDirty={guardedDirty} billingAllowed={isProject} /></div>
             </details>}
             {(isProject || invoiceDirty) && <details id="project-invoices" className="group scroll-mt-5">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 marker:hidden sm:px-6">
-                <span><span className="block text-sm font-semibold">Invoices</span><span className="mt-1 block text-xs text-muted-foreground">{isProject ? "Create from a signed proposal; review billing snapshots and document links." : "Stage changed · existing billing draft is preserved until Active Project or Completed is restored."}</span></span>
+                <span><span className="block text-sm font-semibold">Invoices</span>{!isProject && <span className="mt-1 block text-xs text-muted-foreground">Stage changed · existing billing draft is preserved until Active Project or Completed is restored.</span>}</span>
                 <span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-muted-foreground group-open:inline">Close</span>
               </summary>
               <div className="px-4 pb-5 sm:px-6"><InvoicesTab leadId={leadId} lead={lead} onDirtyChange={setInvoiceDirty} guardedDirty={guardedDirty} billingAllowed={isProject} /></div>

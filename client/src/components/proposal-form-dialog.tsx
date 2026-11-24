@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Clock3, FileText } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -100,7 +100,7 @@ export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSav
   };
 
   const content = <>
-    {inline ? <div className="mb-4"><h2 className="text-base font-semibold">{isEdit ? "Edit proposal" : "New standard proposal"}</h2><p className="mt-1 text-sm text-muted-foreground">Choose project phases. Recorded proposal amounts remain a financial snapshot.</p></div> : <DialogHeader><DialogTitle>{isEdit ? "Edit proposal" : "New standard proposal"}</DialogTitle><DialogDescription>Choose shared project phases. Project fee inputs are maintained once; this proposal retains its own recorded financial snapshot.</DialogDescription></DialogHeader>}
+    {inline ? <div className="mb-4"><h2 className="text-base font-semibold">{isEdit ? "Edit proposal" : "New standard proposal"}</h2></div> : <DialogHeader><DialogTitle>{isEdit ? "Edit proposal" : "New standard proposal"}</DialogTitle></DialogHeader>}
     <div className="flex-1 space-y-6 overflow-y-auto pr-1">
         {hasUnmappedScope && !isIssued && <div className="rounded-md border border-amber-500/40 p-3 text-sm">
           <p className="font-medium">Legacy proposal scope is retained</p>
@@ -116,7 +116,7 @@ export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSav
           <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="proposal-description">Description</Label><Textarea id="proposal-description" value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Proposal-specific scope context" /></div>
           <div className="space-y-1.5"><Label>Status</Label><Select value={status} onValueChange={setStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PROPOSAL_STATUSES.map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></div>
         </div>
-        <section className="border-t pt-5"><div className="mb-3 flex items-start justify-between gap-3"><div><h3 className="font-semibold">Project scope</h3><p className="mt-1 text-sm text-muted-foreground">Choose shared phases; recorded proposal amounts remain a snapshot, with no manual duplicate entry.</p></div><span className="text-xs text-muted-foreground">{selectedPhaseIds.length} selected</span></div>
+        <section className="border-t pt-5"><div className="mb-3 flex items-start justify-between gap-3"><h3 className="font-semibold">Project scope</h3><span className="text-xs text-muted-foreground">{selectedPhaseIds.length} selected</span></div>
           {workLoading ? <div className="space-y-2"><div className="h-14 animate-pulse rounded-md bg-muted" /><div className="h-14 animate-pulse rounded-md bg-muted" /></div> : workError ? <div role="alert" className="rounded-md border border-destructive/30 p-4 text-sm">Project phases could not load. <Button size="sm" variant="outline" onClick={() => void refetch()}>Retry</Button></div> : sortedPhases.length ? <div className="divide-y rounded-md border">{sortedPhases.map(phase => {
             const selected = selectedPhaseIds.includes(phase.id);
             return <label key={phase.id} className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 px-3 py-3 ${phase.archived ? "bg-muted/30" : ""}`}><Checkbox checked={selected} disabled={isIssued || !!work?.needsReconciliation || phase.archived && !selected} onCheckedChange={value => toggle(phase.id, value)} aria-label={`Include ${phase.name}`} /><span className="min-w-0"><span className="flex flex-wrap items-center gap-2 text-sm font-medium">{phase.name}{phase.archived && <span className="text-[10px] font-normal uppercase text-muted-foreground">Archived · existing selection</span>}</span><span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">{phase.timeline && <span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{phase.timeline}</span>}<span>{phase.feeLines.length ? `${phase.feeLines.length} consultant fee line${phase.feeLines.length === 1 ? "" : "s"}` : "No fee lines"}</span></span>{selected && phase.feeLines.length > 0 && <span className="mt-2 block space-y-1 border-l-2 border-primary/20 pl-2">{phase.feeLines.map(line => <span key={line.id} className="flex justify-between gap-4 text-xs text-muted-foreground"><span>{line.consultant} · {line.feeType}{line.feeType === "Hourly" && line.amount ? " · reference amount" : ""}</span><span>{line.amount ? formatCurrencyOrDash(line.amount) : line.feeType === "Hourly" ? "Hourly" : "Unpriced"}</span></span>)}</span>}</span><span className="text-right text-xs font-medium tabular-nums">{phaseTotal(phase) > 0 ? formatCurrencyOrDash(phaseTotal(phase).toFixed(2)) : "—"}</span></label>;
@@ -128,7 +128,7 @@ export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSav
   </>;
   if (inline && !open) return null;
   return inline ? <section className="rounded-lg border bg-card p-4 sm:p-6" data-testid="inline-proposal-form">{content}</section> : <Dialog open={open} onOpenChange={close}>
-    <DialogContent className="flex max-h-[90dvh] max-w-2xl flex-col">
+    <DialogContent aria-describedby={undefined} className="flex max-h-[90dvh] max-w-2xl flex-col">
       {content}
     </DialogContent>
   </Dialog>;

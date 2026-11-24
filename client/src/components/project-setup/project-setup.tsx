@@ -277,12 +277,11 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
             <PhaseTimelineEditor leadId={id} generalTimeline={lead.generalTimeline ?? ""} version={lead.setupVersion} phases={work?.phases ?? []} work={work} workLoading={workLoading} workError={workError} disabled={teamSaving} onRetryWork={() => void refetchWork()} onDirtyChange={dirty => setSectionDirty(current => current.phases === dirty ? current : { ...current, phases: dirty })} />
           </section>
 
-          <div className="flex flex-col gap-3 bg-muted/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <p className="max-w-xl text-xs leading-relaxed text-muted-foreground">Project details stay editable. Project scope and fee details are shared with proposal preparation.</p>
-              {!lead.setupComplete && team?.canManage && <Button size="sm" onClick={() => completeSetup.mutate()} disabled={!canComplete || hasUnsaved || setupMutationPending}>
+          {!lead.setupComplete && team?.canManage && <div className="flex justify-end px-4 py-3 sm:px-6">
+              <Button size="sm" onClick={() => completeSetup.mutate()} disabled={!canComplete || hasUnsaved || setupMutationPending}>
                 {completeSetup.isPending ? "Finishing…" : <>Finish setup <ArrowRight className="ml-2 h-4 w-4" /></>}
-              </Button>}
-          </div>
+              </Button>
+          </div>}
         </div>
         </fieldset>
       )}

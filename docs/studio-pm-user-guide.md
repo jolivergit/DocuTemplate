@@ -461,6 +461,16 @@ Neither action sends email or processes payment. The detail view advances status
 4. Optionally add a fee line, choose **Consultant or service** from its dropdown (or **Other / custom** for your own name), choose Fixed or Hourly, and save. More fee rows can be added through the phase's Edit controls.
 5. Use phase controls to edit, reorder, archive, or restore phases. Archiving preserves existing task references; archived phases cannot be assigned to new tasks.
 
+**General timeline** is a compact field above the phase list. **Save timeline**
+and **Cancel** appear when you change it. Timelines remain optional text estimates,
+not automatically calculated calendar dates.
+
+Saved phases use compact rows. Select a phase's **fee lines** disclosure to see
+its consultant/service breakdown. Fixed-fee totals exclude Hourly reference
+amounts and appear only when all of that phase's Fixed lines are priced.
+An unpriced line remains marked **Unpriced**. Use **Edit** for the phase's full
+name, timeline and fee controls.
+
 The same project phases and fees are reused when preparing proposals. Changing their timeline does not change task due dates. An Hourly line is not a guaranteed fixed fee; hours and rates are entered when billing.
 
 ### Choose the right kind of entry

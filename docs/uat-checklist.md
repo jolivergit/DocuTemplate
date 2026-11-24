@@ -8,6 +8,13 @@ Use this alongside the Studio PM User Guide. UAT means user acceptance testing: 
 
 ### Development verification — November 23, 2026
 
+- Compact timeline/phase presentation and removal of generic helper copy passed
+  TypeScript, the production build and 31 existing setup/log/project-page checks.
+  Actual component rendering verified complete versus unpriced Fixed totals,
+  separate Hourly references, fee disclosures, archive/restore and disabled,
+  error and empty states. Fictional phase rows were inspected on dark desktop
+  and light phone layouts; no customer records were edited. These checks are
+  separate from the manual save/edit/disclosure scenarios below.
 - The unified Project details toggle passed TypeScript and the 10 project-page
   checks. Focused component-handler checks used mocked state/query hooks to
   exercise expansion/collapse, cancelling and confirming detail-draft discard,
@@ -201,6 +208,7 @@ Project roles do not replace the firm's Owner/Member roles.
 | S12 | In an approved practice environment, delay/fail a company save, collapse its section and then reopen it. Check a project with no assigned admin and a separate empty Companies section. | Saving/Needs attention is discoverable while closed, failed input remains available, and Open to review reaches recovery controls. Missing-admin warning remains visible. Add a company opens the empty editor; Add company entry sits above the entries. | Not run |
 | S13 | Expand individual saved company entries, add a new entry, and choose standard/custom Project roles from the dropdown. Collapse/reopen a draft, remove an earlier entry, then save/reload. | Saved cards start closed, new cards open automatically, and each toggles independently without losing input. Removing a neighbor does not transfer card state. Standard and existing/custom roles persist with company/contact/address fields; no new company-role restriction is imposed. | Not run |
 | S14 | On a configured project, toggle Project details closed/open with mouse and keyboard. Edit a field and try closing; cancel the discard warning, then save or deliberately discard. Repeat on a phone. | One Project details button controls the inline sections, with no separate view/edit mode. Its expanded state matches the visible sections. Opening/closing saved details writes nothing. Cancelling the discard warning retains input; confirming discards only those detail edits. Closed details leave compact context above Work in motion. | Not run |
+| S15 | At desktop and phone widths, change/cancel/save General timeline; inspect phases with long names, no fees, unpriced Fixed fees, mixed Fixed/Hourly fees and an archived phase. Expand fee lines with mouse/keyboard, then edit/reorder/archive/restore a practice phase. | Timeline is one compact field, with Save timeline/Cancel only when changed. Phase rows stay compact with reachable controls and readable text. Fee disclosures show all lines, exclude Hourly references from Fixed totals and never label a partial Fixed sum as the total. Existing save/conflict/discard protections remain; no decorative helper copy is needed. | Not run |
 
 The running log and tab-free project layout are available. Documents & billing
 contains expandable supporting records below daily work; it is not another set

@@ -113,7 +113,7 @@ export function CompaniesEditor({ leadId, entries, options, version, disabled = 
       setDraft(current => [...current, blank(clientKey)]);
       setExpandedKeys(current => new Set(current).add(clientKey));
     }}><Plus className="mr-1.5 h-4 w-4" />Add company entry</Button>
-    {draft.length === 0 ? <div className="rounded-lg border border-dashed px-4 py-6 text-center"><p className="text-sm font-medium">No companies attached yet</p><p className="mt-1 text-xs text-muted-foreground">Add a client, consultant, vendor, or any other project participant.</p></div> :
+    {draft.length === 0 ? <div className="rounded-lg border border-dashed px-4 py-4 text-center"><p className="text-sm font-medium">No companies attached yet</p></div> :
       <div className="space-y-2">{draft.map(entry => {
         const key = entry.clientKey;
         const linkedContact = options.contacts.find(contact => contact.id === entry.contactId);

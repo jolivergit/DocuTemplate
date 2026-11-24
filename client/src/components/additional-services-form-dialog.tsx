@@ -149,7 +149,7 @@ export function AdditionalServicesFormDialog({ open, onOpenChange, leadId, exist
   const canSave = name.trim().length > 0;
 
   const content = <>
-        {inline ? <div className="mb-4"><h2 className="text-base font-semibold">{isEdit ? "Edit Additional Services proposal" : "New Additional Services proposal"}</h2><p className="mt-1 text-sm text-muted-foreground">Keep additional scope and amounts in this proposal snapshot.</p></div> : <DialogHeader><DialogTitle>{isEdit ? "Edit Additional Services Proposal" : "New Additional Services Proposal"}</DialogTitle></DialogHeader>}
+        {inline ? <div className="mb-4"><h2 className="text-base font-semibold">{isEdit ? "Edit Additional Services proposal" : "New Additional Services proposal"}</h2></div> : <DialogHeader><DialogTitle>{isEdit ? "Edit Additional Services Proposal" : "New Additional Services Proposal"}</DialogTitle></DialogHeader>}
         <div className="flex-1 overflow-y-auto space-y-5 pr-1">
           {/* Basic info */}
           <div className="space-y-4">
@@ -196,7 +196,6 @@ export function AdditionalServicesFormDialog({ open, onOpenChange, leadId, exist
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-sm font-semibold">Line Items</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Each scope item with its associated fee.</p>
               </div>
               <div className="flex items-center gap-3">
                 {grandTotal > 0 && (

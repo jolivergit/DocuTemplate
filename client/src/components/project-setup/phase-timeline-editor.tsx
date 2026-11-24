@@ -120,7 +120,11 @@ export function PhaseTimelineEditor({
   const isPhaseMutationPending = phaseCreate.isPending || phasePatch.isPending || reorder.isPending || reconcile.isPending;
   const locked = disabled || reloading || saveTimeline.isPending || isPhaseMutationPending;
   const hasConflict = statusIsConflict(saveTimeline.error) || statusIsConflict(phasePatch.error) || statusIsConflict(reorder.error);
-  const feeTotal = (phase: WorkPhase) => phase.feeLines.reduce((sum, row) => sum + (row.feeType === "Fixed" ? Number(row.amount) || 0 : 0), 0);
+  const fixedFeeTotal = (phase: WorkPhase) => {
+    const fixedLines = phase.feeLines.filter(row => row.feeType === "Fixed");
+    if (!fixedLines.length || fixedLines.some(row => row.amount == null || row.amount === "")) return null;
+    return fixedLines.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  };
   const addFee = (value: NewPhaseDraft, setter: (draft: NewPhaseDraft) => void) =>
     setter({ ...value, feeLines: [...value.feeLines, { consultant: "", feeType: "Fixed", amount: null }] });
 
@@ -168,30 +172,27 @@ export function PhaseTimelineEditor({
   };
 
   return <section aria-labelledby={`phase-heading-${leadId}`}>
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><p className="text-[10px] font-semibold uppercase tracking-[.2em] text-primary">Scope</p><h2 id={`phase-heading-${leadId}`} className="mt-1 text-lg font-semibold">Phases, fees & timeline</h2><p className="mt-1 text-sm text-muted-foreground">Keep this scope in one place for project work and proposals.</p></div>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h2 id={`phase-heading-${leadId}`} className="text-base font-semibold">Phases, fees & timeline</h2>
       <Button variant="outline" size="sm" onClick={() => setAdding(true)} disabled={locked || adding || hasPhaseDraft || isPhaseMutationPending || workLoading || workError}><Plus className="mr-1.5 h-4 w-4" />Add phase</Button>
     </div>
     {workLoading && <div className="mt-4 space-y-2" aria-label="Loading phases"><Skeleton className="h-16 w-full rounded-lg" /><Skeleton className="h-16 w-full rounded-lg" /></div>}
     {workError && <div role="alert" className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4"><p className="text-sm font-medium">Project phases could not load.</p><p className="mt-1 text-xs text-muted-foreground">Your existing scope is still saved. Retry before making phase changes.</p><Button className="mt-3" size="sm" variant="outline" disabled={locked} onClick={onRetryWork}>Retry</Button></div>}
     {work?.needsReconciliation && <section className="mt-4 rounded-lg border border-amber-500/40 bg-amber-50/60 p-4 dark:bg-amber-950/20"><div className="flex gap-3"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><div className="min-w-0 flex-1"><h3 className="font-semibold">Choose the existing proposal scope</h3><p className="mt-1 text-sm text-muted-foreground">Older proposals contain different phase and fee inputs. Select one source to establish the shared project structure, or intentionally start empty.</p><div className="mt-4 grid gap-3 md:grid-cols-2">{work.legacySources.map(source => <button key={source.id} type="button" disabled={locked || reconcile.isPending} onClick={() => setReconcileChoice(source.id)} className={`rounded-md border bg-background p-3 text-left disabled:cursor-not-allowed disabled:opacity-60 ${reconcileChoice === source.id ? "border-primary ring-1 ring-primary" : ""}`}><span className="flex items-center justify-between gap-3 font-medium">{source.name}<span className="text-xs text-muted-foreground">{source.status}</span></span><div className="mt-2 space-y-1">{source.phases.map((phase, index) => <div key={`${phase.name}-${index}`} className="flex justify-between gap-3 text-xs text-muted-foreground"><span>{phase.name}</span><span>{formatCurrencyOrDash(phase.total)}</span></div>)}</div></button>)}</div><div className="mt-3 flex flex-wrap gap-2"><Button size="sm" disabled={locked || !reconcileChoice || reconcile.isPending} onClick={() => reconcile.mutate(reconcileChoice)}>{reconcile.isPending ? "Applying…" : "Use selected source"}</Button><Button size="sm" variant="outline" disabled={locked || reconcile.isPending} onClick={() => reconcile.mutate(null)}>Start with an empty project</Button></div></div></div></section>}
-    <div className="mt-4 rounded-lg border bg-background p-3 sm:p-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="min-w-[220px] flex-1 space-y-1.5 text-xs font-medium">General project timeline <Input disabled={locked || saveTimeline.isPending} maxLength={500} value={timeline} onChange={event => setTimeline(event.target.value)} placeholder="For example, 5 weeks or 8–10 weeks" /></label>
-        <span className="pb-2 text-[11px] text-muted-foreground">{timeline.length}/500</span>
-        {timelineDirty && <div className="flex gap-2 pb-0.5"><Button variant="ghost" size="sm" disabled={locked || saveTimeline.isPending} onClick={cancelTimeline}>Cancel</Button><Button size="sm" disabled={locked || saveTimeline.isPending} onClick={() => saveTimeline.mutate({ version: timelineBase.version, value: timeline })}>{saveTimeline.isPending ? "Saving…" : "Save timeline"}</Button></div>}
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+        <label htmlFor={`general-timeline-${leadId}`} className="shrink-0 text-xs font-medium">General timeline</label>
+        <Input id={`general-timeline-${leadId}`} className="h-8 min-w-[180px] flex-1" disabled={locked || saveTimeline.isPending} maxLength={500} value={timeline} onChange={event => setTimeline(event.target.value)} placeholder="Optional" />
+         {timelineDirty && <div className="flex gap-1"><Button variant="ghost" size="sm" disabled={locked || saveTimeline.isPending} onClick={cancelTimeline}>Cancel</Button><Button size="sm" disabled={locked || saveTimeline.isPending} onClick={() => saveTimeline.mutate({ version: timelineBase.version, value: timeline })}>{saveTimeline.isPending ? "Saving…" : "Save timeline"}</Button></div>}
       </div>
-      <p className="mt-2 text-[11px] text-muted-foreground">Use a plain-language estimate. No dates are assumed.</p>
-    </div>
     {notice && <p role="alert" className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">{notice}</p>}
     {hasConflict && <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-50/50 p-3 text-xs dark:bg-amber-950/20"><span className="mr-auto">The project scope changed elsewhere. Your draft is preserved.</span><Button size="sm" variant="outline" disabled={locked || isPhaseMutationPending || saveTimeline.isPending} onClick={() => void reloadLatest()}>{reloading ? "Loading…" : "Reload latest"}</Button><Button size="sm" variant="ghost" disabled={locked || isPhaseMutationPending || saveTimeline.isPending} onClick={() => void reloadLatest()}>Discard draft & reload</Button></div>}
     {reloadError && <p role="alert" className="mt-2 text-xs text-destructive">{reloadError}</p>}
-    {adding && <div className="mt-3 rounded-lg border border-primary/25 bg-primary/[.025] p-3 sm:p-4">
+    {adding && <div className="mt-2 rounded-md border bg-background p-3">
       <h3 className="text-sm font-semibold">New phase</h3>
       <fieldset disabled={locked || phaseCreate.isPending} className="m-0 min-w-0 border-0 p-0">
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className="space-y-1 text-xs font-medium"><span>Phase name</span><ScopeChoice autoFocus label="Phase name" options={PHASE_TYPES} value={newPhase.name} onChange={name => setNewPhase({ ...newPhase, name })} placeholder="Select a phase" /></div>
-          <label className="space-y-1 text-xs font-medium">Estimated timeline<Input maxLength={200} value={newPhase.timeline} onChange={event => setNewPhase({ ...newPhase, timeline: event.target.value })} placeholder="5 weeks or 8–10 weeks" /></label>
+          <label className="grid min-w-0 gap-1.5 text-xs font-medium">Estimated timeline<Input maxLength={200} value={newPhase.timeline} onChange={event => setNewPhase({ ...newPhase, timeline: event.target.value })} placeholder="5 weeks or 8–10 weeks" /></label>
           <div className="sm:col-span-2">
             <div className="mb-2 flex items-center justify-between"><span className="text-xs font-medium">Fee lines <span className="font-normal text-muted-foreground">optional</span></span><Button variant="outline" size="sm" disabled={locked || phaseCreate.isPending} onClick={() => addFee(newPhase, setNewPhase)}><Plus className="mr-1 h-3.5 w-3.5" />Fee line</Button></div>
             <FeeRows lines={newPhase.feeLines} onChange={feeLines => setNewPhase({ ...newPhase, feeLines })} disabled={locked || phaseCreate.isPending} />
@@ -200,25 +201,31 @@ export function PhaseTimelineEditor({
       </fieldset>
       <div className="mt-4 flex justify-end gap-2"><Button variant="ghost" size="sm" disabled={locked || phaseCreate.isPending} onClick={() => { if ((newPhase.name || newPhase.timeline || newPhase.feeLines.length) && !window.confirm("Discard this phase draft?")) return; setNewPhase(blankPhase); setAdding(false); }}>Cancel</Button><Button size="sm" disabled={locked || !newPhase.name.trim() || newPhase.feeLines.some(line => !line.consultant.trim()) || phaseCreate.isPending} onClick={() => phaseCreate.mutate(newPhase)}>{phaseCreate.isPending ? "Saving…" : "Create phase"}</Button></div>
     </div>}
-    {!workLoading && !workError && sorted.length === 0 && !adding ? <div className="mt-3 rounded-lg border border-dashed px-4 py-7 text-center"><p className="text-sm font-medium">No phases defined</p><p className="mt-1 text-xs text-muted-foreground">Start with a clear stage of work. You can add fees and a flexible timeline whenever they are known.</p></div> :
-      <div className="mt-3 space-y-2">{sorted.map((phase, index) => {
+    {!workLoading && !workError && sorted.length === 0 && !adding ? <div className="mt-2 rounded-md border border-dashed px-3 py-4 text-sm text-muted-foreground">No phases</div> :
+      <div className="mt-2 space-y-1">{sorted.map((phase, index) => {
         const draft = editing[phase.id];
-        return <article key={phase.id} className={`rounded-lg border bg-background p-3 sm:p-4 ${phase.archived ? "opacity-70" : ""}`}>
-          {draft ? <div>
+         return <article key={phase.id} className={`rounded-md border bg-background px-2.5 py-2 ${phase.archived ? "opacity-70" : ""}`}>
+           {draft ? <div>
             <fieldset disabled={locked || phasePatch.isPending} className="m-0 min-w-0 border-0 p-0">
-              <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1 text-xs font-medium"><span>Phase name</span><ScopeChoice label="Phase name" options={PHASE_TYPES} value={draft.name} onChange={name => setEditing(current => ({ ...current, [phase.id]: { ...draft, name } }))} placeholder="Select a phase" /></div><label className="space-y-1 text-xs font-medium">Timeline<Input maxLength={200} value={draft.timeline} onChange={event => setEditing(current => ({ ...current, [phase.id]: { ...draft, timeline: event.target.value } }))} /></label>
+              <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1 text-xs font-medium"><span>Phase name</span><ScopeChoice label="Phase name" options={PHASE_TYPES} value={draft.name} onChange={name => setEditing(current => ({ ...current, [phase.id]: { ...draft, name } }))} placeholder="Select a phase" /></div><label className="grid min-w-0 gap-1.5 text-xs font-medium">Timeline<Input maxLength={200} value={draft.timeline} onChange={event => setEditing(current => ({ ...current, [phase.id]: { ...draft, timeline: event.target.value } }))} /></label>
                 <div className="sm:col-span-2"><div className="mb-2 flex justify-between"><span className="text-xs font-medium">Fee lines</span><Button variant="outline" size="sm" disabled={locked || phasePatch.isPending} onClick={() => setEditing(current => ({ ...current, [phase.id]: { ...draft, feeLines: [...draft.feeLines, { consultant: "", feeType: "Fixed", amount: null }] } }))}><Plus className="mr-1 h-3.5 w-3.5" />Fee line</Button></div><FeeRows lines={draft.feeLines} onChange={feeLines => setEditing(current => ({ ...current, [phase.id]: { ...draft, feeLines } }))} disabled={locked || phasePatch.isPending} /></div>
               </div>
             </fieldset>
             <div className="mt-4 flex justify-end gap-2"><Button variant="ghost" size="sm" disabled={locked || phasePatch.isPending} onClick={() => setEditing(current => { const next = { ...current }; delete next[phase.id]; return next; })}>Cancel</Button><Button size="sm" disabled={locked || !draft.name.trim() || draft.feeLines.some(line => !line.consultant.trim()) || phasePatch.isPending} onClick={() => phasePatch.mutate({ phaseId: phase.id, version: draft.version, body: { name: draft.name.trim(), timeline: draft.timeline.trim() || null, feeLines: draft.feeLines } }, { onSuccess: () => setEditing(current => { const next = { ...current }; delete next[phase.id]; return next; }) })}>{phasePatch.isPending ? "Saving…" : "Save phase"}</Button></div>
-          </div> : <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">{phase.name}</h3>{phase.archived && <Badge variant="secondary">Archived</Badge>}{phase.timeline && <span className="text-xs text-muted-foreground">{phase.timeline}</span>}</div>
-              {phase.feeLines.length > 0 && <div className="mt-2 space-y-1">{phase.feeLines.map((line, i) => <div key={line.id || i} className="flex flex-wrap justify-between gap-x-4 text-xs text-muted-foreground"><span>{line.consultant} · {line.feeType}</span><span>{line.feeType === "Hourly" ? line.amount ? `Reference amount ${formatCurrencyOrDash(line.amount)}` : "No reference amount" : line.amount ? formatCurrencyOrDash(line.amount) : "Unpriced"}</span></div>)}{feeTotal(phase) > 0 && <p className="pt-1 text-xs font-medium text-foreground">Fixed fee subtotal {formatCurrencyOrDash(feeTotal(phase).toFixed(2))}</p>}</div>}
+           </div> : <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5"><h3 className="max-w-full break-words text-sm font-semibold">{phase.name}</h3>{phase.archived && <Badge variant="secondary">Archived</Badge>}{phase.timeline && <span className="max-w-full break-words text-xs text-muted-foreground">{phase.timeline}</span>}
+               {phase.feeLines.length > 0 && <details className="basis-full text-xs text-muted-foreground sm:basis-auto">
+                 <summary className="w-fit cursor-pointer select-none underline decoration-muted-foreground/40 underline-offset-2">{phase.feeLines.length} fee {phase.feeLines.length === 1 ? "line" : "lines"}</summary>
+                  <div className="mt-1 space-y-1 sm:min-w-64">
+                   {phase.feeLines.map((line, i) => <div key={line.id || i} className="flex flex-wrap justify-between gap-x-4"><span>{line.consultant} · {line.feeType}</span><span>{line.feeType === "Hourly" ? line.amount ? `Reference amount ${formatCurrencyOrDash(line.amount)}` : "No reference amount" : line.amount ? formatCurrencyOrDash(line.amount) : "Unpriced"}</span></div>)}
+                   {fixedFeeTotal(phase) !== null && <p className="border-t pt-1 font-medium text-foreground">Fixed fee total {formatCurrencyOrDash(fixedFeeTotal(phase)!.toFixed(2))}</p>}
+                 </div>
+               </details>}
             </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Move ${phase.name} up`} disabled={locked || index === 0 || hasPhaseDraft || isPhaseMutationPending} onClick={() => move(phase, -1)}><ArrowUp className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Move ${phase.name} down`} disabled={locked || index === sorted.length - 1 || hasPhaseDraft || isPhaseMutationPending} onClick={() => move(phase, 1)}><ArrowDown className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="sm" disabled={locked || hasPhaseDraft || isPhaseMutationPending} onClick={() => setEditing({ [phase.id]: { version: phase.version, name: phase.name, timeline: phase.timeline ?? "", feeLines: phase.feeLines.map(({ consultant, feeType, amount }) => ({ consultant, feeType, amount })) } })}>Edit</Button>
+             <div className="flex shrink-0 items-center gap-0">
+               <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Move ${phase.name} up`} disabled={locked || index === 0 || hasPhaseDraft || isPhaseMutationPending} onClick={() => move(phase, -1)}><ArrowUp className="h-3.5 w-3.5" /></Button>
+               <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Move ${phase.name} down`} disabled={locked || index === sorted.length - 1 || hasPhaseDraft || isPhaseMutationPending} onClick={() => move(phase, 1)}><ArrowDown className="h-3.5 w-3.5" /></Button>
+               <Button variant="ghost" size="sm" className="h-7 px-2" disabled={locked || hasPhaseDraft || isPhaseMutationPending} onClick={() => setEditing({ [phase.id]: { version: phase.version, name: phase.name, timeline: phase.timeline ?? "", feeLines: phase.feeLines.map(({ consultant, feeType, amount }) => ({ consultant, feeType, amount })) } })}>Edit</Button>
               <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={phase.archived ? `Restore ${phase.name}` : `Archive ${phase.name}`} disabled={locked || hasPhaseDraft || isPhaseMutationPending} onClick={() => phasePatch.mutate({ phaseId: phase.id, version: phase.version, body: { archived: !phase.archived } })}>{phase.archived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}</Button>
             </div>
           </div>}
@@ -228,7 +235,7 @@ export function PhaseTimelineEditor({
 }
 
 function FeeRows({ lines, onChange, disabled = false }: { lines: FeeInput[]; onChange: (lines: FeeInput[]) => void; disabled?: boolean }) {
-  if (!lines.length) return <p className="rounded-md border border-dashed px-3 py-3 text-xs text-muted-foreground">No fee lines. Fees are optional.</p>;
+  if (!lines.length) return <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">No fee lines</p>;
   return <div className="space-y-2">{lines.map((line, index) => <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px_130px_36px]">
     <ScopeChoice disabled={disabled} label={`Consultant or service ${index + 1}`} options={CONSULTANTS} value={line.consultant} onChange={consultant => onChange(lines.map((item, i) => i === index ? { ...item, consultant } : item))} placeholder="Select consultant or service" />
     <select disabled={disabled} aria-label={`Fee type ${index + 1}`} className={field} value={line.feeType} onChange={event => onChange(lines.map((item, i) => i === index ? { ...item, feeType: event.target.value as FeeInput["feeType"] } : item))}><option>Fixed</option><option>Hourly</option></select>
