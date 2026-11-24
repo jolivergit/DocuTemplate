@@ -27,9 +27,9 @@ The user did not need the retired standalone project notes saved.
 
 **How to apply:** Do not add a legacy-notes archive or restore retired notes. This does not prohibit new general notes in the running project log.
 
-The desired flow is: start a project; pick the team and collaborating companies; pick phases, fees and an optional general timeline; then maintain Work in motion. The team has Project Admin, Project Manager and Designer roles. Each role can have one or many people.
+The desired flow is: start a project; pick the team and collaborating companies; pick phases, fees and an optional general timeline; then maintain Work in motion. The page order is Project Details → Phases → Work in motion → Documents & billing. Phases has its own collapsible section, independent of Project Details. The team has Project Admin, Project Manager and Designer roles. Each role can have one or many people.
 
-**Why:** The user showed the customer the task-first implementation and reported that it was still clunky, with too many pop-ups.
+**Why:** The user showed the customer the task-first implementation and reported that it was still clunky, with too many pop-ups; they later explicitly specified this section order and a separate Phases disclosure.
 
 **How to apply:** Plan around this setup-to-daily-work sequence, inline interaction and a streamlined project page without tabs. Keep existing project statuses. Do not present a separate “shared project phases” section: phase reuse is inherent, not something users should have to manage.
 

@@ -22,7 +22,7 @@ const statusIsConflict = (error: unknown) => (error as { status?: number } | nul
 
 export function PhaseTimelineEditor({
   leadId, generalTimeline, version, phases, work, workLoading = false, workError = false,
-  disabled = false, onRetryWork, onDirtyChange,
+  disabled = false, onRetryWork, onDirtyChange, showHeading = true,
 }: {
   leadId: number;
   generalTimeline: string;
@@ -34,6 +34,7 @@ export function PhaseTimelineEditor({
   disabled?: boolean;
   onRetryWork?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
+  showHeading?: boolean;
 }) {
   const [timeline, setTimeline] = useState(generalTimeline);
   const [timelineBase, setTimelineBase] = useState({ value: generalTimeline, version });
@@ -171,9 +172,9 @@ export function PhaseTimelineEditor({
     setTimeline(timelineBase.value);
   };
 
-  return <section aria-labelledby={`phase-heading-${leadId}`}>
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <h2 id={`phase-heading-${leadId}`} className="text-base font-semibold">Phases, fees & timeline</h2>
+  return <section aria-labelledby={showHeading ? `phase-heading-${leadId}` : undefined} aria-label={showHeading ? undefined : "Phase fees and timeline"}>
+    <div className={`flex flex-wrap items-center gap-2 ${showHeading ? "justify-between" : "justify-end"}`}>
+      {showHeading && <h2 id={`phase-heading-${leadId}`} className="text-base font-semibold">Phases, fees & timeline</h2>}
       <Button variant="outline" size="sm" onClick={() => setAdding(true)} disabled={locked || adding || hasPhaseDraft || isPhaseMutationPending || workLoading || workError}><Plus className="mr-1.5 h-4 w-4" />Add phase</Button>
     </div>
     {workLoading && <div className="mt-4 space-y-2" aria-label="Loading phases"><Skeleton className="h-16 w-full rounded-lg" /><Skeleton className="h-16 w-full rounded-lg" /></div>}

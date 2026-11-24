@@ -40,7 +40,7 @@ Use this fictional example throughout the guide: **Maple Street Studio Renovatio
 2. In the sidebar, open **Settings → Firm**. Enter your studio's details and click **Save**. Open **Settings → Contact**, enter your own primary contact name and title, and click **Save**.
 3. Open **Companies → New Company** and save Maple Street Design. Open **Contacts → New Contact** and save a fictional client contact, such as Jordan Sample. Link the contact to the company if desired.
 4. Open **Projects → New Project**. Enter Maple Street Studio Renovation and click **Create and continue**. The saved project opens with setup directly on the page. You are its first **Project Admin**. Select teammates and their project roles, then **Save team**. In **Companies**, use **Add company entry** to link Maple Street Design and its contact, enter its project role, then **Save companies**.
-5. Under **Phases, fees & timeline**, optionally save a general timeline, add a phase named **Schematic Design**, enter a phase timeline such as **5 weeks**, and add an **Interior Design / Fixed / 10000** fee line. Save the phase, then **Finish setup**. Next choose **Proposals → New Proposal → Standard Proposal**, name it Maple Street Design Proposal, select that phase, and click **Create proposal**. You do not enter its fee again.
+5. Open **Phases**, optionally save a general timeline, add a phase named **Schematic Design**, enter a phase timeline such as **5 weeks**, and add an **Interior Design / Fixed / 10000** fee line. Save the phase, then **Finish setup**. Next choose **Proposals → New Proposal → Standard Proposal**, name it Maple Street Design Proposal, select that phase, and click **Create proposal**. You do not enter its fee again.
 6. Open the saved proposal and click **Load to Doc Builder**. This loads its name, total, project name, and available firm details into the field library.
 7. Have a Google Doc template ready with `{{project_name}}`, `{{proposal_name}}`, `{{proposal_total}}`, and `{{firm_name}}` typed into its body. See **Use Doc Builder** for a sample.
 8. In Doc Builder click **Load Template**. If asked, click **Connect Google**, complete the separate document permission screen using the same account, then click **Pick a Google Docs template** and select your template.
@@ -211,8 +211,8 @@ Studio PM uses one project record throughout the relationship, even when the wor
 2. Enter only the **Project name**, then **Create and continue**. This creates a real saved Lead, even if you stop before finishing setup.
 3. In **Project basics**, enter a description, status, probability, square footage and potential fee as known, then **Save details**. Probability expresses confidence in winning the work; it is not proposal approval.
 4. Pick the **Team** and collaborating **Companies** directly on the page. These appear side by side on a wide screen and stack on a phone. Save each section. A company entry can link an existing company/contact or hold project-specific names and addresses; it does not create a new address-book record. Custom roles and several companies with the same role are supported.
-5. Under **Phases, fees & timeline**, add named stages of work, optional fee lines and optional timelines. You can add ad-hoc phases later. **5 weeks** and **8–10 weeks** are examples, not required dates; project and phase timelines do not calculate task due dates.
-6. Save any edits, then **Finish setup**. At least one Project Admin is required. You can leave companies, fees and timelines empty while information is unknown. The details close to a compact project header so **Work in motion** is easy to reach. Use **Project details** to reopen the same inline sections whenever you want to view or edit them. There is no separate view-only summary or edit mode.
+5. In the separate **Phases** section, add named stages of work, optional fee lines and optional timelines. You can add ad-hoc phases later. **5 weeks** and **8–10 weeks** are examples, not required dates; project and phase timelines do not calculate task due dates.
+6. Save any edits, then **Finish setup** at the bottom of Phases. At least one Project Admin is required. You can leave companies, fees and timelines empty while information is unknown. Project details and Phases close so **Work in motion** is easy to reach. Open either section independently to view or edit it. There is no separate view-only summary or edit mode.
 
 Search the Projects list by name and use the status filter to narrow results. Click a project card to open its full record. Incomplete setup remains expanded when you return. Completed setup stays compact. You can update the saved information without opening the old project-edit popup.
 
@@ -236,20 +236,25 @@ The project is one page, in this order:
 
 1. **Project details:** completed setup stays compact with project
    name/status, optional general timeline and active phase count. Use the single
-   **Project details** toggle to view or edit the saved information inline.
-   New or unfinished projects still open the
-   guided setup: identity/status → team/companies → phases, fees and timelines.
-2. **Work in motion:** the main daily-work area, with a compact active-work
+   **Project details** toggle to view or edit Project basics, Team and Companies.
+2. **Phases:** a separate collapsible section for phases, fees and the general
+   timeline. It starts closed on configured projects; new or unfinished projects
+   open both Project details and Phases.
+3. **Work in motion:** the main daily-work area, with a compact active-work
    summary and **Add update** above the running log of tasks, reminders, meetings
    and notes.
-3. **Documents & billing:** supporting proposals, time/expenses and invoices.
+4. **Documents & billing:** supporting proposals, time/expenses and invoices.
    Sections start closed; open the relevant section and record in place when needed.
 
 **Project details** opens and closes the same inline sections; it does not save
 changes. Save or cancel edits inside each section. If you close project details
 with unsaved changes there, you are asked whether to discard them. Cancelling
-that warning leaves the sections and your draft open. Work in motion drafts
-are separate and are not discarded by this toggle.
+that warning leaves the sections and your draft open. Phase and Work in motion
+drafts are separate and are not discarded by this toggle.
+
+**Phases** opens independently of Project details. Collapsing Phases only hides
+its fields: unsaved timeline, phase and fee edits stay in place when you reopen
+it. It does not save, discard or change project details or Work in motion.
 
 **Team and Companies start collapsed**, even while setup is open. Their headers
 show saved counts and a short names/roles summary. Click either header to expand
@@ -455,7 +460,7 @@ Neither action sends email or processes payment. The detail view advances status
 
 ### Create phases once
 
-1. Open **Project details**, find **Phases, fees & timeline** and click **Add phase**.
+1. Open the separate **Phases** section and click **Add phase**.
 2. Choose **Phase name** from the dropdown, or select **Other / custom** and enter an ad-hoc name. Ad-hoc phases can be added at any point; you are not limited to the suggested list. The same choices are available when editing a phase.
 3. Optionally enter **Estimated timeline**, such as **5 weeks** or **8–10 weeks**. Leave it blank if unknown. This is an estimate, not a required start/end date or an automatic task schedule.
 4. Optionally add a fee line, choose **Consultant or service** from its dropdown (or **Other / custom** for your own name), choose Fixed or Hourly, and save. More fee rows can be added through the phase's Edit controls.

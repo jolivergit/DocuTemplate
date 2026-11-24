@@ -43,6 +43,7 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
   const [identityBase, setIdentityBase] = useState(() => ({ value: identityFrom(lead), version: lead.setupVersion }));
   const [identityOpen, setIdentityOpen] = useState(!lead.setupComplete);
   const [setupExpanded, setSetupExpanded] = useState(!lead.setupComplete);
+  const [phasesExpanded, setPhasesExpanded] = useState(!lead.setupComplete);
   const [message, setMessage] = useState("");
   const [sectionDirty, setSectionDirty] = useState({ team: false, companies: false, phases: false });
   const [teamSavingLocal, setTeamSavingLocal] = useState(false);
@@ -88,6 +89,7 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
       queryClient.setQueryData(["/api/leads", id], updated);
       void queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       setSetupExpanded(false);
+      setPhasesExpanded(false);
       setMessage("");
     },
     onError: error => setMessage(error instanceof Error ? error.message : "Could not complete setup."),
@@ -96,7 +98,8 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
   const hasAdmin = team?.hasAdmin ?? false;
   const canComplete = !!team?.canManage && team.members.some(member => member.assigned && member.roles.includes("Project Admin"));
   const dirtyIdentity = JSON.stringify(identity) !== JSON.stringify(identityBase.value);
-  const setupHasUnsaved = dirtyIdentity || sectionDirty.team || sectionDirty.companies || sectionDirty.phases;
+  const detailsHasUnsaved = dirtyIdentity || sectionDirty.team || sectionDirty.companies;
+  const setupHasUnsaved = detailsHasUnsaved || sectionDirty.phases;
   const hasUnsaved = setupHasUnsaved || workDirty;
   const dirtyCallback = useRef(onDirtyChange);
   dirtyCallback.current = onDirtyChange;
@@ -128,10 +131,10 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
   useEffect(() => { dirtyCallback.current?.(setupHasUnsaved); }, [setupHasUnsaved]);
   const toggleSetup = () => {
     if (setupMutationPending) return;
-    if (setupExpanded && setupHasUnsaved && !window.confirm("Discard unsaved project changes and close project details?")) return;
-    if (setupExpanded && setupHasUnsaved) {
+    if (setupExpanded && detailsHasUnsaved && !window.confirm("Discard unsaved project changes and close project details?")) return;
+    if (setupExpanded && detailsHasUnsaved) {
       setIdentity(identityBase.value);
-      setSectionDirty({ team: false, companies: false, phases: false });
+      setSectionDirty(current => ({ ...current, team: false, companies: false }));
     }
     setSetupExpanded(value => !value);
   };
@@ -162,6 +165,7 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
   const activePhaseCount = work ? work.phases.filter(phase => !phase.archived).length : 0;
 
   return (
+    <>
     <section className="overflow-hidden rounded-xl border bg-card" aria-label="Project details">
       <ProjectContextHeader
         projectName={lead.projectName}
@@ -273,19 +277,27 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
             </section>
           </div>
 
-          <section className="px-4 py-5 sm:px-6">
-            <PhaseTimelineEditor leadId={id} generalTimeline={lead.generalTimeline ?? ""} version={lead.setupVersion} phases={work?.phases ?? []} work={work} workLoading={workLoading} workError={workError} disabled={teamSaving} onRetryWork={() => void refetchWork()} onDirtyChange={dirty => setSectionDirty(current => current.phases === dirty ? current : { ...current, phases: dirty })} />
-          </section>
-
-          {!lead.setupComplete && team?.canManage && <div className="flex justify-end px-4 py-3 sm:px-6">
-              <Button size="sm" onClick={() => completeSetup.mutate()} disabled={!canComplete || hasUnsaved || setupMutationPending}>
-                {completeSetup.isPending ? "Finishing…" : <>Finish setup <ArrowRight className="ml-2 h-4 w-4" /></>}
-              </Button>
-          </div>}
         </div>
         </fieldset>
       )}
       </div>
     </section>
+    <section id="project-phases" className="overflow-hidden rounded-xl border bg-card" aria-labelledby={`project-phases-heading-${id}`}>
+      <h2 id={`project-phases-heading-${id}`}>
+        <button type="button" className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-6" aria-expanded={phasesExpanded} aria-controls={`project-phases-content-${id}`} onClick={() => setPhasesExpanded(value => !value)}>
+          <span>Phases</span>
+          {phasesExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+      </h2>
+      <div id={`project-phases-content-${id}`} hidden={!phasesExpanded} className="border-t px-4 py-4 sm:px-6">
+        <PhaseTimelineEditor showHeading={false} leadId={id} generalTimeline={lead.generalTimeline ?? ""} version={lead.setupVersion} phases={work?.phases ?? []} work={work} workLoading={workLoading} workError={workError} disabled={teamSaving} onRetryWork={() => void refetchWork()} onDirtyChange={dirty => setSectionDirty(current => current.phases === dirty ? current : { ...current, phases: dirty })} />
+        {!lead.setupComplete && team?.canManage && <div className="mt-4 flex justify-end border-t pt-3">
+          <Button size="sm" onClick={() => completeSetup.mutate()} disabled={!canComplete || hasUnsaved || setupMutationPending}>
+            {completeSetup.isPending ? "Finishing…" : <>Finish setup <ArrowRight className="ml-2 h-4 w-4" /></>}
+          </Button>
+        </div>}
+      </div>
+    </section>
+    </>
   );
 }
