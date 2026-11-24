@@ -21,17 +21,17 @@ export function WorkMotionHeader({ summary, addDisabled, onAddUpdate }: Props) {
     ? `${dateLabel(meeting.meetingDate)}${meeting.meetingTime ? ` · ${meeting.meetingTime}` : " · Time not set"}`
     : "";
 
-  return <header className="border-b bg-muted/15 px-4 py-5 sm:px-6">
-    <div className="flex flex-wrap items-center justify-between gap-4">
+  return <header className="border-b bg-muted/20 px-4 py-3 sm:px-6">
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="text-2xl font-semibold normal-case tracking-normal">Work in motion</h2>
-        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Active work: <span className="font-medium text-foreground">{summary.open} open</span> <span className="mx-1.5" aria-hidden="true">·</span><span className={summary.overdue ? "font-semibold text-foreground" : ""}>{summary.overdue} overdue</span> <span className="mx-1.5" aria-hidden="true">·</span>{summary.blocked} blocked <span className="mx-1.5" aria-hidden="true">·</span>{summary.done} done</p>
+        <h2 className="text-base font-semibold">Work in motion</h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Active work: <span className="font-medium text-foreground">{summary.open} open</span> <span className="mx-1.5" aria-hidden="true">·</span><span className={summary.overdue ? "font-semibold text-foreground" : ""}>{summary.overdue} overdue</span> <span className="mx-1.5" aria-hidden="true">·</span>{summary.blocked} blocked <span className="mx-1.5" aria-hidden="true">·</span>{summary.done} done</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button className="h-10 px-4" disabled={addDisabled} onClick={onAddUpdate}><Plus className="mr-1.5 h-4 w-4" />Add update</Button>
+        <Button size="sm" className="h-8 px-3" disabled={addDisabled} onClick={onAddUpdate}><Plus className="mr-1.5 h-4 w-4" />Add update</Button>
       </div>
     </div>
-    {meeting && <div className="mt-3 flex min-w-0 items-start gap-2 border-t pt-3 text-sm">
+    {meeting && <div className="mt-2 flex min-w-0 items-start gap-2 border-t pt-2 text-sm">
       <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">

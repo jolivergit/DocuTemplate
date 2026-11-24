@@ -284,8 +284,8 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
     </section>
     <section id="project-phases" className="overflow-hidden rounded-xl border bg-card" aria-labelledby={`project-phases-heading-${id}`}>
       <h2 id={`project-phases-heading-${id}`}>
-        <button type="button" className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-6" aria-expanded={phasesExpanded} aria-controls={`project-phases-content-${id}`} onClick={() => setPhasesExpanded(value => !value)}>
-          <span>Phases</span>
+        <button type="button" className="flex w-full items-center justify-between gap-3 bg-muted/20 px-4 py-3 text-left text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-6" aria-expanded={phasesExpanded} aria-controls={`project-phases-content-${id}`} onClick={() => setPhasesExpanded(value => !value)}>
+          <span className="uppercase">Phases</span>
           {phasesExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
       </h2>

@@ -252,7 +252,7 @@ export function ProjectWorkWorkspace({ leadId, onDirtyChange }: { leadId: number
   return <div className="space-y-5">
     {isError && data && <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"><span>The latest refresh failed. Saved entries and any open drafts are still here.</span><Button size="sm" variant="ghost" onClick={() => void refetch()}>Retry</Button></div>}
     {saveError && !composer && <div role="alert" className="flex items-start justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm"><span>{saveError}</span><Button size="icon" variant="ghost" aria-label="Dismiss message" onClick={() => setSaveError("")}><X className="h-4 w-4" /></Button></div>}
-    <section className="overflow-hidden rounded-lg border bg-card" aria-label="Work in motion">
+    <section className="overflow-hidden rounded-xl border bg-card" aria-label="Work in motion">
       <WorkMotionHeader
         summary={summary}
         addDisabled={!!pendingCount || activeEditor}

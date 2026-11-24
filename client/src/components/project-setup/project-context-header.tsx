@@ -20,9 +20,9 @@ export function ProjectContextHeader({
   projectName, status, setupComplete, timeline, activePhaseCount, phaseLoading, phaseError,
   setupExpanded, detailsId, setupDisabled, onToggleSetup,
 }: Props) {
-  return <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+  return <div className={`flex flex-wrap items-center justify-between gap-3 bg-muted/20 px-4 py-3 sm:px-6${setupExpanded || !setupComplete ? " border-b" : ""}`}>
     <div className="min-w-0">
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <h2 className="line-clamp-2 max-w-full break-words text-base font-semibold">{projectName}</h2>
         <Badge variant="outline" className="text-[10px]">{status}</Badge>
       </div>
@@ -35,7 +35,7 @@ export function ProjectContextHeader({
       ) : null}
     </div>
     <div className="flex flex-wrap items-center gap-2">
-      {setupComplete && <Button type="button" variant="outline" size="sm" onClick={onToggleSetup} disabled={setupDisabled} aria-expanded={setupExpanded} aria-controls={detailsId}>
+      {setupComplete && <Button type="button" variant="outline" size="sm" className="h-8" onClick={onToggleSetup} disabled={setupDisabled} aria-expanded={setupExpanded} aria-controls={detailsId}>
         Project details
         {setupExpanded ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
       </Button>}

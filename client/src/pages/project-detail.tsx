@@ -83,8 +83,8 @@ export default function ProjectDetailPage({ params }: Props) {
         </fieldset>
 
         <section id="project-supporting-records" className="scroll-mt-5 overflow-hidden rounded-xl border bg-card">
-          <div className="border-b bg-muted/20 px-4 py-4 sm:px-6">
-            <h2 className="text-lg font-semibold">Documents & billing</h2>
+          <div className="border-b bg-muted/20 px-4 py-3 sm:px-6">
+            <h2 className="text-base font-semibold">Documents & billing</h2>
           </div>
           <fieldset disabled={teamSaving} aria-busy={teamSaving} className="m-0 min-w-0 border-0 p-0">
             <details id="project-proposals" className="group border-b scroll-mt-5">
