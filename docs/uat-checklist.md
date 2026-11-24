@@ -8,6 +8,13 @@ Use this alongside the Studio PM User Guide. UAT means user acceptance testing: 
 
 ### Development verification — November 23, 2026
 
+- Work in motion date controls passed TypeScript and 12 project-page/date tests,
+  including local-date round trips across four timezones and daylight-saving
+  boundaries. One isolated real-component browser pass verified Task calendar
+  selection and captured submission, changing/clearing the captured date,
+  Reminder date selection, Meeting date/time clearing, phone calendar selection,
+  Escape/focus return and disabled saving controls. No customer records or APIs
+  were written. This was not signed-in persistence/reload UAT; P8 remains Not run.
 - The separate Phases disclosure passed TypeScript and 10 project-page checks.
   Mocked component-handler checks confirmed independent disclosure states,
   a stable mounted phase-editor position through collapse and Project details
@@ -193,6 +200,7 @@ Use Firm A for this sequence. Reuse one fictional project, for example **UAT Map
 | P5 | On this practice invoice only, simulate sending and payment with Mark as Sent and Mark as Paid. Inspect Dashboard summaries. Start a later invoice at 50% complete and review before saving. | Statuses are recordkeeping, not email or payment processing. Totals follow access/statuses. With $2,500 previous fixed billing, 50% cumulative gives $2,500 new fixed billing, not $5,000; do not reattach the first invoice's entries. | Not run |
 | P6 | Add a general Note in Work in motion, then a discussion update to a practice task and reload. Correct discussion by posting another update if needed. | The general Note needs no task title or due date. Discussion retains author/dates/text and stays under its original entry. No separate Notes tab or client message is created. | Not run |
 | P7 | Check project lists, company/contact lists, Dashboard totals and the practice project link while switching between Firms A and B. | Firm A's records do not appear in Firm B. Owning both firms does not merge their business records. Personal content library/contact values may remain available because they are personal, not firm-shared. | Not run |
+| P8 | On a practice task, click the Due date field, select a day in another month and save. Reload, edit the date and save again; then remove it using Clear date. Repeat date selection for a Reminder and a Meeting, including clearing a Meeting date after entering its time. Check phone width and keyboard access. | Clicking the date field opens an in-page calendar. New and edited dates persist as the exact selected calendar day after reload, without timezone shifts. Clearing a due date saves no due date; clearing a Meeting date also clears its time. Calendar selection never submits the form, stays within the viewport and is disabled while saving. | Not run |
 
 ## Inline project setup and project roles
 

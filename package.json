@@ -13,7 +13,7 @@
     "test:project-work": "tsx --test server/project-work.test.ts",
     "test:project-setup": "tsx --test server/project-setup.test.ts",
     "test:project-log": "tsx --test server/project-log.test.ts",
-    "test:project-page": "tsx --test server/project-page.test.ts client/src/lib/work-motion-summary.test.ts",
+    "test:project-page": "tsx --test server/project-page.test.ts client/src/lib/work-motion-summary.test.ts client/src/lib/date-only.test.ts",
     "db:migrate:project-log": "tsx scripts/migrate-project-log.ts",
     "db:migrate:project-setup": "tsx scripts/migrate-project-setup.ts",
     "db:migrate:project-work": "tsx scripts/migrate-project-work.ts",

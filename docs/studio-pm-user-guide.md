@@ -491,6 +491,11 @@ page.
 | Meeting | A title or meeting notes, plus an optional manually entered meeting date/time. A time needs a date. No invitation is sent or calendar event created. |
 | Note | Write the note itself. No task title, priority, status or due date is required. |
 
+For a task or reminder, click **Choose date** in the due-date field to open the
+calendar, then select a day. Meetings use the same calendar for their meeting
+date. Click an existing date to change it, or use **Clear date** in the calendar
+to remove it. Dates remain optional when adding or editing an entry.
+
 Any kind can optionally reference a phase and an eligible teammate. Leave them
 blank when they do not apply. Choosing a role with several people never chooses
 one person for you. Address-book contacts are not app teammates; referencing a
