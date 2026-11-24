@@ -1,5 +1,17 @@
 type PhaseReference = { projectPhaseId?: string | null };
 
+/** New documents start with active project scope; saved selections are never inferred. */
+export function initialProposalPhaseIds(
+  projectPhases: { id: string; archived: boolean; sortOrder: number }[],
+  existingPhases?: PhaseReference[],
+): string[] {
+  if (existingPhases !== undefined) {
+    return existingPhases.map(phase => phase.projectPhaseId).filter((id): id is string => !!id);
+  }
+  return projectPhases.filter(phase => !phase.archived)
+    .sort((a, b) => a.sortOrder - b.sortOrder).map(phase => phase.id);
+}
+
 /** Omitting scope is a metadata edit, never an instruction to clear or expand it. */
 export function scopeSaveFields(options: {
   editing: boolean;

@@ -13,9 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { formatCurrencyOrDash } from "@/lib/utils";
 import { PROPOSAL_STATUSES, type ProposalWithPhases } from "@shared/schema";
 import type { ProjectWork, WorkPhase } from "@shared/project-work";
-import { scopeSaveFields } from "@shared/proposal-scope";
+import { initialProposalPhaseIds, scopeSaveFields } from "@shared/proposal-scope";
 
-type ExistingPhaseMapping = ProposalWithPhases["phases"][number] & { projectPhaseId?: string | null };
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -43,28 +42,28 @@ export function ProposalFormDialog({ open, onOpenChange, leadId, existing, onSav
   const hasUnmappedScope = !!existing?.phases.some(phase => !phase.projectPhaseId);
   const [formError, setFormError] = useState("");
   const initializedFor = useRef("");
+  const initialPhaseIds = useRef<string[]>([]);
   const { data: work, isLoading: workLoading, isError: workError, refetch } = useQuery<ProjectWork>({ queryKey: workKey(leadId), enabled: open });
 
   useEffect(() => {
     if (!open) { initializedFor.current = ""; return; }
-    const key = `${existing?.id ?? "new"}`;
-    if (initializedFor.current === key || (!work && !workError)) return;
+    const key = `${leadId}:${existing?.id ?? "new"}`;
+    if (initializedFor.current === key || (!work && (!workError || !existing))) return;
     setName(existing?.name || "");
     setDescription(existing?.description || "");
     setStatus(existing?.status || "Draft");
-    const mapped = (existing?.phases || []).map(phase => {
-      return (phase as ExistingPhaseMapping).projectPhaseId;
-    }).filter((id): id is string => !!id);
-    setSelectedPhaseIds(mapped);
+    const selected = initialProposalPhaseIds(work?.phases ?? [], existing?.phases);
+    initialPhaseIds.current = selected;
+    setSelectedPhaseIds(selected);
     setScopeTouched(false);
     setLegacyReplacementConfirmed(false);
     setFormError("");
     initializedFor.current = key;
-  }, [open, existing?.id, work, workError]);
+  }, [open, leadId, existing?.id, work, workError]);
 
   const sortedPhases = useMemo(() => [...(work?.phases || [])].filter(phase => !phase.archived || selectedPhaseIds.includes(phase.id)).sort((a, b) => a.sortOrder - b.sortOrder), [work?.phases, selectedPhaseIds]);
-  const originalPhaseIds = (existing?.phases || []).map(phase => (phase as ExistingPhaseMapping).projectPhaseId).filter((id): id is string => !!id);
-  const isInitialized = initializedFor.current === `${existing?.id ?? "new"}`;
+  const originalPhaseIds = initialPhaseIds.current;
+  const isInitialized = initializedFor.current === `${leadId}:${existing?.id ?? "new"}`;
   const dirty = isInitialized && (name !== (existing?.name || "") || description !== (existing?.description || "") || status !== (existing?.status || "Draft") || !isIssued && (selectedPhaseIds.join("|") !== originalPhaseIds.join("|") || hasUnmappedScope && scopeTouched));
   const dirtyCallback = useRef(onDirtyChange);
   dirtyCallback.current = onDirtyChange;

@@ -9,7 +9,21 @@ import { users, workspaces, workspaceMembers, leads, proposals, proposalPhases, 
 import { ensurePersonalWorkspace } from "./workspaces";
 import { registerRoutes } from "./routes/index";
 import { taskInput, phaseInput, isTaskOverdue } from "@shared/project-work";
-import { scopeSaveFields, scopeRefreshIds } from "@shared/proposal-scope";
+import { initialProposalPhaseIds, scopeSaveFields, scopeRefreshIds } from "@shared/proposal-scope";
+
+test("new proposals preselect active project phases without expanding saved or legacy scope", () => {
+  const phases = [
+    { id: "later", archived: false, sortOrder: 2 },
+    { id: "archived", archived: true, sortOrder: 0 },
+    { id: "first", archived: false, sortOrder: 1 },
+  ];
+  assert.deepEqual(initialProposalPhaseIds(phases), ["first", "later"]);
+  assert.deepEqual(phases.map(phase => phase.id), ["later", "archived", "first"]);
+  assert.deepEqual(initialProposalPhaseIds([]), []);
+  assert.deepEqual(initialProposalPhaseIds(phases, []), []);
+  assert.deepEqual(initialProposalPhaseIds(phases, [{ projectPhaseId: "archived" }]), ["archived"]);
+  assert.deepEqual(initialProposalPhaseIds(phases, [{ projectPhaseId: null }]), []);
+});
 
 test("proposal UI distinguishes metadata, explicit empty scope and unresolved legacy selection", () => {
   const options = { editing: true, locked: false, selectionChanged: false, selectedPhaseIds: [] };
@@ -173,6 +187,30 @@ test("shared phase, task, proposal and access lifecycle", async t => {
       assert.equal((await A("GET", `/api/leads/${hidden.id}/work/tasks/${task.id}/notes`)).status, 404);
       assert.equal((await M("GET", base)).body.tasks.find((r: any) => r.id === task.id).noteCount, 1);
       assert.equal((await A("POST", `/api/leads/${project.id}/comments`, { content: "retired" })).status, 410);
+    });
+    await t.test("new proposal defaults persist both project phases and the list reports the same scope", async () => {
+      const fresh = (await A("POST", "/api/leads", { projectName: "Proposal phase defaults fixture" })).body;
+      const freshBase = `/api/leads/${fresh.id}/work`;
+      const first = (await A("POST", `${freshBase}/phases`, { name: "Unpriced design phase" })).body;
+      const second = (await A("POST", `${freshBase}/phases`, {
+        name: "Documentation", feeLines: [{ consultant: "Architecture", feeType: "Fixed", amount: "1500" }],
+      })).body;
+      const archived = (await A("POST", `${freshBase}/phases`, { name: "Retired phase" })).body;
+      assert.equal((await A("PATCH", `${freshBase}/phases/${archived.id}`, { version: archived.version, archived: true })).status, 200);
+      const work = (await A("GET", freshBase)).body;
+      const selected = initialProposalPhaseIds(work.phases);
+      assert.deepEqual(selected, [first.id, second.id]);
+      const saved = await A("POST", `/api/leads/${fresh.id}/proposals`, {
+        name: "Two-phase proposal",
+        ...scopeSaveFields({ editing: false, locked: false, selectionChanged: false, selectedPhaseIds: selected }),
+      });
+      assert.equal(saved.status, 200);
+      assert.equal(saved.body.phases.length, 2);
+      assert.deepEqual(saved.body.phases.map((phase: any) => phase.projectPhaseId), selected);
+      const listed = (await A("GET", `/api/leads/${fresh.id}/proposals`)).body.find((row: any) => row.id === saved.body.id);
+      assert.equal(listed.phases.length, 2);
+      assert.equal(listed.phases[0].feeLines.length, 0);
+      assert.equal(listed.phases[1].feeLines[0].amount, "1500.00");
     });
     await t.test("proposals reuse shared values while issued financial basis and tasks survive later edits", async () => {
       proposal = (await A("POST", `/api/leads/${project.id}/proposals`, { name: "Reusable scope", selectedPhaseIds: [phase.id] })).body;

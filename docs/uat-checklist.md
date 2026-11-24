@@ -8,6 +8,14 @@ Use this alongside the Studio PM User Guide. UAT means user acceptance testing: 
 
 ### Development verification — November 23, 2026
 
+- New Standard proposal defaults passed TypeScript and 16 project-work checks.
+  A disposable API project verified that two active phases (including an
+  unpriced phase) save and list as two proposal phases, excluding an archived
+  phase. Existing empty/legacy selections, issued fees and billing protections
+  passed. Actual form/card component checks verified checked defaults, explicit
+  submission IDs, deselection, clean initial dirty state, draft preservation on
+  refresh, metadata-only empty edits and recovery after a load error. Fictional
+  form/card rendering was inspected; no customer proposal scope was changed.
 - Discussion counts/previews passed TypeScript, production build, 13 project-log
   API checks and 12 project-page/date checks. API fixtures verified exact counts,
   latest-author attribution, bounded previews with full replies preserved,
@@ -210,6 +218,7 @@ Use Firm A for this sequence. Reuse one fictional project, for example **UAT Map
 | P7 | Check project lists, company/contact lists, Dashboard totals and the practice project link while switching between Firms A and B. | Firm A's records do not appear in Firm B. Owning both firms does not merge their business records. Personal content library/contact values may remain available because they are personal, not firm-shared. | Not run |
 | P8 | On a practice task, click the Due date field, select a day in another month and save. Reload, edit the date and save again; then remove it using Clear date. Repeat date selection for a Reminder and a Meeting, including clearing a Meeting date after entering its time. Check phone width and keyboard access. | Clicking the date field opens an in-page calendar. New and edited dates persist as the exact selected calendar day after reload, without timezone shifts. Clearing a due date saves no due date; clearing a Meeting date also clears its time. Calendar selection never submits the form, stays within the viewport and is disabled while saving. | Not run |
 | P9 | On a practice entry with no replies, open Discussion and post one reply, then another. Close the thread, reload and click the latest-comment preview to reopen it. Check long comments/author names at phone width and another entry with no replies. | The Discussion button shows the exact count and a stronger grayscale icon only when comments exist. The closed thread shows one truncated line with the latest author/comment, and either control opens the full thread inline. New replies update the count/preview; full text remains available. Empty entries have no count/preview. Indicators do not claim unread status, and other draft/saving guards still apply. | Not run |
+| P10 | On a practice project with two active phases and one archived phase, create a Standard proposal. Review the preselected phases, save and check the card. Reopen Edit and deselect one phase. Separately edit the name of an existing zero-phase draft without choosing phases. | A new proposal starts with the two active phases checked, including unpriced phases, and its saved card reports 2 phases. The archived phase is not added. Deliberately deselecting a phase saves the smaller scope. Existing empty, legacy and issued proposals are not automatically expanded; a metadata-only edit keeps the zero-phase scope. | Not run |
 
 ## Inline project setup and project roles
 

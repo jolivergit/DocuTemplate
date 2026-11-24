@@ -318,7 +318,7 @@ is blocked so an unsuccessful save cannot close and lose the form.
 1. Open the project, scroll to **Documents & billing**, and expand **Proposals & contracts**.
 2. Click **New Proposal → Standard Proposal**.
 3. Enter the proposal name, description, and status.
-4. Select the shared project phases you want to include. Their fees and optional timelines are shown for review, not entered a second time.
+4. Active project phases are already selected for a new Standard proposal, including phases without fees. Review them and uncheck any you do not want to include. Their fees and optional timelines are shown for review, not entered a second time.
 5. If a phase or fee needs changing, cancel this form and edit it on the project page, then reopen proposal preparation.
 6. Review the selection and click **Create proposal**. When editing an unissued proposal, use **Save proposal**.
 
@@ -327,6 +327,11 @@ For Maple Street, first create one Schematic Design phase on the project with an
 **Fixed versus Hourly:** Fixed amounts contribute to the proposal's fixed-fee total. An Hourly line is not a guaranteed lump sum; hours and rates are entered when billing. Do not read the displayed fixed-fee total as a forecast of all hourly work.
 
 Click a saved proposal to see its detail view. **Edit** changes document-specific information and, for an unissued proposal, its selected phases. **Load to Doc Builder** prepares its values for a document; it does not generate or send a document by itself.
+
+The phase count on a proposal card is the number selected for that document,
+not the total number on the project. Existing proposals keep their saved scope.
+If an earlier draft shows **0 phases**, open it, choose **Edit**, select the
+intended project phases and **Save proposal**.
 
 Draft/Revision preparation uses current shared phase names, timelines, and fee inputs. Sent, Signed, and other issued/closed proposal records retain their financial snapshot. Use the project-scope refresh action for an unissued document; for an issued document, create an updated draft instead. Later project changes do not rewrite issued documents or invoice amounts. A new phase does not automatically add a charge or change an existing proposal's selected scope.
 
