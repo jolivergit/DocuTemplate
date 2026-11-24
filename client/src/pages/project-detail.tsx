@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { ChevronLeft, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -90,21 +90,21 @@ export default function ProjectDetailPage({ params }: Props) {
             <details id="project-proposals" className="group border-b scroll-mt-5">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 marker:hidden sm:px-6">
                 <span className="text-sm font-semibold">Proposals & contracts</span>
-                <span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-muted-foreground group-open:inline">Close</span>
+                <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground group-open:rotate-180" />
               </summary>
               <div className="px-4 pb-5 sm:px-6"><ProposalsTab leadId={leadId} projectName={lead.projectName} onDirtyChange={setProposalDirty} guardedDirty={guardedDirty} /></div>
             </details>
             {(isProject || timeDirty) && <details id="project-time-expenses" className="group border-b scroll-mt-5">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 marker:hidden sm:px-6">
                 <span><span className="block text-sm font-semibold">Time & expenses</span>{!isProject && <span className="mt-1 block text-xs text-muted-foreground">Stage changed · draft is preserved; restore Active Project or Completed to save.</span>}</span>
-                <span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-muted-foreground group-open:inline">Close</span>
+                <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground group-open:rotate-180" />
               </summary>
               <div className="px-4 pb-5 sm:px-6"><TimeExpensesTab leadId={leadId} onDirtyChange={setTimeDirty} guardedDirty={guardedDirty} billingAllowed={isProject} /></div>
             </details>}
             {(isProject || invoiceDirty) && <details id="project-invoices" className="group scroll-mt-5">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 marker:hidden sm:px-6">
                 <span><span className="block text-sm font-semibold">Invoices</span>{!isProject && <span className="mt-1 block text-xs text-muted-foreground">Stage changed · existing billing draft is preserved until Active Project or Completed is restored.</span>}</span>
-                <span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-muted-foreground group-open:inline">Close</span>
+                <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground group-open:rotate-180" />
               </summary>
               <div className="px-4 pb-5 sm:px-6"><InvoicesTab leadId={leadId} lead={lead} onDirtyChange={setInvoiceDirty} guardedDirty={guardedDirty} billingAllowed={isProject} /></div>
             </details>}
