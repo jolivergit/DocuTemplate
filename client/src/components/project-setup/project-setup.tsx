@@ -189,7 +189,7 @@ export function ProjectSetup({ lead, workDirty = false, onDirtyChange }: Props) 
               if (identityOpen) setIdentity(identityBase.value);
               setIdentityOpen(value => !value);
             }} disabled={setupMutationPending} className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={identityOpen}>
-              <span className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary"><Layers3 className="h-4 w-4" /></span><span><span className="block text-sm font-semibold">Identity & status</span><span className="block text-xs text-muted-foreground">Name, lifecycle, and project scale</span></span></span>
+              <span className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary"><Layers3 className="h-4 w-4" /></span><span className="text-sm font-semibold">Project basics</span></span>
               {identityOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
             </button>
             {!identityOpen && <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 pl-12 text-sm"><span className="font-medium">{lead.projectName}</span><span className="text-muted-foreground">{lead.status}</span><span className="text-muted-foreground">{lead.squareFootage ? `${Number(lead.squareFootage).toLocaleString()} sq ft` : "Area not set"}</span></div>}

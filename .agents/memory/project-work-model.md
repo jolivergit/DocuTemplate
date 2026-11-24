@@ -39,9 +39,9 @@ The desired flow is: start a project; pick the team and collaborating companies;
 
 **How to apply:** Preserve the name and broaden the work model. Do not force every entry to have task fields or attach general notes to a task.
 
-Avoid redundant indicators on the project page, such as setup “Ready” or log count/sort badges; keep the actual project status.
+Avoid redundant indicators on the project page, such as setup “Ready” or log count/sort badges; keep the actual project status. Use titles alone when a section's contents are self-evident.
 
-**Why:** The user found these indicators confusing rather than useful.
+**Why:** The user found these indicators confusing rather than useful, and said explanatory subtitles are unnecessary when the contents are inherent.
 
 **How to apply:** Keep the project context and Work in motion focused on useful information and actions, not extra readiness or display-mode labels.
 

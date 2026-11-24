@@ -209,7 +209,7 @@ Studio PM uses one project record throughout the relationship, even when the wor
 
 1. Open **Projects → New Project**.
 2. Enter only the **Project name**, then **Create and continue**. This creates a real saved Lead, even if you stop before finishing setup.
-3. In **Identity & status**, enter a description, status, probability, square footage and potential fee as known, then **Save details**. Probability expresses confidence in winning the work; it is not proposal approval.
+3. In **Project basics**, enter a description, status, probability, square footage and potential fee as known, then **Save details**. Probability expresses confidence in winning the work; it is not proposal approval.
 4. Pick the **Team** and collaborating **Companies** directly on the page. These appear side by side on a wide screen and stack on a phone. Save each section. A company entry can link an existing company/contact or hold project-specific names and addresses; it does not create a new address-book record. Custom roles and several companies with the same role are supported.
 5. Under **Phases, fees & timeline**, add named stages of work, optional fee lines and optional timelines. You can add ad-hoc phases later. **5 weeks** and **8–10 weeks** are examples, not required dates; project and phase timelines do not calculate task due dates.
 6. Save any edits, then **Finish setup**. At least one Project Admin is required. You can leave companies, fees and timelines empty while information is unknown. The details close to a compact project header so **Work in motion** is easy to reach. Use **Project details** to reopen the same inline sections whenever you want to view or edit them. There is no separate view-only summary or edit mode.
@@ -226,7 +226,7 @@ Search the Projects list by name and use the status filter to narrow results. Cl
 | Completed | Work you have finished. |
 | Lost | An opportunity that did not proceed. |
 
-Change the status in **Project details → Identity & status**, then **Save details**.
+Change the status in **Project details → Project basics**, then **Save details**.
 
 **Important:** Manually changing a project to Active Project is not the same as signing its proposal. Invoices still need a signed Standard proposal.
 
@@ -668,7 +668,7 @@ If the creation dialog says the firm exists, use **Open firm** to retry switchin
 
 ### Time & Expenses or Invoices is missing
 
-These tabs appear only for Active Project and Completed records. Check **Project setup → Identity & status**. Do not change a status merely to make a tab appear unless it accurately describes the work.
+These sections appear only for Active Project and Completed records. Check **Project details → Project basics**. Do not change a status merely to make a section appear unless it accurately describes the work.
 
 ### There is no New Invoice button
 
